@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. A IDENTIDADE (Quem faz o login)
+model User {
+  id         String    @id @default(uuid())
+  name       String
+  email      String    @unique
+  password   String
+  phone      String
+  role       Role      @default(CLIENT)
+
+  refreshToken String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  isActive   Boolean   @default(true)
+  disabledAt DateTime? // Corrigido de dateTime? para DateTime?
+
+  businesses   Provider[] 
+  appointments Appointment[] 
+}
+
+enum Role {
+  CLIENT
+  PROVIDER
+}
+
+// 2. O NEGÓCIO (A Barbearia/Estúdio)
+model Provider {
+  id           String    @id @default(uuid())
+  userId       String   
+  businessName String
+  slug         String    @unique
+  whatsapp     String?   // Adicionado de volta o número público
+  chairsCount  Int       @default(1)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  isActive     Boolean   @default(true)
+  disabledAt   DateTime? // Corrigido de dateTime? para DateTime?
+
+  providerType String
+  district     String      
+  street       String
+  city         String
+  state        String
+  zipCode      String
+  number       String
+
+  owner              User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  services           Service[]
+  appointments       Appointment[]
+  workingHours       WorkingHour[]
+  scheduleExceptions ScheduleException[]
+}
+
+// 3. OS SERVIÇOS
+model Service {
+  id                 String    @id @default(uuid())
+  providerId         String
+  name               String
+  description        String?
+  durationMinutes    Int
+  totalPrice         Float
+  downPaymentPercent Int
+  availableEmployers Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  isActive           Boolean   @default(true)
+  disabledAt         DateTime? // Corrigido de dateTime? para DateTime?
+
+  provider           Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  appointments       Appointment[]
+}
+
+// 4. OS AGENDAMENTOS
+model Appointment {
+  id              String     @id @default(uuid())
+  providerId      String
+  serviceId       String
+  clientId        String
+  appointmentDate DateTime   
+  status          ApptStatus @default(PENDING_PAYMENT)
+  pixTxId         String?    
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt // Adicionado para rastrear mudanças de status
+  isActive        Boolean    @default(true)
+  disabledAt      DateTime?  // Corrigido de dateTime? para DateTime?
+
+  provider        Provider @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+enum ApptStatus {
+  PENDING_PAYMENT 
+  CONFIRMED       
+  COMPLETED       
+  CANCELED        
+}
+
+// 5. AGENDA SEMANAL
+model WorkingHour {
+  id         String   @id @default(uuid())
+  providerId String
+  dayOfWeek  Int      // 0 = Domingo, 1 = Segunda, 2 = Terça...
+  startTime  String   // "09:00"
+  endTime    String   // "18:00"
+  isClosed   Boolean  @default(false) 
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  @@unique([providerId, dayOfWeek])
+}
+
+// 6. EXCEÇÕES E FERIADOS
+model ScheduleException {
+  id         String    @id @default(uuid())
+  providerId String
+  date       DateTime
+  isClosed   Boolean   @default(true) 
+  
+  startTime  String?  
+  endTime    String?  
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  isActive   Boolean   @default(true)
+  disabledAt DateTime? // Corrigido de dateTime? para DateTime?
+
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
