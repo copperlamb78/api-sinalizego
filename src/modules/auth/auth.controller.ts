@@ -10,7 +10,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
   @ApiBody({ type: LoginDto, description: 'Credenciais de login do usuário' })
   @ApiResponse({
-    status: 200,
+    status: 201,
     description: 'Login realizado com sucesso',
     schema: {
       example: {
