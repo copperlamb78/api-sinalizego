@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { CreateProviderDto } from './dto/providers-create.dto';
@@ -53,5 +57,23 @@ export class ProvidersService {
       message: 'Prestador de serviços criado com sucesso',
       user: providerUserWithoutPassword,
     };
+  }
+
+  async getProviderByUserId(userId: string) {
+    const provider = await this.prisma.provider.findFirst({
+      where: { userId: userId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException(
+        'Nenhum negócio encontrado para este usuário.',
+      );
+    }
+    return provider;
+  }
+
+  async getAllProviders() {
+    const providers = await this.prisma.provider.findMany();
+    return providers;
   }
 }
