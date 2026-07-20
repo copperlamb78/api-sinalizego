@@ -86,7 +86,10 @@ model Appointment {
   clientId        String
   appointmentDate DateTime   
   status          ApptStatus @default(PENDING_PAYMENT)
-  pixTxId         String?    
+  pixTxId         String?    // transaction id do pix
+  servicePrice    Float
+  downPaymentAmount Float
+  platformFeeAmount float
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt // Adicionado para rastrear mudanças de status
   isActive        Boolean    @default(true)
