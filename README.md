@@ -71,8 +71,6 @@ npm run start:dev
 ### ⚙️ Variáveis de Ambiente
 
 ```env
-PORT=7878
-
 # Conexão com Supabase PostgreSQL (pooler - transações)
 DATABASE_URL="postgresql://..."
 
@@ -402,7 +400,7 @@ src/
 Com o servidor rodando, acesse a documentação interativa do Swagger:
 
 ```
-http://localhost:7878/api
+http://localhost:3000/api
 ```
 
 ---
