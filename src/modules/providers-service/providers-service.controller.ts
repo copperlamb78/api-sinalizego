@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import type { Request } from 'express';
 import { ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { ListServiceBySlugDto } from './dto/list-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { FilterServiceDto } from './dto/filter-service.dto';
 
 @Controller('providers-service')
 export class ProvidersServiceController {
@@ -55,7 +57,6 @@ export class ProvidersServiceController {
     return this.providersServiceService.createService(data, userId);
   }
 
-  //crie a rota para buscar todos os serviços de um provider, usando o userId do token JWT
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('list')
@@ -85,12 +86,14 @@ export class ProvidersServiceController {
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
-  async getServicesByProvider(@Req() req: Request) {
+  async getServicesByProvider(
+    @Req() req: Request,
+    @Query() filters?: FilterServiceDto,
+  ) {
     const userId = req.user?.['sub'];
-    return this.providersServiceService.getServicesByProvider(userId);
+    return this.providersServiceService.getServicesByProvider(userId, filters);
   }
 
-  // crie a rota para buscar todos os serviços de um provider, usando o slug do provider que será passado como parametro na rota, e retorne uma lista de serviços
   @Get('list/:slug')
   @ApiResponse({
     status: 200,

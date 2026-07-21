@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { CalculateTax } from './helpers/calculate-tax.helper';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { FilterServiceDto } from './dto/filter-service.dto';
 
 @Injectable()
 export class ProvidersServiceService {
@@ -62,7 +63,7 @@ export class ProvidersServiceService {
     }));
   }
 
-  async getServicesByProvider(userId: string) {
+  async getServicesByProvider(userId: string, filters?: FilterServiceDto) {
     const provider = await this.prisma.provider.findFirst({
       where: { userId: userId },
     });
@@ -73,8 +74,28 @@ export class ProvidersServiceService {
       );
     }
 
+    const whereClause: any = { providerId: provider.id };
+    let orderByClause: any = { createdAt: 'desc' };
+
+    if (filters) {
+      if (filters.status === 'active') whereClause.isActive = true;
+      if (filters.status === 'inactive') whereClause.isActive = false;
+
+      if (filters.totalPrice) whereClause.totalPrice = filters.totalPrice;
+      if (filters.durationMinutes)
+        whereClause.durationMinutes = filters.durationMinutes;
+      if (filters.availableEmployers)
+        whereClause.availableEmployers = filters.availableEmployers;
+      if (filters.downPaymentPercent)
+        whereClause.downPaymentPercent = filters.downPaymentPercent;
+      if (filters.orderBy) {
+        orderByClause = { createdAt: filters.orderBy };
+      }
+    }
+
     const services = await this.prisma.service.findMany({
-      where: { providerId: provider.id },
+      where: whereClause,
+      orderBy: orderByClause,
     });
 
     return services;
