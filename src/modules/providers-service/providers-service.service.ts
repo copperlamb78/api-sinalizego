@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { CalculateTax } from './helpers/calculate-tax.helper';
+import { UpdateServiceDto } from './dto/update-service.dto';
 
 @Injectable()
 export class ProvidersServiceService {
@@ -46,7 +47,7 @@ export class ProvidersServiceService {
     }
 
     const services = await this.prisma.service.findMany({
-      where: { providerId: provider.id },
+      where: { providerId: provider.id, isActive: true },
     });
 
     if (services.length === 0) {
@@ -77,5 +78,59 @@ export class ProvidersServiceService {
     });
 
     return services;
+  }
+
+  async updateService(
+    userId: string,
+    serviceId: string,
+    data: UpdateServiceDto,
+  ) {
+    const provider = await this.prisma.provider.findFirst({
+      where: { userId: userId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException(
+        'Nenhum negócio encontrado para este usuário.',
+      );
+    }
+
+    const serviceExists = await this.prisma.service.findFirst({
+      where: { id: serviceId, providerId: provider.id },
+    });
+
+    if (!serviceExists) {
+      throw new NotFoundException('Serviço não encontrado.');
+    }
+
+    return this.prisma.service.update({
+      where: { id: serviceId },
+      data: data,
+    });
+  }
+
+  async deactivateService(userId: string, serviceId: string) {
+    const provider = await this.prisma.provider.findFirst({
+      where: { userId: userId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException(
+        'Nenhum negócio encontrado para este usuário.',
+      );
+    }
+
+    const serviceExists = await this.prisma.service.findFirst({
+      where: { id: serviceId, providerId: provider.id },
+    });
+
+    if (!serviceExists) {
+      throw new NotFoundException('Serviço não encontrado.');
+    }
+
+    return this.prisma.service.update({
+      where: { id: serviceId },
+      data: { isActive: false, disabledAt: new Date() },
+    });
   }
 }
