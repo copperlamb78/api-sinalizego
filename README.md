@@ -71,8 +71,6 @@ npm run start:dev
 ### ⚙️ Variáveis de Ambiente
 
 ```env
-PORT=7878
-
 # Conexão com Supabase PostgreSQL (pooler - transações)
 DATABASE_URL="postgresql://..."
 
