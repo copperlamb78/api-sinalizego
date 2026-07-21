@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { CreateProviderDto } from './dto/providers-create.dto';
 import { SlugHelper } from './helpers/create-slug.helper';
+import { UpdateProviderDto } from './dto/providers-update.dto';
 
 @Injectable()
 export class ProvidersService {
@@ -15,7 +16,7 @@ export class ProvidersService {
     private readonly slugHelper: SlugHelper,
   ) {}
 
-  async createProvider(data: CreateProviderDto) {
+  async createProviderWithUser(data: CreateProviderDto) {
     if (await this.prisma.user.findUnique({ where: { email: data.email } })) {
       throw new ConflictException('O e-mail já está em uso');
     }
@@ -54,7 +55,7 @@ export class ProvidersService {
     const { password, ...providerUserWithoutPassword } = providerUser;
 
     return {
-      message: 'Prestador de serviços criado com sucesso',
+      message: 'Negócio criado com sucesso',
       user: providerUserWithoutPassword,
     };
   }
@@ -75,5 +76,49 @@ export class ProvidersService {
   async getAllProviders() {
     const providers = await this.prisma.provider.findMany();
     return providers;
+  }
+
+  async getProviderBySlug(slug: string) {
+    const provider = await this.prisma.provider.findUnique({
+      where: { slug: slug },
+    });
+
+    return provider;
+  }
+
+  async updateProvider(
+    userId: string,
+    providerId: string,
+    data: UpdateProviderDto,
+  ) {
+    const providerExists = await this.prisma.provider.findFirst({
+      where: { userId: userId, id: providerId },
+    });
+
+    if (!providerExists) {
+      throw new NotFoundException('Negócio não encontrado.');
+    }
+
+    return this.prisma.provider.update({
+      where: { id: providerExists.id },
+      data: data,
+    });
+  }
+
+  async deactivateProvider(userId: string, providerId: string) {
+    const provider = await this.prisma.provider.findFirst({
+      where: { userId: userId, id: providerId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException('Negócio não encontrado.');
+    }
+
+    const updatedProvider = await this.prisma.provider.update({
+      where: { id: provider.id },
+      data: { isActive: false, disabledAt: new Date() },
+    });
+
+    return updatedProvider;
   }
 }
