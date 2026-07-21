@@ -402,7 +402,7 @@ src/
 Com o servidor rodando, acesse a documentação interativa do Swagger:
 
 ```
-http://localhost:7878/api
+http://localhost:3000/api
 ```
 
 ---
