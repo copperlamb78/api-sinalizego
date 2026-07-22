@@ -29,6 +29,8 @@ model User {
 enum Role {
   CLIENT
   PROVIDER
+  ADMIN
+  SUPER_ADMIN
 }
 
 // 2. O NEGÓCIO (A Barbearia/Estúdio)
@@ -84,12 +86,14 @@ model Appointment {
   providerId      String
   serviceId       String
   clientId        String
-  appointmentDate DateTime   
+  appointmentDate DateTime  
+  appointmentEndDate DateTime 
   status          ApptStatus @default(PENDING_PAYMENT)
+  expiresAt       DateTime?
   pixTxId         String?    // transaction id do pix
   servicePrice    Float
   downPaymentAmount Float
-  platformFeeAmount float
+  platformFeeAmount Float
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt // Adicionado para rastrear mudanças de status
   isActive        Boolean    @default(true)
