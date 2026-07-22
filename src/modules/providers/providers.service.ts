@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { CreateProviderDto } from './dto/providers-create.dto';
 import { SlugHelper } from './helpers/create-slug.helper';
 import { UpdateProviderDto } from './dto/providers-update.dto';
+import { FilterProviderDto } from './dto/providers-filter.dto';
 
 @Injectable()
 export class ProvidersService {
@@ -71,6 +72,25 @@ export class ProvidersService {
       );
     }
     return provider;
+  }
+
+  async getAllProvidersByUserId(userId: string, filters?: FilterProviderDto) {
+    const whereClause: any = { userId: userId };
+    let orderByClause: any = { createdAt: 'desc' };
+    if (filters) {
+      if (filters.businessName) whereClause.businessName = filters.businessName;
+      if (filters.providerType) whereClause.providerType = filters.providerType;
+      if (filters.orderBy) {
+        orderByClause = { createdAt: filters.orderBy };
+      }
+    }
+
+    const providers = await this.prisma.provider.findMany({
+      where: whereClause,
+      orderBy: orderByClause,
+    });
+
+    return providers;
   }
 
   async getAllProviders() {

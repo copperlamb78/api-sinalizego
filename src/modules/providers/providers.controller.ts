@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { UpdateProviderDto } from './dto/providers-update.dto';
 import type { Request } from 'express';
+import { FilterProviderDto } from './dto/providers-filter.dto';
 
 @Controller('providers')
 export class ProvidersController {
@@ -108,8 +110,52 @@ export class ProvidersController {
     description: 'Nenhum negócio encontrado para este usuário.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getProviderByUserId(@Body('userId') userId: string) {
+  async getProviderByUserId(
+    @Body('userId') userId: string,
+    @Query() filters?: FilterProviderDto,
+  ) {
     return this.providersService.getProviderByUserId(userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('list')
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de prestadores de serviços retornada com sucesso',
+    schema: {
+      example: [
+        {
+          id: 'clsw0s98x000013z81z8z8z8z',
+          businessName: "Barber's Shop",
+          slug: 'barbers-shop',
+          providerType: 'Barbearia',
+          district: 'SIM',
+          street: 'Artemia Pires Freitas',
+          city: 'Feira de Santana',
+          state: 'Bahia',
+          zipCode: '44085370',
+          number: '123',
+          whatsapp: '75999999999',
+          createdAt: '2026-07-18T10:33:00.000Z',
+          isActive: true,
+          userId: 'clsw0s98x000013z81z8z8z8z',
+        },
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Nenhum negócio encontrado para este usuário.',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async getAllProvidersByUserId(
+    @Req() req: Request,
+    @Query() filters?: FilterProviderDto,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.providersService.getAllProvidersByUserId(userId, filters);
   }
 
   @Get('get-all')
