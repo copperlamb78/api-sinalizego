@@ -1,7 +1,12 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/user-create.dto';
 import * as bcrypt from 'bcrypt';
+import { UpdateUserDto } from './dto/user-update.dto';
 
 @Injectable()
 export class UsersService {
@@ -30,5 +35,42 @@ export class UsersService {
     });
 
     return { message: 'Usuário criado com sucesso', user: user };
+  }
+
+  async getAllUsers() {
+    const users = await this.prisma.user.findMany();
+    return users;
+  }
+
+  async updateUser(userId: string, data: UpdateUserDto) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: data,
+    });
+  }
+
+  async deactivateUser(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isActive: false, disabledAt: new Date() },
+    });
+
+    return updatedUser;
   }
 }
