@@ -25,12 +25,14 @@
 | Recurso | Descrição |
 |---------|-----------|
 | 🔐 **Autenticação JWT** | Login seguro com access token + refresh token |
-| 👥 **Gestão de Usuários** | Cadastro com validação e hash de senha (bcrypt) |
-| 🏪 **Perfil de Negócio** | Criação de perfil com slug automático e endereço completo |
+| 👥 **Gestão de Usuários** | CRUD completo com validação, hash de senha e soft delete |
+| 🏪 **Perfil de Negócio** | Criação de perfil com slug automático, filtros e ordenação |
 | 💈 **Catálogo de Serviços** | CRUD completo com cálculo automático de taxa da plataforma |
-| 📅 **Agendamentos** | Sistema com status de pagamento e soft delete |
+| 📅 **Agendamentos** | Criação com verificação de disponibilidade e conflito de horários |
+| 💳 **Transações** | Módulo preparado para integração com pagamentos |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 | 🛡️ **Soft Delete** | Desativação segura sem perda de dados |
+| 🔑 **Roles** | Sistema de permissões (CLIENT, PROVIDER, ADMIN, SUPER_ADMIN) |
 
 ---
 
@@ -71,11 +73,17 @@ npm run start:dev
 ### ⚙️ Variáveis de Ambiente
 
 ```env
+PORT=7878
+
 # Conexão com Supabase PostgreSQL (pooler - transações)
 DATABASE_URL="postgresql://..."
 
 # Conexão direta (migrations)
 DIRECT_URL="postgresql://..."
+
+# JWT
+JWT_SECRET="sua-chave-secreta"
+JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
 ```
 
 ### 🏃 Scripts Disponíveis
@@ -96,7 +104,7 @@ DIRECT_URL="postgresql://..."
 
 ### 🔐 Auth — Autenticação
 
-> Gerenciamento de login com JWT (access + refresh token) via Supabase Auth.
+> Gerenciamento de login com JWT (access token de 15min + refresh token de 30 dias) via Supabase Auth.
 
 | Método | Rota | Descrição | Auth |
 |--------|------|-----------|------|
@@ -120,7 +128,13 @@ DIRECT_URL="postgresql://..."
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIs...",
-  "refresh_token": "v1.MjQ1NjM4..."
+  "refresh_token": "v1.MjQ1NjM4...",
+  "user": {
+    "id": "uuid",
+    "name": "João Silva",
+    "email": "joao@email.com",
+    "role": "CLIENT"
+  }
 }
 ```
 </details>
@@ -129,11 +143,14 @@ DIRECT_URL="postgresql://..."
 
 ### 👥 Users — Usuários
 
-> Cadastro e gestão de usuários da plataforma.
+> CRUD completo de usuários com validação, hash de senha (bcrypt) e soft delete.
 
 | Método | Rota | Descrição | Auth |
 |--------|------|-----------|------|
-| `POST` | `/users` | Criar novo usuário | ❌ |
+| `POST` | `/users/create` | Criar novo usuário | ❌ |
+| `GET` | `/users/list` | Listar todos os usuários | ❌ |
+| `PATCH` | `/users/update/:userId` | Atualizar dados do usuário | 🔑 JWT |
+| `DELETE` | `/users/deactivate/:userId` | Desativar usuário (soft delete) | 🔑 JWT |
 
 <details>
 <summary>📝 <b>Body — Criar Usuário</b></summary>
@@ -148,16 +165,28 @@ DIRECT_URL="postgresql://..."
 ```
 </details>
 
+<details>
+<summary>📝 <b>Body — Atualizar Usuário</b></summary>
+
+```json
+{
+  "name": "João Silva Atualizado",
+  "phone": "75988888888"
+}
+```
+</details>
+
 ---
 
 ### 🏪 Providers — Prestadores
 
-> Cadastro de negócios com geração automática de slug para URL amigável.
+> Cadastro de negócios com geração automática de slug, filtros por tipo/nome e ordenação.
 
 | Método | Rota | Descrição | Auth |
 |--------|------|-----------|------|
-| `POST` | `/providers` | Criar prestador de serviço | ❌ |
+| `POST` | `/providers/create` | Criar prestador de serviço | ❌ |
 | `GET` | `/providers/get-by-user-id` | Buscar prestador por userId | 🔑 JWT |
+| `GET` | `/providers/list` | Listar prestadores do usuário logado (com filtros) | 🔑 JWT |
 | `GET` | `/providers/get-all` | Listar todos os prestadores | ❌ |
 
 <details>
@@ -165,7 +194,10 @@ DIRECT_URL="postgresql://..."
 
 ```json
 {
-  "userId": "uuid-do-usuario",
+  "name": "João Silva",
+  "email": "joao@email.com",
+  "password": "senhaSegura123",
+  "phone": "75999999999",
   "businessName": "Barber's Shop",
   "providerType": "Barbearia",
   "district": "Centro",
@@ -173,27 +205,22 @@ DIRECT_URL="postgresql://..."
   "city": "Feira de Santana",
   "state": "Bahia",
   "zipCode": "44085370",
-  "number": "123",
-  "whatsapp": "75999999999",
-  "password": "senhaSegura123"
+  "number": "123"
 }
 ```
 </details>
 
 <details>
-<summary>✅ <b>Response — Criar Prestador (201)</b></summary>
+<summary>🔍 <b>Query Params — Filtros (GET /providers/list)</b></summary>
 
-```json
-{
-  "provider": {
-    "id": "uuid",
-    "businessName": "Barber's Shop",
-    "slug": "barbers-shop",
-    "providerType": "Barbearia",
-    "whatsapp": "75999999999",
-    "isActive": true
-  }
-}
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `businessName` | `string` | Filtrar por nome do negócio |
+| `providerType` | `string` | Filtrar por tipo (ex: Barbearia) |
+| `orderBy` | `asc \| desc` | Ordenar por data de criação |
+
+```
+GET /providers/list?providerType=Barbearia&orderBy=desc
 ```
 </details>
 
@@ -201,13 +228,13 @@ DIRECT_URL="postgresql://..."
 
 ### 💈 Providers-Service — Serviços do Prestador
 
-> CRUD completo de serviços com cálculo automático de taxa da plataforma (10%).
+> CRUD completo de serviços com cálculo automático de taxa da plataforma.
 
 | Método | Rota | Descrição | Auth |
 |--------|------|-----------|------|
 | `POST` | `/providers-service/create` | Criar serviço | 🔑 JWT |
 | `GET` | `/providers-service/list` | Listar serviços do prestador logado | 🔑 JWT |
-| `GET` | `/providers-service/list/:slug` | Listar serviços por slug (público) | ❌ |
+| `GET` | `/providers-service/list/:slug` | Listar serviços por slug (vitrine pública) | ❌ |
 | `PATCH` | `/providers-service/update/:serviceId` | Atualizar serviço | 🔑 JWT |
 | `DELETE` | `/providers-service/deactivate/:serviceId` | Desativar serviço (soft delete) | 🔑 JWT |
 
@@ -225,6 +252,61 @@ DIRECT_URL="postgresql://..."
 }
 ```
 </details>
+
+<details>
+<summary>💰 <b>Taxa da Plataforma (automática)</b></summary>
+
+| Preço do Serviço | Taxa |
+|------------------|------|
+| Até R$ 50,00 | 15% |
+| R$ 50,01 — R$ 249,99 | 10% |
+| R$ 250,00+ | 5% |
+
+</details>
+
+---
+
+### 📅 Appointments — Agendamentos
+
+> Criação de agendamentos com verificação de disponibilidade, cálculo automático de valores e controle de status.
+
+| Método | Rota | Descrição | Auth |
+|--------|------|-----------|------|
+| `POST` | `/appointments` | Criar novo agendamento | 🔑 JWT |
+
+<details>
+<summary>📝 <b>Body — Criar Agendamento</b></summary>
+
+```json
+{
+  "providerId": "uuid-do-prestador",
+  "serviceId": "uuid-do-servico",
+  "appointmentDate": "2026-07-25T14:00:00.000Z"
+}
+```
+</details>
+
+<details>
+<summary>⚙️ <b>Lógica de Negócio</b></summary>
+
+- ✅ Verifica se o prestador e serviço existem
+- ✅ Calcula `appointmentEndDate` automaticamente com base na duração do serviço
+- ✅ Verifica conflitos de horário (mesmo prestador, mesmo período)
+- ✅ Verifica vagas disponíveis (`availableEmployers`)
+- ✅ Calcula `servicePrice`, `downPaymentAmount` e `platformFeeAmount` automaticamente
+- ✅ Status inicial: `PENDING_PAYMENT`
+
+</details>
+
+---
+
+### 💳 Transactions — Transações
+
+> Módulo base preparado para integração com sistema de pagamentos (Pix).
+
+| Método | Rota | Descrição | Auth |
+|--------|------|-----------|------|
+| — | `/transactions` | *Em desenvolvimento* | — |
 
 ---
 
@@ -248,9 +330,11 @@ erDiagram
         string email UK
         string password
         string phone
-        enum role "CLIENT | PROVIDER"
+        enum role "CLIENT | PROVIDER | ADMIN | SUPER_ADMIN"
+        string refreshToken
         boolean isActive
         datetime createdAt
+        datetime disabledAt
     }
 
     Provider {
@@ -268,6 +352,7 @@ erDiagram
         string zipCode
         string number
         boolean isActive
+        datetime disabledAt
     }
 
     Service {
@@ -280,6 +365,7 @@ erDiagram
         int downPaymentPercent
         int availableEmployers
         boolean isActive
+        datetime disabledAt
     }
 
     Appointment {
@@ -288,12 +374,15 @@ erDiagram
         string serviceId FK
         string clientId FK
         datetime appointmentDate
-        enum status "PENDING | CONFIRMED | COMPLETED | CANCELED"
+        datetime appointmentEndDate
+        enum status "PENDING_PAYMENT | CONFIRMED | COMPLETED | CANCELED"
+        datetime expiresAt
         string pixTxId
         float servicePrice
         float downPaymentAmount
         float platformFeeAmount
         boolean isActive
+        datetime disabledAt
     }
 
     WorkingHour {
@@ -313,6 +402,7 @@ erDiagram
         string startTime
         string endTime
         boolean isActive
+        datetime disabledAt
     }
 ```
 
@@ -326,6 +416,9 @@ src/
 ├── 📄 app.module.ts                    # Módulo raiz
 ├── 📄 app.controller.ts               # Controller padrão
 ├── 📄 app.service.ts                   # Service padrão
+│
+├── 🧰 helpers/
+│   └── calculate-tax.helper.ts        # Cálculo de taxa da plataforma
 │
 ├── 🗄️ prisma/
 │   ├── prisma.module.ts                # Módulo global do Prisma
@@ -351,27 +444,44 @@ src/
     │   ├── users.controller.ts
     │   ├── users.service.ts
     │   └── dto/
-    │       └── user-create.dto.ts
+    │       ├── user-create.dto.ts
+    │       └── user-update.dto.ts
     │
     ├── 🏪 providers/
     │   ├── providers.module.ts
     │   ├── providers.controller.ts
     │   ├── providers.service.ts
     │   ├── dto/
-    │   │   └── providers-create.dto.ts
+    │   │   ├── providers-create.dto.ts
+    │   │   └── providers-filter.dto.ts
     │   └── helpers/
     │       └── create-slug.helper.ts
     │
-    └── 💈 providers-service/
-        ├── providers-service.module.ts
-        ├── providers-service.controller.ts
-        ├── providers-service.service.ts
-        ├── dto/
-        │   ├── create-service.dto.ts
-        │   ├── list-service.dto.ts
-        │   └── update-service.dto.ts
-        └── helpers/
-            └── calculate-tax.helper.ts
+    ├── 💈 providers-service/
+    │   ├── providers-service.module.ts
+    │   ├── providers-service.controller.ts
+    │   ├── providers-service.service.ts
+    │   └── dto/
+    │       ├── create-service.dto.ts
+    │       ├── list-service.dto.ts
+    │       └── update-service.dto.ts
+    │
+    ├── 📅 appointments/
+    │   ├── appointments.module.ts
+    │   ├── appointments.controller.ts
+    │   ├── appointments.service.ts
+    │   └── dto/
+    │       ├── appointments-create.dto.ts
+    │       ├── appointements-update.dto.ts
+    │       ├── appointments-deactivate.dto.ts
+    │       └── appointments-filters.dto.ts
+    │
+    └── 💳 transactions/
+        ├── transactions.module.ts
+        ├── transactions.controller.ts
+        ├── transactions.service.ts
+        └── dto/
+            └── transactions-create.dto.ts
 ```
 
 ---
@@ -387,7 +497,8 @@ src/
 | 🔷 **Linguagem** | TypeScript | 5.x |
 | 🗄️ **ORM** | Prisma | 7.8 |
 | 🐘 **Banco de Dados** | PostgreSQL (Supabase) | 15.x |
-| 🔐 **Autenticação** | JWT + Supabase Auth | — |
+| 🔐 **Autenticação** | JWT + Passport | — |
+| 🔒 **Hash** | bcrypt | 6.x |
 | 📖 **Documentação** | Swagger / OpenAPI | 11.x |
 | ✅ **Validação** | class-validator | 0.15 |
 
@@ -400,7 +511,7 @@ src/
 Com o servidor rodando, acesse a documentação interativa do Swagger:
 
 ```
-http://localhost:3000/api
+http://localhost:7878/api
 ```
 
 ---
