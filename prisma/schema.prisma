@@ -29,6 +29,7 @@ model User {
 enum Role {
   CLIENT
   PROVIDER
+  EMPLOYEE
   ADMIN
   SUPER_ADMIN
 }
@@ -98,6 +99,7 @@ model Appointment {
   updatedAt       DateTime   @updatedAt // Adicionado para rastrear mudanças de status
   isActive        Boolean    @default(true)
   disabledAt      DateTime?  // Corrigido de dateTime? para DateTime?
+  disabledBy      String?
 
   provider        Provider @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
