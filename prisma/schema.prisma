@@ -55,6 +55,9 @@ model Provider {
   zipCode      String
   number       String
 
+  logoPhoto    String?
+  bannerPhoto  String?
+
   owner              User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   services           Service[]
   appointments       Appointment[]
