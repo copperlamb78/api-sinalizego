@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
-import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { CreateAppointmentsDto } from './dto/appointments-create.dto';
 import type { Request } from 'express';
@@ -20,6 +20,7 @@ import {
   AppointmentsAdminFiltersDto,
   AppointmentsFiltersDto,
 } from './dto/appointments-filters.dto';
+import { AppointmentsStatusUpdateDto } from './dto/appointements-update.dto';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { INTERNAL_USERS } from 'src/common/constants/role-groups.constant';
@@ -32,6 +33,7 @@ export class AppointmentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
+  @ApiBody({ type: CreateAppointmentsDto, description: 'Criar agendamento' })
   @ApiOperation({ summary: 'Cria um novo agendamento' })
   @ApiResponse({
     status: 201,
@@ -104,6 +106,7 @@ export class AppointmentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':id/status')
+  @ApiBody({ type: AppointmentsStatusUpdateDto, description: 'Atualizar status do agendamento' })
   @ApiOperation({ summary: 'Atualiza o status de um agendamento' })
   @ApiResponse({
     status: 200,

@@ -14,7 +14,7 @@ import { ProvidersServiceService } from './providers-service.service';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { CreateServiceDto } from './dto/create-service.dto';
 import type { Request } from 'express';
-import { ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { ListServiceBySlugDto } from './dto/list-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { FilterServiceDto } from './dto/filter-service.dto';
@@ -35,6 +35,7 @@ export class ProvidersServiceController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Post('create')
+  @ApiBody({ type: CreateServiceDto, description: 'Criar serviço' })
   @ApiResponse({
     status: 201,
     description: 'Serviço criado com sucesso',
@@ -137,6 +138,7 @@ export class ProvidersServiceController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch('update/:serviceId')
+  @ApiBody({ type: UpdateServiceDto, description: 'Atualizar serviço' })
   @ApiResponse({
     status: 200,
     description: 'Serviço atualizado com sucesso',

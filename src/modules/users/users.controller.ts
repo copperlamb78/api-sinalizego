@@ -82,7 +82,7 @@ export class UsersController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch('update/:userId')
-  @ApiBody({ type: CreateUserDto, description: 'Atualizar usuário' })
+  @ApiBody({ type: UpdateUserDto, description: 'Atualizar usuário' })
   @ApiResponse({
     status: 200,
     description: 'Usuário atualizado com sucesso',

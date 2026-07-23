@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ProvidersService } from './providers.service';
-import { CreateProviderDto } from './dto/providers-create.dto';
+import { CreateProviderDto, CreateProviderWithoutUserDto } from './dto/providers-create.dto';
 import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { UpdateProviderDto } from './dto/providers-update.dto';
@@ -84,13 +84,6 @@ export class ProvidersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Get('get-by-user-id')
-  @ApiBody({
-    schema: {
-      example: {
-        userId: 'clsw0s2b0003138mg1wmg1wmg1',
-      },
-    },
-  })
   @ApiResponse({
     status: 200,
     description: 'Prestador de serviços encontrado com sucesso',
@@ -234,7 +227,7 @@ export class ProvidersController {
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch('update/:providerId')
   @ApiBody({
-    type: CreateProviderDto,
+    type: UpdateProviderDto,
     description: 'Atualizar prestador de serviços',
   })
   @ApiResponse({
@@ -256,6 +249,9 @@ export class ProvidersController {
         createdAt: '2026-07-18T10:33:00.000Z',
         isActive: true,
         userId: 'clsw0s98x000013z81z8z8z8z',
+        banner:
+          'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/providerId/banner/public_id.jpg',
+        logo: 'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/providerId/logo/public_id.jpg',
       },
     },
   })
@@ -362,7 +358,7 @@ export class ProvidersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('create-provider-to-user')
   @ApiBody({
-    type: CreateProviderDto,
+    type: CreateProviderWithoutUserDto,
     description: 'Criar prestador de serviços para um usuário existente',
   })
   @ApiResponse({
@@ -397,7 +393,7 @@ export class ProvidersController {
     },
   })
   async createProviderToUser(
-    @Body() data: CreateProviderDto,
+    @Body() data: CreateProviderWithoutUserDto,
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
