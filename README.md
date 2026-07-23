@@ -10,7 +10,7 @@
 
 ---
 
-[📖 Documentação](#-documentação-da-api) · [🚀 Começando](#-começando) · [📦 Módulos](#-módulos) · [🗄️ Banco de Dados](#️-banco-de-dados)
+[📖 Documentação](#-documentação-da-api) · [🚀 Começando](#-começando) · [📦 Módulos](#-módulos) · [🗄️ Banco de Dados](#️-banco-de-dados) · [🔑 Permissões](#-sistema-de-permissões)
 
 </div>
 
@@ -25,14 +25,14 @@
 | Recurso | Descrição |
 |---------|-----------|
 | 🔐 **Autenticação JWT** | Login seguro com access token + refresh token |
-| 👥 **Gestão de Usuários** | CRUD completo com validação, hash de senha e soft delete |
-| 🏪 **Perfil de Negócio** | Criação de perfil com slug automático, filtros e ordenação |
-| 💈 **Catálogo de Serviços** | CRUD completo com cálculo automático de taxa da plataforma |
-| 📅 **Agendamentos** | Criação com verificação de disponibilidade e conflito de horários |
+| 🔑 **RBAC (Role-Based Access Control)** | 5 níveis de permissão com guard customizado |
+| 👥 **Gestão de Usuários** | CRUD completo com ativação/desativação e hash de senha |
+| 🏪 **Perfil de Negócio** | Criação com slug automático, filtros, ordenação e ativação |
+| 💈 **Catálogo de Serviços** | CRUD completo com taxa da plataforma e ativação |
+| 📅 **Agendamentos** | Criação com verificação de conflitos, filtros por role e cancelamento |
 | 💳 **Transações** | Módulo preparado para integração com pagamentos |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
-| 🛡️ **Soft Delete** | Desativação segura sem perda de dados |
-| 🔑 **Roles** | Sistema de permissões (CLIENT, PROVIDER, ADMIN, SUPER_ADMIN) |
+| 🛡️ **Soft Delete** | Desativação segura com rastreamento de quem desativou |
 
 ---
 
@@ -100,16 +100,41 @@ JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
 
 ---
 
+## 🔑 Sistema de Permissões
+
+A API utiliza **RBAC (Role-Based Access Control)** com 5 níveis de permissão e grupos predefinidos.
+
+### Roles
+
+| Role | Descrição |
+|------|-----------|
+| `CLIENT` | Usuário padrão que agenda serviços |
+| `EMPLOYEE` | Funcionário de um prestador |
+| `PROVIDER` | Dono de negócio / prestador de serviço |
+| `ADMIN` | Administrador do sistema |
+| `SUPER_ADMIN` | Administrador com acesso total |
+
+### Grupos de Permissão
+
+| Grupo | Roles incluídas | Uso |
+|-------|-----------------|-----|
+| `SYSTEM_MANAGERS` | ADMIN, SUPER_ADMIN | Gestão do sistema (listar usuários) |
+| `INTERNAL_USERS` | EMPLOYEE, PROVIDER, ADMIN, SUPER_ADMIN | Operações internas |
+| `INTERNAL_NO_EMPLOYEE` | PROVIDER, ADMIN, SUPER_ADMIN | Operações sem funcionário (desativar/ativar) |
+| `ALL_USERS` | CLIENT, EMPLOYEE, PROVIDER, ADMIN, SUPER_ADMIN | Acesso geral autenticado |
+
+---
+
 ## 📦 Módulos
 
 ### 🔐 Auth — Autenticação
 
-> Gerenciamento de login com JWT (access token de 15min + refresh token de 30 dias) via Supabase Auth.
+> Gerenciamento de login com JWT (access token de 15min + refresh token de 30 dias).
 
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `POST` | `/auth/login` | Login com email e senha | ❌ |
-| `POST` | `/auth/refresh` | Renovar access token | 🔑 Refresh Token |
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/auth/login` | Login com email e senha | ❌ | — |
+| `POST` | `/auth/refresh` | Renovar access token | 🔑 Refresh | — |
 
 <details>
 <summary>📝 <b>Body — Login</b></summary>
@@ -143,14 +168,15 @@ JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
 
 ### 👥 Users — Usuários
 
-> CRUD completo de usuários com validação, hash de senha (bcrypt) e soft delete.
+> CRUD completo com validação, hash de senha (bcrypt), ativação/desativação e controle de acesso por roles.
 
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `POST` | `/users/create` | Criar novo usuário | ❌ |
-| `GET` | `/users/list` | Listar todos os usuários | ❌ |
-| `PATCH` | `/users/update/:userId` | Atualizar dados do usuário | 🔑 JWT |
-| `DELETE` | `/users/deactivate/:userId` | Desativar usuário (soft delete) | 🔑 JWT |
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/users/create` | Criar novo usuário | ❌ | — |
+| `GET` | `/users/list` | Listar todos os usuários | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `PATCH` | `/users/update/:userId` | Atualizar dados do usuário | 🔑 JWT | — |
+| `DELETE` | `/users/deactivate/:userId` | Desativar usuário (soft delete) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/users/activate/:userId` | Reativar usuário | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
 <details>
 <summary>📝 <b>Body — Criar Usuário</b></summary>
@@ -165,41 +191,30 @@ JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
 ```
 </details>
 
-<details>
-<summary>📝 <b>Body — Atualizar Usuário</b></summary>
-
-```json
-{
-  "name": "João Silva Atualizado",
-  "phone": "75988888888"
-}
-```
-</details>
-
 ---
 
 ### 🏪 Providers — Prestadores
 
-> Cadastro de negócios com geração automática de slug, filtros por tipo/nome e ordenação.
+> Cadastro de negócios com slug automático, filtros, ativação/desativação e busca por ID.
 
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `POST` | `/providers/create` | Criar prestador de serviço | ❌ |
-| `GET` | `/providers/get-by-user-id` | Buscar prestador por userId | 🔑 JWT |
-| `GET` | `/providers/list` | Listar prestadores do usuário logado (com filtros) | 🔑 JWT |
-| `GET` | `/providers/get-all` | Listar todos os prestadores | ❌ |
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/providers/create` | Criar prestador (com novo usuário) | ❌ | — |
+| `POST` | `/providers/create-to-user` | Criar negócio para usuário existente | 🔑 JWT | — |
+| `GET` | `/providers/get-by-user-id` | Buscar prestador por userId | 🔑 JWT | — |
+| `GET` | `/providers/get-by-id/:providerId` | Buscar prestador por ID | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/providers/list` | Listar prestadores do usuário (com filtros) | 🔑 JWT | — |
+| `GET` | `/providers/get-all` | Listar todos os prestadores | ❌ | — |
+| `PATCH` | `/providers/activate/:providerId` | Reativar negócio | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
 <details>
-<summary>📝 <b>Body — Criar Prestador</b></summary>
+<summary>📝 <b>Body — Criar Negócio (usuário existente)</b></summary>
 
 ```json
 {
-  "name": "João Silva",
-  "email": "joao@email.com",
-  "password": "senhaSegura123",
-  "phone": "75999999999",
   "businessName": "Barber's Shop",
   "providerType": "Barbearia",
+  "phone": "75999999999",
   "district": "Centro",
   "street": "Rua das Flores",
   "city": "Feira de Santana",
@@ -228,15 +243,16 @@ GET /providers/list?providerType=Barbearia&orderBy=desc
 
 ### 💈 Providers-Service — Serviços do Prestador
 
-> CRUD completo de serviços com cálculo automático de taxa da plataforma.
+> CRUD completo de serviços com taxa da plataforma, ativação e controle de acesso.
 
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `POST` | `/providers-service/create` | Criar serviço | 🔑 JWT |
-| `GET` | `/providers-service/list` | Listar serviços do prestador logado | 🔑 JWT |
-| `GET` | `/providers-service/list/:slug` | Listar serviços por slug (vitrine pública) | ❌ |
-| `PATCH` | `/providers-service/update/:serviceId` | Atualizar serviço | 🔑 JWT |
-| `DELETE` | `/providers-service/deactivate/:serviceId` | Desativar serviço (soft delete) | 🔑 JWT |
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/providers-service/create` | Criar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/providers-service/list` | Listar serviços do prestador logado | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/providers-service/list/:slug` | Listar serviços por slug (vitrine pública) | ❌ | — |
+| `PATCH` | `/providers-service/update/:serviceId` | Atualizar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/providers-service/deactivate/:serviceId` | Desativar serviço (soft delete) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/providers-service/activate/:serviceId` | Reativar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
 <details>
 <summary>📝 <b>Body — Criar Serviço</b></summary>
@@ -268,11 +284,14 @@ GET /providers/list?providerType=Barbearia&orderBy=desc
 
 ### 📅 Appointments — Agendamentos
 
-> Criação de agendamentos com verificação de disponibilidade, cálculo automático de valores e controle de status.
+> Criação com verificação de disponibilidade, filtros por role, cancelamento e controle de acesso.
 
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `POST` | `/appointments` | Criar novo agendamento | 🔑 JWT |
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/appointments` | Criar agendamento | 🔑 JWT | — |
+| `GET` | `/appointments/list` | Listar agendamentos (filtros por role do usuário) | 🔑 JWT | — |
+| `GET` | `/appointments/list-all` | Listar todos os agendamentos (super admin) | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `PATCH` | `/appointments/cancel/:appointmentId` | Cancelar agendamento | 🔑 JWT | — |
 
 <details>
 <summary>📝 <b>Body — Criar Agendamento</b></summary>
@@ -290,11 +309,23 @@ GET /providers/list?providerType=Barbearia&orderBy=desc
 <summary>⚙️ <b>Lógica de Negócio</b></summary>
 
 - ✅ Verifica se o prestador e serviço existem
-- ✅ Calcula `appointmentEndDate` automaticamente com base na duração do serviço
+- ✅ Calcula `appointmentEndDate` com base na duração do serviço
 - ✅ Verifica conflitos de horário (mesmo prestador, mesmo período)
 - ✅ Verifica vagas disponíveis (`availableEmployers`)
 - ✅ Calcula `servicePrice`, `downPaymentAmount` e `platformFeeAmount` automaticamente
+- ✅ Define `expiresAt` (15 min para confirmar pagamento)
 - ✅ Status inicial: `PENDING_PAYMENT`
+
+</details>
+
+<details>
+<summary>🔍 <b>Filtros por Role na Listagem</b></summary>
+
+| Role | Filtros disponíveis |
+|------|---------------------|
+| **CLIENT** | `serviceId`, `startDate`, `orderBy` |
+| **PROVIDER / EMPLOYEE** | `clientId`, `serviceId`, `status`, `startDate`, `endDate`, `servicePrice`, `downPaymentAmount`, `isActive`, `orderBy` |
+| **SUPER_ADMIN** | Todos os filtros acima + `providerId`, `platformFeeAmount` |
 
 </details>
 
@@ -330,7 +361,7 @@ erDiagram
         string email UK
         string password
         string phone
-        enum role "CLIENT | PROVIDER | ADMIN | SUPER_ADMIN"
+        enum role "CLIENT | EMPLOYEE | PROVIDER | ADMIN | SUPER_ADMIN"
         string refreshToken
         boolean isActive
         datetime createdAt
@@ -381,6 +412,7 @@ erDiagram
         float servicePrice
         float downPaymentAmount
         float platformFeeAmount
+        string disabledBy
         boolean isActive
         datetime disabledAt
     }
@@ -420,6 +452,10 @@ src/
 ├── 🧰 helpers/
 │   └── calculate-tax.helper.ts        # Cálculo de taxa da plataforma
 │
+├── 📋 common/
+│   └── constants/
+│       └── role-groups.constant.ts    # Grupos de roles (SYSTEM_MANAGERS, etc.)
+│
 ├── 🗄️ prisma/
 │   ├── prisma.module.ts                # Módulo global do Prisma
 │   └── prisma.service.ts              # Conexão via Driver Adapter (pg)
@@ -431,13 +467,18 @@ src/
     │   ├── auth.service.ts
     │   ├── dto/
     │   │   └── user-login.dto.ts
-    │   └── jwt/
-    │       ├── guard/
-    │       │   ├── jwt-auth.guard.ts
-    │       │   └── jwt-refresh.guard.ts
-    │       └── strategy/
-    │           ├── jwt.strategy.ts
-    │           └── jwt-refresh.strategy.ts
+    │   ├── jwt/
+    │   │   ├── guard/
+    │   │   │   ├── jwt-auth.guard.ts
+    │   │   │   └── jwt-refresh.guard.ts
+    │   │   └── strategy/
+    │   │       ├── jwt.strategy.ts
+    │   │       └── jwt-refresh.strategy.ts
+    │   └── roles/
+    │       ├── decorators/
+    │       │   └── roles.decorator.ts
+    │       └── guard/
+    │           └── roles.guard.ts
     │
     ├── 👥 users/
     │   ├── users.module.ts
