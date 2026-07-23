@@ -9,6 +9,8 @@ import { ProvidersModule } from './modules/providers/providers.module';
 import { ProvidersServiceModule } from './modules/providers-service/providers-service.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { UploadModule } from './cloudinary/upload/upload.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
     ProvidersServiceModule,
     TransactionsModule,
     AppointmentsModule,
+    CloudinaryModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],
