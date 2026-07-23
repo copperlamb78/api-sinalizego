@@ -73,4 +73,21 @@ export class UsersService {
 
     return updatedUser;
   }
+
+  async activateUser(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isActive: true, disabledAt: null },
+    });
+
+    return updatedUser;
+  }
 }
