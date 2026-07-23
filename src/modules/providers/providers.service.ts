@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { CreateProviderDto } from './dto/providers-create.dto';
+import {
+  CreateProviderDto,
+  CreateProviderWithoutUserDto,
+} from './dto/providers-create.dto';
 import { SlugHelper } from './helpers/create-slug.helper';
 import { UpdateProviderDto } from './dto/providers-update.dto';
 import { FilterProviderDto } from './dto/providers-filter.dto';
@@ -59,6 +62,54 @@ export class ProvidersService {
       message: 'Negócio criado com sucesso',
       user: providerUserWithoutPassword,
     };
+  }
+
+  async createProvider(data: CreateProviderWithoutUserDto, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const slug = await this.slugHelper.createSlug(data.businessName);
+
+    const provider = await this.prisma.provider.create({
+      data: {
+        businessName: data.businessName,
+        slug: slug,
+        providerType: data.providerType,
+        district: data.district,
+        street: data.street,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+        number: data.number,
+        whatsapp: data.phone,
+        userId: userId,
+      },
+    });
+
+    if (user.role !== 'PROVIDER') {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { role: 'PROVIDER' },
+      });
+    }
+
+    return {
+      message: 'Negócio criado com sucesso',
+      user: provider,
+    };
+  }
+
+  async getProviderByProviderId(providerId: string) {
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException('Nenhum negócio encontrado para este ID.');
+    }
+    return provider;
   }
 
   async getProviderByUserId(userId: string) {
@@ -137,6 +188,23 @@ export class ProvidersService {
     const updatedProvider = await this.prisma.provider.update({
       where: { id: provider.id },
       data: { isActive: false, disabledAt: new Date() },
+    });
+
+    return updatedProvider;
+  }
+
+  async activateProvider(userId: string, providerId: string) {
+    const provider = await this.prisma.provider.findFirst({
+      where: { userId: userId, id: providerId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException('Negócio não encontrado.');
+    }
+
+    const updatedProvider = await this.prisma.provider.update({
+      where: { id: provider.id },
+      data: { isActive: true, disabledAt: null },
     });
 
     return updatedProvider;

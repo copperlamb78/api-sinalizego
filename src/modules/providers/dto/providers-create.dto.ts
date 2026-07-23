@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class CreateProviderDto {
@@ -64,3 +64,8 @@ export class CreateProviderDto {
   @IsNotEmpty()
   number: string;
 }
+
+export class CreateProviderWithoutUserDto extends OmitType(CreateProviderDto, [
+  'name',
+  'email',
+]) {}

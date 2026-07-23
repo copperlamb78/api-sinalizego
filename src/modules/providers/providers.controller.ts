@@ -17,6 +17,13 @@ import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { UpdateProviderDto } from './dto/providers-update.dto';
 import type { Request } from 'express';
 import { FilterProviderDto } from './dto/providers-filter.dto';
+import { Roles } from '../auth/roles/decorators/roles.decorator';
+import {
+  INTERNAL_NO_EMPLOYEE,
+  INTERNAL_USERS,
+  SYSTEM_MANAGERS,
+} from 'src/common/constants/role-groups.constant';
+import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
 @Controller('providers')
 export class ProvidersController {
@@ -74,7 +81,8 @@ export class ProvidersController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Get('get-by-user-id')
   @ApiBody({
     schema: {
@@ -110,15 +118,13 @@ export class ProvidersController {
     description: 'Nenhum negócio encontrado para este usuário.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getProviderByUserId(
-    @Body('userId') userId: string,
-    @Query() filters?: FilterProviderDto,
-  ) {
+  async getProviderByUserId(@Body('userId') userId: string) {
     return this.providersService.getProviderByUserId(userId);
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Get('list')
   @ApiResponse({
     status: 200,
@@ -158,6 +164,9 @@ export class ProvidersController {
     return this.providersService.getAllProvidersByUserId(userId, filters);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SYSTEM_MANAGERS)
   @Get('get-all')
   @ApiResponse({
     status: 200,
@@ -188,7 +197,6 @@ export class ProvidersController {
     return this.providersService.getAllProviders();
   }
 
-  // crie as rotas de listar por slug, desativar (com DELETE), e atualizar (com PATCH). Além disso coloque todas descrições necessárias para que a api do swagger seja bem documentada
   @Get('get-by-slug/:slug')
   @ApiResponse({
     status: 200,
@@ -222,7 +230,8 @@ export class ProvidersController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch('update/:providerId')
   @ApiBody({
     type: CreateProviderDto,
@@ -266,8 +275,9 @@ export class ProvidersController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete('deactivate/:providerId')
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @ApiResponse({
     status: 200,
     description: 'Prestador de serviços desativado com sucesso',
@@ -304,5 +314,128 @@ export class ProvidersController {
   ) {
     const userId = req.user?.['sub'];
     return this.providersService.deactivateProvider(userId, providerId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Patch('activate/:providerId')
+  @ApiResponse({
+    status: 200,
+    description: 'Prestador de serviços ativado com sucesso',
+    schema: {
+      example: {
+        id: 'clsw0s98x000013z81z8z8z8z',
+        businessName: "Barber's Shop",
+        slug: 'barbers-shop',
+        providerType: 'Barbearia',
+        district: 'SIM',
+        street: 'Artemia Pires Freitas',
+        city: 'Feira de Santana',
+        state: 'Bahia',
+        zipCode: '44085370',
+        number: '123',
+        whatsapp: '75999999999',
+        createdAt: '2026-07-18T10:33:00.000Z',
+        isActive: true,
+        disabledAt: null,
+        userId: 'clsw0s98x000013z81z8z8z8z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Nenhum negócio encontrado para este usuário ou negócio não encontrado.',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async activateProvider(
+    @Param('providerId') providerId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.providersService.activateProvider(userId, providerId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post('create-provider-to-user')
+  @ApiBody({
+    type: CreateProviderDto,
+    description: 'Criar prestador de serviços para um usuário existente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Erro ao criar prestador de serviços',
+  })
+  @ApiResponse({ status: 409, description: 'E-mail já está em uso' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  @ApiResponse({
+    status: 201,
+    description: 'Prestador de serviços criado com sucesso',
+    schema: {
+      example: {
+        message: 'Negócio criado com sucesso',
+        user: {
+          id: 'clsw0s98x000013z81z8z8z8z',
+          businessName: "Barber's Shop",
+          slug: 'barbers-shop',
+          providerType: 'Barbearia',
+          district: 'SIM',
+          street: 'Artemia Pires Freitas',
+          city: 'Feira de Santana',
+          state: 'Bahia',
+          zipCode: '44085370',
+          number: '123',
+          whatsapp: '75999999999',
+          createdAt: '2026-07-18T10:33:00.000Z',
+          isActive: true,
+          userId: 'clsw0s98x000013z81z8z8z8z',
+        },
+      },
+    },
+  })
+  async createProviderToUser(
+    @Body() data: CreateProviderDto,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.providersService.createProvider(data, userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_USERS)
+  @Get('get-by-id/:providerId')
+  @ApiResponse({
+    status: 200,
+    description: 'Prestador de serviços encontrado com sucesso',
+    schema: {
+      example: {
+        id: 'clsw0s98x000013z81z8z8z8z',
+        businessName: "Barber's Shop",
+        slug: 'barbers-shop',
+        providerType: 'Barbearia',
+        district: 'SIM',
+        street: 'Artemia Pires Freitas',
+        city: 'Feira de Santana',
+        state: 'Bahia',
+        zipCode: '44085370',
+        number: '123',
+        whatsapp: '75999999999',
+        createdAt: '2026-07-18T10:33:00.000Z',
+        isActive: true,
+        userId: 'clsw0s98x000013z81z8z8z8z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Nenhum negócio encontrado para este ID.',
+  })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async getProviderById(@Param('providerId') providerId: string) {
+    return this.providersService.getProviderByProviderId(providerId);
   }
 }
