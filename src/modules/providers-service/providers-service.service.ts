@@ -154,4 +154,57 @@ export class ProvidersServiceService {
       data: { isActive: false, disabledAt: new Date() },
     });
   }
+
+  async activateService(userId: string, serviceId: string) {
+    const provider = await this.prisma.provider.findFirst({
+      where: { userId: userId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException(
+        'Nenhum negócio encontrado para este usuário.',
+      );
+    }
+
+    const serviceExists = await this.prisma.service.findFirst({
+      where: { id: serviceId, providerId: provider.id },
+    });
+
+    if (!serviceExists) {
+      throw new NotFoundException('Serviço não encontrado.');
+    }
+
+    return this.prisma.service.update({
+      where: { id: serviceId },
+      data: { isActive: true, disabledAt: null },
+    });
+  }
+
+  async getAllServices(filters?: FilterServiceDto) {
+    const whereClause: any = {};
+    let orderByClause: any = { createdAt: 'desc' };
+
+    if (filters) {
+      if (filters.status === 'active') whereClause.isActive = true;
+      if (filters.status === 'inactive') whereClause.isActive = false;
+
+      if (filters.totalPrice) whereClause.totalPrice = filters.totalPrice;
+      if (filters.durationMinutes)
+        whereClause.durationMinutes = filters.durationMinutes;
+      if (filters.availableEmployers)
+        whereClause.availableEmployers = filters.availableEmployers;
+      if (filters.downPaymentPercent)
+        whereClause.downPaymentPercent = filters.downPaymentPercent;
+      if (filters.orderBy) {
+        orderByClause = { createdAt: filters.orderBy };
+      }
+    }
+
+    const services = await this.prisma.service.findMany({
+      where: whereClause,
+      orderBy: orderByClause,
+    });
+
+    return services;
+  }
 }

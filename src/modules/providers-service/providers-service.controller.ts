@@ -18,6 +18,12 @@ import { ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { ListServiceBySlugDto } from './dto/list-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { FilterServiceDto } from './dto/filter-service.dto';
+import { Roles } from '../auth/roles/decorators/roles.decorator';
+import {
+  INTERNAL_NO_EMPLOYEE,
+  SYSTEM_MANAGERS,
+} from 'src/common/constants/role-groups.constant';
+import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
 @Controller('providers-service')
 export class ProvidersServiceController {
@@ -26,7 +32,8 @@ export class ProvidersServiceController {
   ) {}
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Post('create')
   @ApiResponse({
     status: 201,
@@ -58,7 +65,8 @@ export class ProvidersServiceController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Get('list')
   @ApiResponse({
     status: 200,
@@ -126,7 +134,8 @@ export class ProvidersServiceController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch('update/:serviceId')
   @ApiResponse({
     status: 200,
@@ -163,7 +172,8 @@ export class ProvidersServiceController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Delete('deactivate/:serviceId')
   @ApiResponse({
     status: 200,
@@ -198,5 +208,74 @@ export class ProvidersServiceController {
   ) {
     const userId = req.user?.['sub'];
     return this.providersServiceService.deactivateService(userId, serviceId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Patch('activate/:serviceId')
+  @ApiResponse({
+    status: 200,
+    description: 'Serviço ativado com sucesso',
+    schema: {
+      example: {
+        id: 'clsw0s2b0003138mg1wmg1wmg1',
+        name: 'Corte de Cabelo',
+        description: 'Corte de cabelo masculino e feminino',
+        durationMinutes: 60,
+        totalPrice: 50.0,
+        downPaymentPercent: 10,
+        availableEmployers: 2,
+        providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+        createdAt: '2023-11-20T17:21:51.000Z',
+        updatedAt: '2023-11-20T17:21:51.000Z',
+        isActive: true,
+        disabledAt: null,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Nenhum negócio encontrado para este usuário ou serviço não encontrado.',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
+  async activateService(
+    @Param('serviceId') serviceId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.providersServiceService.activateService(userId, serviceId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SYSTEM_MANAGERS)
+  @Get('all')
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de todos os serviços retornada com sucesso',
+    schema: {
+      example: [
+        {
+          id: 'clsw0s2b0003138mg1wmg1wmg1',
+          name: 'Corte de Cabelo',
+          description: 'Corte de cabelo masculino e feminino',
+          durationMinutes: 60,
+          totalPrice: 50.0,
+          downPaymentPercent: 10,
+          availableEmployers: 2,
+          providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+          createdAt: '2023-11-20T17:21:51.000Z',
+          updatedAt: '2023-11-20T17:21:51.000Z',
+        },
+      ],
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
+  async getAllServices(@Query() filters?: FilterServiceDto) {
+    return this.providersServiceService.getAllServices(filters);
   }
 }
