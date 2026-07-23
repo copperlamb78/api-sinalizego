@@ -215,5 +215,37 @@ export class AppointmentsService {
     return updatedAppointment;
   }
 
-  //implementar service de soft-delete
+  async deactivateAppointment(appointmentId: string, userId: string) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    if (appointment.status === 'CANCELED' || !appointment.isActive) {
+      throw new BadRequestException('Agendamento já está inativo.');
+    }
+
+    const canceledAppointment = await this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        status: 'CANCELED',
+        isActive: false,
+        disabledAt: new Date(),
+        disabledBy: user.id,
+      },
+    });
+
+    return canceledAppointment;
+  }
 }
