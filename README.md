@@ -4,9 +4,9 @@
 
 <img src="https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" /> <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" /> <img src="https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white" /> <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" /> <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white" /> <img src="https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black" />
 
-**Plataforma de agendamento inteligente para prestadores de serviços**
+**Plataforma de agendamento inteligente para empresas e prestadores de serviços**
 
-*Conectando clientes aos melhores profissionais da sua região* ✨
+*Conectando clientes às melhores empresas da sua região* ✨
 
 ---
 
@@ -18,19 +18,19 @@
 
 ## 📋 Sobre o Projeto
 
-**SinalizeGO** é uma API RESTful robusta para gerenciamento de agendamentos entre **clientes** e **prestadores de serviços** (barbearias, estúdios, salões e mais). A plataforma permite que prestadores cadastrem seus negócios, definam serviços com preços e duração, e recebam agendamentos com controle de pagamento via Pix.
+**SinalizeGO** é uma API RESTful robusta para gerenciamento de agendamentos entre **clientes** e **empresas/prestadores de serviços** (barbearias, estúdios, salões e mais). A plataforma permite que donos de empresa cadastrem seus negócios (`Company`), definam serviços com preços e duração, e recebam agendamentos com controle de pagamento via Pix.
 
 ### ✨ Destaques
 
 | Recurso | Descrição |
 |---------|-----------|
 | 🔐 **Autenticação JWT** | Login seguro com access token + refresh token |
-| 🔑 **RBAC (Role-Based Access Control)** | 5 níveis de permissão com guard customizado |
+| 🔑 **RBAC (Role-Based Access Control)** | Níveis de permissão com guard customizado (CLIENT, COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN) |
 | 👥 **Gestão de Usuários** | CRUD completo com ativação/desativação e hash de senha |
-| 🏪 **Perfil de Negócio** | Criação com slug automático, filtros, ordenação e ativação |
-| 💈 **Catálogo de Serviços** | CRUD completo com taxa da plataforma e ativação |
+| 🏢 **Perfil da Empresa (Company)** | Criação com slug automático, filtros, ordenação e ativação |
+| 💈 **Catálogo de Serviços** | CRUD completo por empresa com taxa da plataforma e ativação |
 | 📅 **Agendamentos** | Criação com verificação de conflitos, filtros por role e cancelamento |
-| 💳 **Transações** | Módulo preparado para integração com pagamentos |
+| 💳 **Transações** | Módulo preparado para integração com pagamentos (Asaas) |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 | 🛡️ **Soft Delete** | Desativação segura com rastreamento de quem desativou |
 
@@ -102,15 +102,15 @@ JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
 
 ## 🔑 Sistema de Permissões
 
-A API utiliza **RBAC (Role-Based Access Control)** com 5 níveis de permissão e grupos predefinidos.
+A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e grupos predefinidos.
 
 ### Roles
 
 | Role | Descrição |
 |------|-----------|
 | `CLIENT` | Usuário padrão que agenda serviços |
-| `EMPLOYEE` | Funcionário de um prestador |
-| `PROVIDER` | Dono de negócio / prestador de serviço |
+| `COMPANY_OWNER` | Dono de empresa / negócio |
+| `EMPLOYEE` | Funcionário de uma empresa |
 | `ADMIN` | Administrador do sistema |
 | `SUPER_ADMIN` | Administrador com acesso total |
 
@@ -119,9 +119,9 @@ A API utiliza **RBAC (Role-Based Access Control)** com 5 níveis de permissão e
 | Grupo | Roles incluídas | Uso |
 |-------|-----------------|-----|
 | `SYSTEM_MANAGERS` | ADMIN, SUPER_ADMIN | Gestão do sistema (listar usuários) |
-| `INTERNAL_USERS` | EMPLOYEE, PROVIDER, ADMIN, SUPER_ADMIN | Operações internas |
-| `INTERNAL_NO_EMPLOYEE` | PROVIDER, ADMIN, SUPER_ADMIN | Operações sem funcionário (desativar/ativar) |
-| `ALL_USERS` | CLIENT, EMPLOYEE, PROVIDER, ADMIN, SUPER_ADMIN | Acesso geral autenticado |
+| `INTERNAL_USERS` | COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN | Operações internas |
+| `INTERNAL_NO_EMPLOYEE` | COMPANY_OWNER, ADMIN, SUPER_ADMIN | Operações sem funcionário (desativar/ativar) |
+| `ALL_USERS` | CLIENT, COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN | Acesso geral autenticado |
 
 ---
 
@@ -135,34 +135,8 @@ A API utiliza **RBAC (Role-Based Access Control)** com 5 níveis de permissão e
 |--------|------|-----------|------|-------|
 | `POST` | `/auth/login` | Login com email e senha | ❌ | — |
 | `POST` | `/auth/refresh` | Renovar access token | 🔑 Refresh | — |
-
-<details>
-<summary>📝 <b>Body — Login</b></summary>
-
-```json
-{
-  "email": "usuario@email.com",
-  "password": "senha123"
-}
-```
-</details>
-
-<details>
-<summary>✅ <b>Response — Login (201)</b></summary>
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIs...",
-  "refresh_token": "v1.MjQ1NjM4...",
-  "user": {
-    "id": "uuid",
-    "name": "João Silva",
-    "email": "joao@email.com",
-    "role": "CLIENT"
-  }
-}
-```
-</details>
+| `GET` | `/auth/me` | Dados do usuário logado | 🔑 Refresh | — |
+| `POST` | `/auth/logout` | Encerrar sessão | 🔑 Refresh | — |
 
 ---
 
@@ -178,96 +152,40 @@ A API utiliza **RBAC (Role-Based Access Control)** com 5 níveis de permissão e
 | `DELETE` | `/users/deactivate/:userId` | Desativar usuário (soft delete) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/users/activate/:userId` | Reativar usuário | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
-<details>
-<summary>📝 <b>Body — Criar Usuário</b></summary>
-
-```json
-{
-  "name": "João Silva",
-  "email": "joao@email.com",
-  "password": "senhaSegura123",
-  "phone": "75999999999"
-}
-```
-</details>
-
 ---
 
-### 🏪 Providers — Prestadores
+### 🏢 Company — Empresas
 
-> Cadastro de negócios com slug automático, filtros, ativação/desativação e busca por ID.
+> Cadastro de empresas com slug automático, busca por ID, filtros, ordenação e ativação/desativação.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `POST` | `/providers/create` | Criar prestador (com novo usuário) | ❌ | — |
-| `POST` | `/providers/create-to-user` | Criar negócio para usuário existente | 🔑 JWT | — |
-| `GET` | `/providers/get-by-user-id` | Buscar prestador por userId | 🔑 JWT | — |
-| `GET` | `/providers/get-by-id/:providerId` | Buscar prestador por ID | 🔑 JWT | `INTERNAL_USERS` |
-| `GET` | `/providers/list` | Listar prestadores do usuário (com filtros) | 🔑 JWT | — |
-| `GET` | `/providers/get-all` | Listar todos os prestadores | ❌ | — |
-| `PATCH` | `/providers/activate/:providerId` | Reativar negócio | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
-
-<details>
-<summary>📝 <b>Body — Criar Negócio (usuário existente)</b></summary>
-
-```json
-{
-  "businessName": "Barber's Shop",
-  "providerType": "Barbearia",
-  "phone": "75999999999",
-  "district": "Centro",
-  "street": "Rua das Flores",
-  "city": "Feira de Santana",
-  "state": "Bahia",
-  "zipCode": "44085370",
-  "number": "123"
-}
-```
-</details>
-
-<details>
-<summary>🔍 <b>Query Params — Filtros (GET /providers/list)</b></summary>
-
-| Parâmetro | Tipo | Descrição |
-|-----------|------|-----------|
-| `businessName` | `string` | Filtrar por nome do negócio |
-| `providerType` | `string` | Filtrar por tipo (ex: Barbearia) |
-| `orderBy` | `asc \| desc` | Ordenar por data de criação |
-
-```
-GET /providers/list?providerType=Barbearia&orderBy=desc
-```
-</details>
+| `POST` | `/company/create` | Criar empresa (com novo usuário) | ❌ | — |
+| `POST` | `/company/create-company-to-user` | Criar empresa para usuário existente | 🔑 JWT | — |
+| `GET` | `/company/get-by-user-id` | Buscar empresa por userId | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company/get-by-id/:companyId` | Buscar empresa por ID | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/company/list` | Listar empresas do usuário (com filtros) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company/get-all` | Listar todas as empresas | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `GET` | `/company/get-by-slug/:slug` | Buscar empresa por slug (público) | ❌ | — |
+| `PATCH` | `/company/update/:companyId` | Atualizar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/company/deactivate/:companyId` | Desativar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/company/activate/:companyId` | Reativar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
 ---
 
-### 💈 Providers-Service — Serviços do Prestador
+### 💈 Company-Service — Serviços da Empresa
 
-> CRUD completo de serviços com taxa da plataforma, ativação e controle de acesso.
+> CRUD completo de serviços por empresa com taxa da plataforma, ativação e vitrine pública por slug.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `POST` | `/providers-service/create` | Criar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
-| `GET` | `/providers-service/list` | Listar serviços do prestador logado | 🔑 JWT | `INTERNAL_USERS` |
-| `GET` | `/providers-service/list/:slug` | Listar serviços por slug (vitrine pública) | ❌ | — |
-| `PATCH` | `/providers-service/update/:serviceId` | Atualizar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
-| `DELETE` | `/providers-service/deactivate/:serviceId` | Desativar serviço (soft delete) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
-| `PATCH` | `/providers-service/activate/:serviceId` | Reativar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
-
-<details>
-<summary>📝 <b>Body — Criar Serviço</b></summary>
-
-```json
-{
-  "name": "Corte de Cabelo",
-  "description": "Corte masculino completo",
-  "durationMinutes": 60,
-  "totalPrice": 50.00,
-  "downPaymentPercent": 10,
-  "availableEmployers": 2
-}
-```
-</details>
+| `POST` | `/company-service/create` | Criar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company-service/list` | Listar serviços da empresa do usuário logado | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company-service/list/:slug` | Listar serviços por slug da empresa (vitrine pública) | ❌ | — |
+| `PATCH` | `/company-service/update/:serviceId` | Atualizar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/company-service/deactivate/:serviceId` | Desativar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/company-service/activate/:serviceId` | Reativar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company-service/all` | Listar todos os serviços | 🔑 JWT | `SYSTEM_MANAGERS` |
 
 <details>
 <summary>💰 <b>Taxa da Plataforma (automática)</b></summary>
@@ -289,55 +207,17 @@ GET /providers/list?providerType=Barbearia&orderBy=desc
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
 | `POST` | `/appointments` | Criar agendamento | 🔑 JWT | — |
-| `GET` | `/appointments/list` | Listar agendamentos (filtros por role do usuário) | 🔑 JWT | — |
-| `GET` | `/appointments/list-all` | Listar todos os agendamentos (super admin) | 🔑 JWT | `SYSTEM_MANAGERS` |
-| `PATCH` | `/appointments/cancel/:appointmentId` | Cancelar agendamento | 🔑 JWT | — |
-
-<details>
-<summary>📝 <b>Body — Criar Agendamento</b></summary>
-
-```json
-{
-  "providerId": "uuid-do-prestador",
-  "serviceId": "uuid-do-servico",
-  "appointmentDate": "2026-07-25T14:00:00.000Z"
-}
-```
-</details>
-
-<details>
-<summary>⚙️ <b>Lógica de Negócio</b></summary>
-
-- ✅ Verifica se o prestador e serviço existem
-- ✅ Calcula `appointmentEndDate` com base na duração do serviço
-- ✅ Verifica conflitos de horário (mesmo prestador, mesmo período)
-- ✅ Verifica vagas disponíveis (`availableEmployers`)
-- ✅ Calcula `servicePrice`, `downPaymentAmount` e `platformFeeAmount` automaticamente
-- ✅ Define `expiresAt` (15 min para confirmar pagamento)
-- ✅ Status inicial: `PENDING_PAYMENT`
-
-</details>
-
-<details>
-<summary>🔍 <b>Filtros por Role na Listagem</b></summary>
-
-| Role | Filtros disponíveis |
-|------|---------------------|
-| **CLIENT** | `serviceId`, `startDate`, `orderBy` |
-| **PROVIDER / EMPLOYEE** | `clientId`, `serviceId`, `status`, `startDate`, `endDate`, `servicePrice`, `downPaymentAmount`, `isActive`, `orderBy` |
-| **SUPER_ADMIN** | Todos os filtros acima + `providerId`, `platformFeeAmount` |
-
-</details>
+| `GET` | `/appointments` | Listar todos os agendamentos (super admin) | 🔑 JWT | `SUPER_ADMIN` |
+| `GET` | `/appointments/company` | Listar agendamentos da empresa | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/appointments/user` | Listar agendamentos do cliente | 🔑 JWT | — |
+| `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento | 🔑 JWT | — |
+| `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento | 🔑 JWT | — |
 
 ---
 
 ### 💳 Transactions — Transações
 
-> Módulo base preparado para integração com sistema de pagamentos (Pix).
-
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| — | `/transactions` | *Em desenvolvimento* | — |
+> Módulo base preparado para integração com sistema de pagamentos (Pix / Asaas).
 
 ---
 
@@ -347,12 +227,12 @@ GET /providers/list?providerType=Barbearia&orderBy=desc
 
 ```mermaid
 erDiagram
-    User ||--o{ Provider : "possui"
+    User ||--o{ Company : "possui"
     User ||--o{ Appointment : "agenda"
-    Provider ||--o{ Service : "oferece"
-    Provider ||--o{ Appointment : "recebe"
-    Provider ||--o{ WorkingHour : "define"
-    Provider ||--o{ ScheduleException : "configura"
+    Company ||--o{ Service : "oferece"
+    Company ||--o{ Appointment : "recebe"
+    Company ||--o{ WorkingHour : "define"
+    Company ||--o{ ScheduleException : "configura"
     Service ||--o{ Appointment : "vincula"
 
     User {
@@ -361,14 +241,14 @@ erDiagram
         string email UK
         string password
         string phone
-        enum role "CLIENT | EMPLOYEE | PROVIDER | ADMIN | SUPER_ADMIN"
+        enum role "CLIENT | COMPANY_OWNER | EMPLOYEE | ADMIN | SUPER_ADMIN"
         string refreshToken
         boolean isActive
         datetime createdAt
         datetime disabledAt
     }
 
-    Provider {
+    Company {
         string id PK
         string userId FK
         string businessName
@@ -382,13 +262,15 @@ erDiagram
         string state
         string zipCode
         string number
+        string logoPhoto
+        string bannerPhoto
         boolean isActive
         datetime disabledAt
     }
 
     Service {
         string id PK
-        string providerId FK
+        string companyId FK
         string name
         string description
         int durationMinutes
@@ -401,7 +283,7 @@ erDiagram
 
     Appointment {
         string id PK
-        string providerId FK
+        string companyId FK
         string serviceId FK
         string clientId FK
         datetime appointmentDate
@@ -419,7 +301,7 @@ erDiagram
 
     WorkingHour {
         string id PK
-        string providerId FK
+        string companyId FK
         int dayOfWeek
         string startTime
         string endTime
@@ -428,7 +310,7 @@ erDiagram
 
     ScheduleException {
         string id PK
-        string providerId FK
+        string companyId FK
         datetime date
         boolean isClosed
         string startTime
@@ -444,7 +326,7 @@ erDiagram
 
 ```
 src/
-├── 📄 main.ts                          # Bootstrap + Swagger
+├── 📄 main.ts                          # Bootstrap + Swagger + Global Exception Filters
 ├── 📄 app.module.ts                    # Módulo raiz
 ├── 📄 app.controller.ts               # Controller padrão
 ├── 📄 app.service.ts                   # Service padrão
@@ -453,8 +335,17 @@ src/
 │   └── calculate-tax.helper.ts        # Cálculo de taxa da plataforma
 │
 ├── 📋 common/
-│   └── constants/
-│       └── role-groups.constant.ts    # Grupos de roles (SYSTEM_MANAGERS, etc.)
+│   ├── constants/
+│   │   └── role-groups.constant.ts    # Grupos de roles (SYSTEM_MANAGERS, etc.)
+│   └── filters/
+│       └── prisma-client-exception.filter.ts # Filtro global de exceções Prisma
+│
+├── ☁️ cloudinary/
+│   ├── cloudinary.module.ts
+│   ├── cloudinary.service.ts
+│   └── upload/
+│       ├── upload.controller.ts
+│       └── upload.module.ts
 │
 ├── 🗄️ prisma/
 │   ├── prisma.module.ts                # Módulo global do Prisma
@@ -465,15 +356,6 @@ src/
     │   ├── auth.module.ts
     │   ├── auth.controller.ts
     │   ├── auth.service.ts
-    │   ├── dto/
-    │   │   └── user-login.dto.ts
-    │   ├── jwt/
-    │   │   ├── guard/
-    │   │   │   ├── jwt-auth.guard.ts
-    │   │   │   └── jwt-refresh.guard.ts
-    │   │   └── strategy/
-    │   │       ├── jwt.strategy.ts
-    │   │       └── jwt-refresh.strategy.ts
     │   └── roles/
     │       ├── decorators/
     │       │   └── roles.decorator.ts
@@ -488,22 +370,24 @@ src/
     │       ├── user-create.dto.ts
     │       └── user-update.dto.ts
     │
-    ├── 🏪 providers/
-    │   ├── providers.module.ts
-    │   ├── providers.controller.ts
-    │   ├── providers.service.ts
+    ├── 🏢 company/
+    │   ├── company.module.ts
+    │   ├── company.controller.ts
+    │   ├── company.service.ts
     │   ├── dto/
-    │   │   ├── providers-create.dto.ts
-    │   │   └── providers-filter.dto.ts
+    │   │   ├── company-create.dto.ts
+    │   │   ├── company-filter.dto.ts
+    │   │   └── company-update.dto.ts
     │   └── helpers/
     │       └── create-slug.helper.ts
     │
-    ├── 💈 providers-service/
-    │   ├── providers-service.module.ts
-    │   ├── providers-service.controller.ts
-    │   ├── providers-service.service.ts
+    ├── 💈 company-service/
+    │   ├── company-service.module.ts
+    │   ├── company-service.controller.ts
+    │   ├── company-service.service.ts
     │   └── dto/
     │       ├── create-service.dto.ts
+    │       ├── filter-service.dto.ts
     │       ├── list-service.dto.ts
     │       └── update-service.dto.ts
     │
@@ -520,9 +404,7 @@ src/
     └── 💳 transactions/
         ├── transactions.module.ts
         ├── transactions.controller.ts
-        ├── transactions.service.ts
-        └── dto/
-            └── transactions-create.dto.ts
+        └── transactions.service.ts
 ```
 
 ---
@@ -540,6 +422,7 @@ src/
 | 🐘 **Banco de Dados** | PostgreSQL (Supabase) | 15.x |
 | 🔐 **Autenticação** | JWT + Passport | — |
 | 🔒 **Hash** | bcrypt | 6.x |
+| ☁️ **Mídia** | Cloudinary | 2.x |
 | 📖 **Documentação** | Swagger / OpenAPI | 11.x |
 | ✅ **Validação** | class-validator | 0.15 |
 
