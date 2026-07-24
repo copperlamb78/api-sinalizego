@@ -22,20 +22,21 @@ model User {
   isActive   Boolean   @default(true)
   disabledAt DateTime? // Corrigido de dateTime? para DateTime?
 
-  businesses   Provider[] 
+  companies    Company[] 
   appointments Appointment[] 
 }
 
 enum Role {
   CLIENT
   PROVIDER
+  COMPANY_OWNER
   EMPLOYEE
   ADMIN
   SUPER_ADMIN
 }
 
-// 2. O NEGÓCIO (A Barbearia/Estúdio)
-model Provider {
+// 2. O NEGÓCIO (A Barbearia/Estúdio/Empresa)
+model Company {
   id           String    @id @default(uuid())
   userId       String   
   businessName String
@@ -68,7 +69,7 @@ model Provider {
 // 3. OS SERVIÇOS
 model Service {
   id                 String    @id @default(uuid())
-  providerId         String
+  companyId          String
   name               String
   description        String?
   durationMinutes    Int
@@ -80,14 +81,14 @@ model Service {
   isActive           Boolean   @default(true)
   disabledAt         DateTime? 
 
-  provider           Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   appointments       Appointment[]
 }
 
 // 4. OS AGENDAMENTOS
 model Appointment {
   id              String     @id @default(uuid())
-  providerId      String
+  companyId       String
   serviceId       String
   clientId        String
   appointmentDate DateTime  
@@ -104,7 +105,7 @@ model Appointment {
   disabledAt      DateTime?  // Corrigido de dateTime? para DateTime?
   disabledBy      String?
 
-  provider        Provider @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
@@ -119,7 +120,7 @@ enum ApptStatus {
 // 5. AGENDA SEMANAL
 model WorkingHour {
   id         String   @id @default(uuid())
-  providerId String
+  companyId  String
   dayOfWeek  Int      // 0 = Domingo, 1 = Segunda, 2 = Terça...
   startTime  String   // "09:00"
   endTime    String   // "18:00"
@@ -128,15 +129,15 @@ model WorkingHour {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   
-  @@unique([providerId, dayOfWeek])
+  @@unique([companyId, dayOfWeek])
 }
 
 // 6. EXCEÇÕES E FERIADOS
 model ScheduleException {
   id         String    @id @default(uuid())
-  providerId String
+  companyId  String
   date       DateTime
   isClosed   Boolean   @default(true) 
   
@@ -148,5 +149,5 @@ model ScheduleException {
   isActive   Boolean   @default(true)
   disabledAt DateTime? // Corrigido de dateTime? para DateTime?
 
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }

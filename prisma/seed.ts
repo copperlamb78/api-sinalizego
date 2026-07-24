@@ -34,7 +34,7 @@ async function main() {
       email: 'barbeiro@teste.com',
       name: 'Barbearia do Zé',
       password: passwordHash,
-      role: 'PROVIDER',
+      role: 'COMPANY_OWNER',
       phone: '11988888888', // 👈 Campo obrigatório adicionado
     },
   });
