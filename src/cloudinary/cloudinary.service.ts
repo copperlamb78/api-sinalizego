@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  BadGatewayException,
+} from '@nestjs/common';
 import {
   v2 as cloudinary,
   UploadApiResponse,
@@ -17,7 +21,13 @@ export class CloudinaryService {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: folderPath },
         (error, result) => {
-          if (error) return reject(error);
+          if (error) {
+            return reject(
+              new BadGatewayException(
+                'Erro ao processar o upload da imagem no servidor externo.',
+              ),
+            );
+          }
 
           if (!result)
             return reject(
