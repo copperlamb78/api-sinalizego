@@ -1,7 +1,7 @@
 import { IsOptional, IsString, IsIn } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export class FilterProviderDto {
+export class FilterCompanyDto {
   @ApiPropertyOptional({
     example: 'Barbearia do Zé',
     description: 'Nome do negócio',
@@ -12,7 +12,7 @@ export class FilterProviderDto {
 
   @ApiPropertyOptional({
     example: 'Barbearia',
-    description: 'Tipo de prestador de serviço',
+    description: 'Tipo de empresa / segmento',
   })
   @IsOptional()
   @IsString()

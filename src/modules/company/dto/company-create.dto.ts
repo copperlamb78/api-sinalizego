@@ -1,7 +1,7 @@
 import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
-export class CreateProviderDto {
+export class CreateCompanyDto {
   // --- TELA 1: DADOS DO USUÁRIO ---
   @ApiProperty({ example: 'Carlos Alberto' })
   @IsString()
@@ -22,7 +22,7 @@ export class CreateProviderDto {
   @IsNotEmpty()
   phone: string;
 
-  // --- TELA 2: DADOS DO NEGÓCIO ---
+  // --- TELA 2: DADOS DO NEGÓCIO / EMPRESA ---
   @ApiProperty({ example: 'Barbearia' })
   @IsString()
   @IsNotEmpty()
@@ -65,7 +65,7 @@ export class CreateProviderDto {
   number: string;
 }
 
-export class CreateProviderWithoutUserDto extends OmitType(CreateProviderDto, [
+export class CreateCompanyWithoutUserDto extends OmitType(CreateCompanyDto, [
   'name',
   'email',
 ]) {}

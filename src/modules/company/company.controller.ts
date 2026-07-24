@@ -10,13 +10,16 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ProvidersService } from './providers.service';
-import { CreateProviderDto, CreateProviderWithoutUserDto } from './dto/providers-create.dto';
+import { CompanyService } from './company.service';
+import {
+  CreateCompanyDto,
+  CreateCompanyWithoutUserDto,
+} from './dto/company-create.dto';
 import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
-import { UpdateProviderDto } from './dto/providers-update.dto';
+import { UpdateCompanyDto } from './dto/company-update.dto';
 import type { Request } from 'express';
-import { FilterProviderDto } from './dto/providers-filter.dto';
+import { FilterCompanyDto } from './dto/company-filter.dto';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
 import {
   INTERNAL_NO_EMPLOYEE,
@@ -25,36 +28,36 @@ import {
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
-@Controller('providers')
-export class ProvidersController {
-  constructor(private readonly providersService: ProvidersService) {}
+@Controller('company')
+export class CompanyController {
+  constructor(private readonly companyService: CompanyService) {}
 
   @Post('create')
   @ApiBody({
-    type: CreateProviderDto,
-    description: 'Criar prestador de serviços',
+    type: CreateCompanyDto,
+    description: 'Criar empresa',
   })
   @ApiResponse({
     status: 400,
-    description: 'Erro ao criar prestador de serviços',
+    description: 'Erro ao criar empresa',
   })
   @ApiResponse({ status: 409, description: 'E-mail já está em uso' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   @ApiResponse({
     status: 201,
-    description: 'Prestador de serviços criado com sucesso',
+    description: 'Empresa criada com sucesso',
     schema: {
       example: {
-        message: 'Prestador de serviços criado com sucesso',
+        message: 'Empresa criada com sucesso',
         user: {
           id: 'clsw0s98x000013z81z8z8z8z',
           name: 'Carlos Alberto',
           email: 'carlos@barbershop.com',
           phone: '75999999999',
-          role: 'PROVIDER',
+          role: 'COMPANY_OWNER',
           createdAt: '2026-07-18T10:33:00.000Z',
           isActive: true,
-          businesses: [
+          companies: [
             {
               id: 'clsw0s98x000013z81z8z8z8z',
               businessName: "Barber's Shop",
@@ -76,8 +79,8 @@ export class ProvidersController {
       },
     },
   })
-  async createProvider(@Body() data: CreateProviderDto) {
-    return this.providersService.createProviderWithUser(data);
+  async createCompany(@Body() data: CreateCompanyDto) {
+    return this.companyService.createCompanyWithUser(data);
   }
 
   @ApiBearerAuth()
@@ -86,7 +89,7 @@ export class ProvidersController {
   @Get('get-by-user-id')
   @ApiResponse({
     status: 200,
-    description: 'Prestador de serviços encontrado com sucesso',
+    description: 'Empresa encontrada com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -108,11 +111,11 @@ export class ProvidersController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhum negócio encontrado para este usuário.',
+    description: 'Nenhuma empresa encontrada para este usuário.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getProviderByUserId(@Body('userId') userId: string) {
-    return this.providersService.getProviderByUserId(userId);
+  async getCompanyByUserId(@Body('userId') userId: string) {
+    return this.companyService.getCompanyByUserId(userId);
   }
 
   @ApiBearerAuth()
@@ -121,7 +124,7 @@ export class ProvidersController {
   @Get('list')
   @ApiResponse({
     status: 200,
-    description: 'Lista de prestadores de serviços retornada com sucesso',
+    description: 'Lista de empresas retornada com sucesso',
     schema: {
       example: [
         {
@@ -145,16 +148,16 @@ export class ProvidersController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhum negócio encontrado para este usuário.',
+    description: 'Nenhuma empresa encontrada para este usuário.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getAllProvidersByUserId(
+  async getAllCompaniesByUserId(
     @Req() req: Request,
-    @Query() filters?: FilterProviderDto,
+    @Query() filters?: FilterCompanyDto,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersService.getAllProvidersByUserId(userId, filters);
+    return this.companyService.getAllCompaniesByUserId(userId, filters);
   }
 
   @ApiBearerAuth()
@@ -163,7 +166,7 @@ export class ProvidersController {
   @Get('get-all')
   @ApiResponse({
     status: 200,
-    description: 'Lista de prestadores de serviços retornada com sucesso',
+    description: 'Lista de empresas retornada com sucesso',
     schema: {
       example: [
         {
@@ -186,14 +189,14 @@ export class ProvidersController {
     },
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getAllProviders() {
-    return this.providersService.getAllProviders();
+  async getAllCompanies() {
+    return this.companyService.getAllCompanies();
   }
 
   @Get('get-by-slug/:slug')
   @ApiResponse({
     status: 200,
-    description: 'Prestador de serviços encontrado com sucesso',
+    description: 'Empresa encontrada com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -215,24 +218,24 @@ export class ProvidersController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhum negócio encontrado para este slug.',
+    description: 'Nenhuma empresa encontrada para este slug.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getProviderBySlug(@Param('slug') slug: string) {
-    return this.providersService.getProviderBySlug(slug);
+  async getCompanyBySlug(@Param('slug') slug: string) {
+    return this.companyService.getCompanyBySlug(slug);
   }
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
-  @Patch('update/:providerId')
+  @Patch('update/:companyId')
   @ApiBody({
-    type: UpdateProviderDto,
-    description: 'Atualizar prestador de serviços',
+    type: UpdateCompanyDto,
+    description: 'Atualizar empresa',
   })
   @ApiResponse({
     status: 200,
-    description: 'Prestador de serviços atualizado com sucesso',
+    description: 'Empresa atualizada com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -250,33 +253,33 @@ export class ProvidersController {
         isActive: true,
         userId: 'clsw0s98x000013z81z8z8z8z',
         banner:
-          'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/providerId/banner/public_id.jpg',
-        logo: 'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/providerId/logo/public_id.jpg',
+          'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/companyId/banner/public_id.jpg',
+        logo: 'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/companyId/logo/public_id.jpg',
       },
     },
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhum negócio encontrado para este usuário ou negócio.',
+    description: 'Nenhuma empresa encontrada para este usuário ou empresa.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async updateProvider(
-    @Param('providerId') providerId: string,
-    @Body() data: UpdateProviderDto,
+  async updateCompany(
+    @Param('companyId') companyId: string,
+    @Body() data: UpdateCompanyDto,
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersService.updateProvider(userId, providerId, data);
+    return this.companyService.updateCompany(userId, companyId, data);
   }
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Delete('deactivate/:providerId')
+  @Delete('deactivate/:companyId')
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @ApiResponse({
     status: 200,
-    description: 'Prestador de serviços desativado com sucesso',
+    description: 'Empresa desativada com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -300,25 +303,25 @@ export class ProvidersController {
   @ApiResponse({
     status: 404,
     description:
-      'Nenhum negócio encontrado para este usuário ou negócio não encontrado.',
+      'Nenhuma empresa encontrada para este usuário ou empresa não encontrada.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async deactivateProvider(
-    @Param('providerId') providerId: string,
+  async deactivateCompany(
+    @Param('companyId') companyId: string,
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersService.deactivateProvider(userId, providerId);
+    return this.companyService.deactivateCompany(userId, companyId);
   }
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
-  @Patch('activate/:providerId')
+  @Patch('activate/:companyId')
   @ApiResponse({
     status: 200,
-    description: 'Prestador de serviços ativado com sucesso',
+    description: 'Empresa ativada com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -342,37 +345,37 @@ export class ProvidersController {
   @ApiResponse({
     status: 404,
     description:
-      'Nenhum negócio encontrado para este usuário ou negócio não encontrado.',
+      'Nenhuma empresa encontrada para este usuário ou empresa não encontrada.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async activateProvider(
-    @Param('providerId') providerId: string,
+  async activateCompany(
+    @Param('companyId') companyId: string,
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersService.activateProvider(userId, providerId);
+    return this.companyService.activateCompany(userId, companyId);
   }
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Post('create-provider-to-user')
+  @Post('create-company-to-user')
   @ApiBody({
-    type: CreateProviderWithoutUserDto,
-    description: 'Criar prestador de serviços para um usuário existente',
+    type: CreateCompanyWithoutUserDto,
+    description: 'Criar empresa para um usuário existente',
   })
   @ApiResponse({
     status: 400,
-    description: 'Erro ao criar prestador de serviços',
+    description: 'Erro ao criar empresa',
   })
   @ApiResponse({ status: 409, description: 'E-mail já está em uso' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   @ApiResponse({
     status: 201,
-    description: 'Prestador de serviços criado com sucesso',
+    description: 'Empresa criada com sucesso',
     schema: {
       example: {
-        message: 'Negócio criado com sucesso',
+        message: 'Empresa criada com sucesso',
         user: {
           id: 'clsw0s98x000013z81z8z8z8z',
           businessName: "Barber's Shop",
@@ -392,21 +395,21 @@ export class ProvidersController {
       },
     },
   })
-  async createProviderToUser(
-    @Body() data: CreateProviderWithoutUserDto,
+  async createCompanyToUser(
+    @Body() data: CreateCompanyWithoutUserDto,
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersService.createProvider(data, userId);
+    return this.companyService.createCompany(data, userId);
   }
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_USERS)
-  @Get('get-by-id/:providerId')
+  @Get('get-by-id/:companyId')
   @ApiResponse({
     status: 200,
-    description: 'Prestador de serviços encontrado com sucesso',
+    description: 'Empresa encontrada com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -428,10 +431,10 @@ export class ProvidersController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhum negócio encontrado para este ID.',
+    description: 'Nenhuma empresa encontrada para este ID.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getProviderById(@Param('providerId') providerId: string) {
-    return this.providersService.getProviderByProviderId(providerId);
+  async getCompanyById(@Param('companyId') companyId: string) {
+    return this.companyService.getCompanyByCompanyId(companyId);
   }
 }

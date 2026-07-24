@@ -12,7 +12,7 @@ export class SlugHelper {
       .replace(/^-+|-+$/g, ''); // Remove hífens no início e no final
 
     // 1. Verifica se o slug exato já existe
-    const existingSlug = await this.prisma.provider.findUnique({
+    const existingSlug = await this.prisma.company.findUnique({
       where: { slug: baseSlug },
     });
 
@@ -22,8 +22,7 @@ export class SlugHelper {
     }
 
     // 2. Busca todos que começam com "baseslug-"
-    // O hífen é crucial para que "nexo" não encontre "nexos-corp"
-    const similarSlugs = await this.prisma.provider.findMany({
+    const similarSlugs = await this.prisma.company.findMany({
       where: {
         slug: {
           startsWith: `${baseSlug}-`,
@@ -38,8 +37,8 @@ export class SlugHelper {
 
     // 3. Mapeia o array para pegar apenas os números e encontra o maior deles
     const maxNumber = Math.max(
-      ...similarSlugs.map((provider) => {
-        const lastPart = provider.slug.split('-').pop();
+      ...similarSlugs.map((company) => {
+        const lastPart = company.slug.split('-').pop();
         const num = parseInt(lastPart || '0', 10);
         return isNaN(num) ? 0 : num;
       }),
