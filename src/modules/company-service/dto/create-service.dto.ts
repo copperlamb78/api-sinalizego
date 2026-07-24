@@ -5,7 +5,7 @@ import {
   Min,
   Max,
   IsInt,
-  IsOptional, // <-- Adicionado
+  IsOptional,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,7 +18,6 @@ export class CreateServiceDto {
   @IsNotEmpty()
   name: string;
 
-  // 👇 Ajustado para ser opcional, igual ao Prisma
   @ApiPropertyOptional({
     example: 'Corte com tesoura e máquina, incluindo lavagem.',
     description: 'Descrição detalhada do serviço',
@@ -48,7 +47,7 @@ export class CreateServiceDto {
 
   @ApiProperty({
     example: 1,
-    description: 'Quantidade de cadeiras disponíveis para o serviço',
+    description: 'Quantidade de cadeiras/profissionais disponíveis para o serviço',
   })
   @IsInt()
   @Min(1)

@@ -6,20 +6,20 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 import { FilterServiceDto } from './dto/filter-service.dto';
 
 @Injectable()
-export class ProvidersServiceService {
+export class CompanyServiceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calculateTax: CalculateTax,
   ) {}
 
   async createService(data: CreateServiceDto, userId: string) {
-    const provider = await this.prisma.provider.findFirst({
+    const company = await this.prisma.company.findFirst({
       where: { userId: userId },
     });
 
-    if (!provider) {
+    if (!company) {
       throw new NotFoundException(
-        'Nenhum negócio encontrado para este usuário. Certifique-se de que o usuário possui um negócio registrado antes de criar um serviço.',
+        'Nenhuma empresa encontrada para este usuário. Certifique-se de que o usuário possui uma empresa registrada antes de criar um serviço.',
       );
     }
 
@@ -31,29 +31,30 @@ export class ProvidersServiceService {
         totalPrice: data.totalPrice,
         downPaymentPercent: data.downPaymentPercent,
         availableEmployers: data.availableEmployers,
-        providerId: provider.id,
+        companyId: company.id,
       },
     });
 
     return service;
   }
+
   // rota da vitrine
   async getServicesBySlug(slug: string) {
-    const provider = await this.prisma.provider.findUnique({
+    const company = await this.prisma.company.findUnique({
       where: { slug: slug },
     });
 
-    if (!provider) {
-      throw new NotFoundException('Nenhum negócio encontrado para este slug.');
+    if (!company) {
+      throw new NotFoundException('Nenhuma empresa encontrada para este slug.');
     }
 
     const services = await this.prisma.service.findMany({
-      where: { providerId: provider.id, isActive: true },
+      where: { companyId: company.id, isActive: true },
     });
 
     if (services.length === 0) {
       throw new NotFoundException(
-        'Nenhum serviço encontrado para este negócio.',
+        'Nenhum serviço encontrado para esta empresa.',
       );
     }
 
@@ -63,18 +64,18 @@ export class ProvidersServiceService {
     }));
   }
 
-  async getServicesByProvider(userId: string, filters?: FilterServiceDto) {
-    const provider = await this.prisma.provider.findFirst({
+  async getServicesByCompany(userId: string, filters?: FilterServiceDto) {
+    const company = await this.prisma.company.findFirst({
       where: { userId: userId },
     });
 
-    if (!provider) {
+    if (!company) {
       throw new NotFoundException(
-        'Nenhum negócio encontrado para este usuário.',
+        'Nenhuma empresa encontrada para este usuário.',
       );
     }
 
-    const whereClause: any = { providerId: provider.id };
+    const whereClause: any = { companyId: company.id };
     let orderByClause: any = { createdAt: 'desc' };
 
     if (filters) {
@@ -106,18 +107,18 @@ export class ProvidersServiceService {
     serviceId: string,
     data: UpdateServiceDto,
   ) {
-    const provider = await this.prisma.provider.findFirst({
+    const company = await this.prisma.company.findFirst({
       where: { userId: userId },
     });
 
-    if (!provider) {
+    if (!company) {
       throw new NotFoundException(
-        'Nenhum negócio encontrado para este usuário.',
+        'Nenhuma empresa encontrada para este usuário.',
       );
     }
 
     const serviceExists = await this.prisma.service.findFirst({
-      where: { id: serviceId, providerId: provider.id },
+      where: { id: serviceId, companyId: company.id },
     });
 
     if (!serviceExists) {
@@ -131,18 +132,18 @@ export class ProvidersServiceService {
   }
 
   async deactivateService(userId: string, serviceId: string) {
-    const provider = await this.prisma.provider.findFirst({
+    const company = await this.prisma.company.findFirst({
       where: { userId: userId },
     });
 
-    if (!provider) {
+    if (!company) {
       throw new NotFoundException(
-        'Nenhum negócio encontrado para este usuário.',
+        'Nenhuma empresa encontrada para este usuário.',
       );
     }
 
     const serviceExists = await this.prisma.service.findFirst({
-      where: { id: serviceId, providerId: provider.id },
+      where: { id: serviceId, companyId: company.id },
     });
 
     if (!serviceExists) {
@@ -156,18 +157,18 @@ export class ProvidersServiceService {
   }
 
   async activateService(userId: string, serviceId: string) {
-    const provider = await this.prisma.provider.findFirst({
+    const company = await this.prisma.company.findFirst({
       where: { userId: userId },
     });
 
-    if (!provider) {
+    if (!company) {
       throw new NotFoundException(
-        'Nenhum negócio encontrado para este usuário.',
+        'Nenhuma empresa encontrada para este usuário.',
       );
     }
 
     const serviceExists = await this.prisma.service.findFirst({
-      where: { id: serviceId, providerId: provider.id },
+      where: { id: serviceId, companyId: company.id },
     });
 
     if (!serviceExists) {

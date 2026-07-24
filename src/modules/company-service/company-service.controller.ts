@@ -10,12 +10,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ProvidersServiceService } from './providers-service.service';
+import { CompanyServiceService } from './company-service.service';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { CreateServiceDto } from './dto/create-service.dto';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
-import { ListServiceBySlugDto } from './dto/list-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { FilterServiceDto } from './dto/filter-service.dto';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
@@ -25,10 +24,10 @@ import {
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
-@Controller('providers-service')
-export class ProvidersServiceController {
+@Controller('company-service')
+export class CompanyServiceController {
   constructor(
-    private readonly providersServiceService: ProvidersServiceService,
+    private readonly companyServiceService: CompanyServiceService,
   ) {}
 
   @ApiBearerAuth()
@@ -48,7 +47,7 @@ export class ProvidersServiceController {
         totalPrice: 50.0,
         downPaymentPercent: 10,
         availableEmployers: 2,
-        providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+        companyId: 'clsw0s2b0003138mg1wmg1wmg1',
         createdAt: '2023-11-20T17:21:51.000Z',
         updatedAt: '2023-11-20T17:21:51.000Z',
       },
@@ -56,13 +55,13 @@ export class ProvidersServiceController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhum negócio encontrado para este usuário.',
+    description: 'Nenhuma empresa encontrada para este usuário.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
   async create(@Body() data: CreateServiceDto, @Req() req: Request) {
     const userId = req.user?.['sub'];
-    return this.providersServiceService.createService(data, userId);
+    return this.companyServiceService.createService(data, userId);
   }
 
   @ApiBearerAuth()
@@ -82,7 +81,7 @@ export class ProvidersServiceController {
           totalPrice: 50.0,
           downPaymentPercent: 10,
           availableEmployers: 2,
-          providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+          companyId: 'clsw0s2b0003138mg1wmg1wmg1',
           createdAt: '2023-11-20T17:21:51.000Z',
           updatedAt: '2023-11-20T17:21:51.000Z',
         },
@@ -91,16 +90,16 @@ export class ProvidersServiceController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhum negócio encontrado para este usuário.',
+    description: 'Nenhuma empresa encontrada para este usuário.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
-  async getServicesByProvider(
+  async getServicesByCompany(
     @Req() req: Request,
     @Query() filters?: FilterServiceDto,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersServiceService.getServicesByProvider(userId, filters);
+    return this.companyServiceService.getServicesByCompany(userId, filters);
   }
 
   @Get('list/:slug')
@@ -117,7 +116,7 @@ export class ProvidersServiceController {
           totalPrice: 50.0,
           downPaymentPercent: 10,
           availableEmployers: 2,
-          providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+          companyId: 'clsw0s2b0003138mg1wmg1wmg1',
           createdAt: '2023-11-20T17:21:51.000Z',
           updatedAt: '2023-11-20T17:21:51.000Z',
         },
@@ -127,11 +126,11 @@ export class ProvidersServiceController {
   @ApiResponse({
     status: 404,
     description:
-      'Nenhum negócio encontrado para este slug ou nenhum serviço encontrado para este negócio.',
+      'Nenhuma empresa encontrada para este slug ou nenhum serviço encontrado para esta empresa.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
   async getServicesBySlug(@Param('slug') slug: string) {
-    return this.providersServiceService.getServicesBySlug(slug);
+    return this.companyServiceService.getServicesBySlug(slug);
   }
 
   @ApiBearerAuth()
@@ -151,7 +150,7 @@ export class ProvidersServiceController {
         totalPrice: 60.0,
         downPaymentPercent: 15,
         availableEmployers: 3,
-        providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+        companyId: 'clsw0s2b0003138mg1wmg1wmg1',
         createdAt: '2023-11-20T17:21:51.000Z',
         updatedAt: '2023-11-20T17:21:51.000Z',
       },
@@ -160,7 +159,7 @@ export class ProvidersServiceController {
   @ApiResponse({
     status: 404,
     description:
-      'Nenhum negócio encontrado para este usuário ou serviço não encontrado.',
+      'Nenhuma empresa encontrada para este usuário ou serviço não encontrado.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
@@ -170,7 +169,7 @@ export class ProvidersServiceController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersServiceService.updateService(userId, serviceId, data);
+    return this.companyServiceService.updateService(userId, serviceId, data);
   }
 
   @ApiBearerAuth()
@@ -189,7 +188,7 @@ export class ProvidersServiceController {
         totalPrice: 50.0,
         downPaymentPercent: 10,
         availableEmployers: 2,
-        providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+        companyId: 'clsw0s2b0003138mg1wmg1wmg1',
         createdAt: '2023-11-20T17:21:51.000Z',
         updatedAt: '2023-11-20T17:21:51.000Z',
         isActive: false,
@@ -200,7 +199,7 @@ export class ProvidersServiceController {
   @ApiResponse({
     status: 404,
     description:
-      'Nenhum negócio encontrado para este usuário ou serviço não encontrado.',
+      'Nenhuma empresa encontrada para este usuário ou serviço não encontrado.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
@@ -209,7 +208,7 @@ export class ProvidersServiceController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersServiceService.deactivateService(userId, serviceId);
+    return this.companyServiceService.deactivateService(userId, serviceId);
   }
 
   @ApiBearerAuth()
@@ -228,7 +227,7 @@ export class ProvidersServiceController {
         totalPrice: 50.0,
         downPaymentPercent: 10,
         availableEmployers: 2,
-        providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+        companyId: 'clsw0s2b0003138mg1wmg1wmg1',
         createdAt: '2023-11-20T17:21:51.000Z',
         updatedAt: '2023-11-20T17:21:51.000Z',
         isActive: true,
@@ -239,7 +238,7 @@ export class ProvidersServiceController {
   @ApiResponse({
     status: 404,
     description:
-      'Nenhum negócio encontrado para este usuário ou serviço não encontrado.',
+      'Nenhuma empresa encontrada para este usuário ou serviço não encontrado.',
   })
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
@@ -248,7 +247,7 @@ export class ProvidersServiceController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.providersServiceService.activateService(userId, serviceId);
+    return this.companyServiceService.activateService(userId, serviceId);
   }
 
   @ApiBearerAuth()
@@ -268,7 +267,7 @@ export class ProvidersServiceController {
           totalPrice: 50.0,
           downPaymentPercent: 10,
           availableEmployers: 2,
-          providerId: 'clsw0s2b0003138mg1wmg1wmg1',
+          companyId: 'clsw0s2b0003138mg1wmg1wmg1',
           createdAt: '2023-11-20T17:21:51.000Z',
           updatedAt: '2023-11-20T17:21:51.000Z',
         },
@@ -278,6 +277,6 @@ export class ProvidersServiceController {
   @ApiResponse({ status: 401, description: 'Não autorizado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor.' })
   async getAllServices(@Query() filters?: FilterServiceDto) {
-    return this.providersServiceService.getAllServices(filters);
+    return this.companyServiceService.getAllServices(filters);
   }
 }
