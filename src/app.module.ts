@@ -5,12 +5,13 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
-import { ProvidersModule } from './modules/providers/providers.module';
-import { ProvidersServiceModule } from './modules/providers-service/providers-service.module';
+import { CompanyModule } from './modules/company/company.module';
+import { CompanyServiceModule } from './modules/company-service/company-service.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { UploadModule } from './cloudinary/upload/upload.module';
+import { AsaasModule } from './asaas/asaas.module';
 
 @Module({
   imports: [
@@ -20,12 +21,13 @@ import { UploadModule } from './cloudinary/upload/upload.module';
     PrismaModule,
     UsersModule,
     AuthModule,
-    ProvidersModule,
-    ProvidersServiceModule,
+    CompanyModule,
+    CompanyServiceModule,
     TransactionsModule,
     AppointmentsModule,
     CloudinaryModule,
     UploadModule,
+    AsaasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -29,11 +29,11 @@ export class UploadController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
-  @Post('image/:providerId/:imageType')
+  @Post('image/:companyId/:imageType')
   @ApiOperation({
-    summary: 'Faz upload de imagem dinamicamente para o negócio',
+    summary: 'Faz upload de imagem dinamicamente para a empresa',
   })
-  @ApiParam({ name: 'providerId', description: 'ID do negócio (Provider)' })
+  @ApiParam({ name: 'companyId', description: 'ID da empresa (Company)' })
   @ApiParam({
     name: 'imageType',
     description: 'Tipo da imagem (ex: logo, banner, service)',
@@ -53,7 +53,7 @@ export class UploadController {
   })
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
-    @Param('providerId') providerId: string,
+    @Param('companyId') companyId: string,
     @Param('imageType') imageType: 'logo' | 'banner' | 'service',
   ) {
     if (!file) {
@@ -73,7 +73,7 @@ export class UploadController {
       );
     }
 
-    const folderPath = `sinalizego/${providerId}/${imageType}`;
+    const folderPath = `sinalizego/${companyId}/${imageType}`;
 
     const result = await this.cloudinaryService.uploadImage(file, folderPath);
 

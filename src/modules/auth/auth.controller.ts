@@ -4,6 +4,7 @@ import { LoginDto } from './dto/user-login.dto';
 import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { JwtRefreshGuard } from './jwt/guard/jwt-refresh.guard';
 import type { Request } from 'express';
+import { JwtAuthGuard } from './jwt/guard/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -57,7 +58,7 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtRefreshGuard)
+  @UseGuards(JwtAuthGuard)
   @Get('me')
   @ApiResponse({
     status: 200,
@@ -79,7 +80,7 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtRefreshGuard)
+  @UseGuards(JwtAuthGuard)
   @Post('logout')
   @ApiResponse({
     status: 200,

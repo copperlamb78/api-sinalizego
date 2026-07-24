@@ -3,12 +3,12 @@ import { IsDateString, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateAppointmentsDto {
   @ApiProperty({
-    description: 'ID do negócio/barbearia',
+    description: 'ID da empresa / negócio',
     example: 'clsw0s2b0003138mg1wmg1wmg1',
   })
-  @IsNotEmpty({ message: 'O ID do negócio é obrigatório' })
+  @IsNotEmpty({ message: 'O ID da empresa é obrigatório' })
   @IsString()
-  providerId: string;
+  companyId: string;
 
   @ApiProperty({
     description: 'ID do serviço escolhido',

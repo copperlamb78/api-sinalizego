@@ -69,21 +69,21 @@ export class AppointmentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_USERS)
-  @Get('provider')
+  @Get('company')
   @ApiOperation({
-    summary: 'Retorna agendamentos de um provedor específico',
+    summary: 'Retorna agendamentos de uma empresa específica',
   })
   @ApiResponse({
     status: 200,
     description: 'Agendamentos encontrados com sucesso',
   })
   @ApiResponse({ status: 404, description: 'Nenhum agendamento encontrado' })
-  async findByProvider(
+  async findByCompany(
     @Req() req: Request,
     @Query() filters: AppointmentsAdminFiltersDto,
   ) {
     const userId = req.user?.['sub'];
-    return this.appointmentsService.getAppointmentByProviderId(userId, filters);
+    return this.appointmentsService.getAppointmentByCompanyId(userId, filters);
   }
 
   @ApiBearerAuth()

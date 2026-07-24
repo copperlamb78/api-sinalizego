@@ -11,10 +11,10 @@ import { ApiPropertyOptional, OmitType, PickType } from '@nestjs/swagger';
 import { ApptStatus } from '@prisma/client';
 
 export class AppointmentsSuperFiltersDto {
-  @ApiPropertyOptional({ example: 'uuid', description: 'ID do prestador' })
+  @ApiPropertyOptional({ example: 'uuid', description: 'ID da empresa' })
   @IsOptional()
   @IsString()
-  providerId?: string;
+  companyId?: string;
 
   @ApiPropertyOptional({ example: 'uuid', description: 'ID do cliente' })
   @IsOptional()

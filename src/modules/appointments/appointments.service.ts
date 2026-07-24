@@ -28,12 +28,12 @@ export class AppointmentsService {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    const provider = await this.prisma.provider.findFirst({
-      where: { id: data.providerId },
+    const company = await this.prisma.company.findFirst({
+      where: { id: data.companyId },
     });
 
-    if (!provider) {
-      throw new NotFoundException('Negócio não encontrado.');
+    if (!company) {
+      throw new NotFoundException('Empresa não encontrada.');
     }
 
     const service = await this.prisma.service.findFirst({
@@ -44,8 +44,8 @@ export class AppointmentsService {
       throw new NotFoundException('Serviço não encontrado.');
     }
 
-    if (service.providerId !== provider.id) {
-      throw new BadRequestException('O serviço não pertence a este negócio.');
+    if (service.companyId !== company.id) {
+      throw new BadRequestException('O serviço não pertence a esta empresa.');
     }
 
     const startDate = new Date(data.appointmentDate);
@@ -57,7 +57,7 @@ export class AppointmentsService {
     // Verifica os agendamentos existentes no banco dentro desse bloco de tempo
     const existingAppointments = await this.prisma.appointment.findMany({
       where: {
-        providerId: data.providerId,
+        companyId: data.companyId,
         serviceId: data.serviceId,
         isActive: true,
         status: { notIn: ['CANCELED'] },
@@ -68,7 +68,7 @@ export class AppointmentsService {
       },
     });
     // Verifica se a quantidade de serviços dentro desse bloco de tempo
-    // é maior ou igual a quantidade de empreados disponíveis
+    // é maior ou igual a quantidade de empregados disponíveis
     if (existingAppointments.length >= service.availableEmployers) {
       throw new ConflictException(
         'Não há vagas disponíveis para este serviço neste horário',
@@ -81,7 +81,7 @@ export class AppointmentsService {
 
     const appointment = await this.prisma.appointment.create({
       data: {
-        providerId: provider.id,
+        companyId: company.id,
         serviceId: service.id,
         clientId: user.id,
         appointmentDate: startDate,
@@ -95,12 +95,12 @@ export class AppointmentsService {
 
     return appointment;
   }
-  //Futuramente essa rota vai usar roleGuard (superAdmin)
+
   async getAppointments(filters?: AppointmentsSuperFiltersDto) {
     const whereClause: any = {};
     let orderByClause: any = { createdAt: 'desc' };
     if (filters) {
-      if (filters.providerId) whereClause.providerId = filters.providerId;
+      if (filters.companyId) whereClause.companyId = filters.companyId;
       if (filters.clientId) whereClause.clientId = filters.clientId;
       if (filters.serviceId) whereClause.serviceId = filters.serviceId;
       if (filters.status) whereClause.status = filters.status;
@@ -132,15 +132,15 @@ export class AppointmentsService {
 
     return appointments;
   }
-  //Futuramente essa rota vai usar roleGuard (admin)
-  async getAppointmentByProviderId(
+
+  async getAppointmentByCompanyId(
     userId: string,
     filters?: AppointmentsAdminFiltersDto,
   ) {
     const whereClause: any = {};
     let orderByClause: any = { createdAt: 'desc' };
     if (filters) {
-      if (filters.providerId) whereClause.providerId = filters.providerId;
+      if (filters.companyId) whereClause.companyId = filters.companyId;
       if (filters.clientId) whereClause.clientId = filters.clientId;
       if (filters.serviceId) whereClause.serviceId = filters.serviceId;
       if (filters.status) whereClause.status = filters.status;
