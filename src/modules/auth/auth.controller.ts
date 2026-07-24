@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/user-login.dto';
 import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
@@ -54,5 +54,41 @@ export class AuthController {
     const userId = req.user?.['sub'];
     const refreshToken = req.user?.['refreshToken'];
     return this.authService.refreshTokens(userId, refreshToken);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtRefreshGuard)
+  @Get('me')
+  @ApiResponse({
+    status: 200,
+    description: 'Informações do usuário autenticado',
+    schema: {
+      example: {
+        id: 'clsw0s2b0003138mg1wmg1wmg1',
+        name: 'João Silva',
+        email: 'joao.silva@example.com',
+        role: 'USER',
+      },
+    },
+  })
+  @ApiResponse({ status: 403, description: 'Acesso Negado' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  me(@Req() req: Request) {
+    const userId = req.user?.['sub'];
+    return this.authService.me(userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtRefreshGuard)
+  @Post('logout')
+  @ApiResponse({
+    status: 200,
+    description: 'Logout realizado com sucesso',
+  })
+  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  logout(@Req() req: Request) {
+    const userId = req.user?.['sub'];
+    return this.authService.logout(userId);
   }
 }
