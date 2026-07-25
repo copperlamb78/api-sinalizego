@@ -12,6 +12,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { UploadModule } from './cloudinary/upload/upload.module';
 import { AsaasModule } from './asaas/asaas.module';
+import { FinancialProfileModule } from './modules/financial-profile/financial-profile.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AsaasModule } from './asaas/asaas.module';
     CloudinaryModule,
     UploadModule,
     AsaasModule,
+    FinancialProfileModule,
   ],
   controllers: [AppController],
   providers: [AppService],

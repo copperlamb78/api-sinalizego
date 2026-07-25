@@ -151,3 +151,41 @@ model ScheduleException {
 
   company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
+
+model FinancialProfile {
+  id               String    @id @default(cuid())
+  
+  // Dados Básicos da Subconta
+  name             String
+  email            String
+  loginEmail       String?   // Opcional: Se nulo, o Asaas usa o email principal
+  document         String    @unique // Representa o cpfCnpj
+  birthDate        DateTime? // Obrigatório apenas para PF (Pessoa Física)
+  companyType      String?   // MEI, LIMITED, INDIVIDUAL, ASSOCIATION (Apenas para PJ)
+  
+  // Contato e Faturamento
+  phone            String?
+  mobilePhone      String
+  site             String?
+  incomeValue      Float
+  
+  // Endereço
+  address          String    // Logradouro
+  addressNumber    String
+  complement       String?
+  province         String    // Bairro
+  postalCode       String
+  
+  // Retorno do Asaas
+  walletId         String    @unique // ID da carteira gerada no Asaas
+  asaasApiKey      String?   // Chave de API da subconta (útil para operações futuras)
+
+  // Relacionamentos da sua Arquitetura
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  companies        Company[] 
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
