@@ -22,8 +22,9 @@ model User {
   isActive   Boolean   @default(true)
   disabledAt DateTime? // Corrigido de dateTime? para DateTime?
 
-  companies    Company[] 
-  appointments Appointment[] 
+  companies         Company[] 
+  appointments      Appointment[] 
+  financialProfiles FinancialProfile[]
 }
 
 enum Role {
@@ -58,6 +59,9 @@ model Company {
 
   logoPhoto    String?
   bannerPhoto  String?
+
+  financialProfileId String?
+  financialProfile   FinancialProfile? @relation(fields: [financialProfileId], references: [id])
 
   owner              User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   services           Service[]
@@ -158,21 +162,17 @@ model FinancialProfile {
   // Dados Básicos da Subconta
   name             String
   email            String
-  loginEmail       String?   // Opcional: Se nulo, o Asaas usa o email principal
-  document         String    @unique // Representa o cpfCnpj
+  cpfCnpj          String    @unique
   birthDate        DateTime? // Obrigatório apenas para PF (Pessoa Física)
   companyType      String?   // MEI, LIMITED, INDIVIDUAL, ASSOCIATION (Apenas para PJ)
   
   // Contato e Faturamento
-  phone            String?
   mobilePhone      String
-  site             String?
   incomeValue      Float
   
   // Endereço
   address          String    // Logradouro
   addressNumber    String
-  complement       String?
   province         String    // Bairro
   postalCode       String
   
