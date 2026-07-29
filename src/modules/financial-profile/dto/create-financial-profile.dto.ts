@@ -23,46 +23,30 @@ export class CreateFinancialProfileDto {
   @IsEmail()
   email: string;
 
-  @ApiPropertyOptional({
-    example: 'joao.login@barbeariadojoao.com',
-    description: 'E-mail utilizado para login',
-  })
-  @IsEmail()
-  @IsOptional()
-  loginEmail?: string;
-
   @ApiProperty({
     example: '12345678909',
     description: 'CPF (11 dígitos) ou CNPJ (14 dígitos) sem pontuação',
   })
   @IsString()
-  document: string;
+  cpfCnpj: string;
 
-  @ApiPropertyOptional({
-    example: '1990-05-15',
+  @ApiProperty({
+    example: '1995-04-12',
     description:
-      'Data de nascimento no formato YYYY-MM-DD (obrigatório para Pessoa Física)',
+      'Data de nascimento no formato YYYY-MM-DD (somente Pessoa Física)',
   })
   @IsDateString()
   @IsOptional()
-  birthDate?: string;
+  birthDate?: Date;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'MEI',
-    enum: ['MEI', 'LIMITED', 'INDIVIDUAL', 'ASSOCIATION'],
-    description: 'Tipo de empresa (obrigatório se for Pessoa Jurídica)',
-  })
-  @IsIn(['MEI', 'LIMITED', 'INDIVIDUAL', 'ASSOCIATION'])
-  @IsOptional()
-  companyType?: string;
-
-  @ApiPropertyOptional({
-    example: '7533334444',
-    description: 'Telefone fixo com DDD (somente números)',
+    description: 'Tipo da empresa (somente quando Pessoa Jurídica)',
   })
   @IsString()
   @IsOptional()
-  phone?: string;
+  @IsIn(['MEI', 'INDIVIDUAL', 'LIMITED', 'ASSOCIATION'])
+  companyType?: string;
 
   @ApiProperty({
     example: '75999998888',
@@ -70,14 +54,6 @@ export class CreateFinancialProfileDto {
   })
   @IsString()
   mobilePhone: string;
-
-  @ApiPropertyOptional({
-    example: 'https://barbeariadojoao.com.br',
-    description: 'Website oficial da empresa',
-  })
-  @IsString()
-  @IsOptional()
-  site?: string;
 
   @ApiProperty({
     example: 5000.0,
@@ -99,14 +75,6 @@ export class CreateFinancialProfileDto {
   })
   @IsString()
   addressNumber: string;
-
-  @ApiPropertyOptional({
-    example: 'Sala 204, Bloco B',
-    description: 'Complemento do endereço',
-  })
-  @IsString()
-  @IsOptional()
-  complement?: string;
 
   @ApiProperty({
     example: 'Centro',
