@@ -13,6 +13,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { UploadModule } from './cloudinary/upload/upload.module';
 import { AsaasModule } from './asaas/asaas.module';
 import { FinancialProfileModule } from './modules/financial-profile/financial-profile.module';
+import { WebhooksModule } from './asaas/webhook-asaas/webhooks.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { FinancialProfileModule } from './modules/financial-profile/financial-pr
     UploadModule,
     AsaasModule,
     FinancialProfileModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
