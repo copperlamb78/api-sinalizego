@@ -37,7 +37,7 @@ export class CreateFinancialProfileDto {
   })
   @IsDateString()
   @IsOptional()
-  birthDate?: Date;
+  birthDate?: Date | null;
 
   @ApiProperty({
     example: 'MEI',
@@ -46,7 +46,7 @@ export class CreateFinancialProfileDto {
   @IsString()
   @IsOptional()
   @IsIn(['MEI', 'INDIVIDUAL', 'LIMITED', 'ASSOCIATION'])
-  companyType?: string;
+  companyType?: string | null;
 
   @ApiProperty({
     example: '75999998888',
