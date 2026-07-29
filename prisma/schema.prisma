@@ -25,6 +25,7 @@ model User {
   companies         Company[] 
   appointments      Appointment[] 
   financialProfiles FinancialProfile[]
+  transactions      Transaction[]
 }
 
 enum Role {
@@ -112,6 +113,7 @@ model Appointment {
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  transactions    Transaction[]
 }
 
 enum ApptStatus {
@@ -151,7 +153,7 @@ model ScheduleException {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   isActive   Boolean   @default(true)
-  disabledAt DateTime? // Corrigido de dateTime? para DateTime?
+  disabledAt DateTime?
 
   company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
@@ -184,8 +186,66 @@ model FinancialProfile {
   userId           String
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  companies        Company[] 
+  companies        Company[]
+  transactions     Transaction[] 
 
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
+  isActive   Boolean   @default(true)
+  disabledAt DateTime?
+}
+
+// Toda lógica de transações
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  OVERDUE
+  CANCELED
+}
+
+enum TransactionType {
+  DEPOSIT    // Quando o cliente paga o Pix do sinal
+  WITHDRAWAL // Quando o barbeiro sacar o dinheiro
+}
+
+enum BillingType {
+  PIX
+  //CREDIT_CARD
+  //DEBIT_CARD
+  //BOLETO
+}
+
+model Transaction {
+  id                String            @id @default(uuid())
+  
+  // A ponte de ligação com o Asaas (Fundamental para o Webhook achar depois)
+  asaasPaymentId    String?           @unique 
+  
+  // Controle de Valores
+  totalValue        Float             // Valor total que o cliente pagou (ex: 12.00)
+  netValue          Float             // O que realmente vai pro barbeiro (ex: 9.01)
+  platformFee       Float             // A sua parte da grana (ex: 2.00)
+  asaasFee          Float             // Parte do asaas (ex: 0,99)
+  
+  // Status e Tipo
+  status            TransactionStatus @default(PENDING)
+  type              TransactionType   @default(DEPOSIT)
+  billingType       BillingType       @default(PIX)
+
+  // Relacionamentos (Quem pagou e quem recebeu)
+  customerId        String?            // ID do cliente que agendou/pagou se DEPOSIT
+  customer       User?             @relation(fields: [customerId], references: [id])
+
+  barberWalletId    String            // A carteira do Asaas que recebeu o split
+  financialProfile FinancialProfile @relation(fields: [barberWalletId], references: [walletId])
+  
+  // Relacionamento com o Agendamento
+  appointmentId  String?           @unique
+  appointment    Appointment?      @relation(fields: [appointmentId], references: [id])
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@map("transactions")
 }
