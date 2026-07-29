@@ -215,6 +215,22 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ---
 
+### 💳 Financial Profile — Perfil Financeiro (Asaas)
+
+> Gestão de subcontas financeiras no Asaas para recebimento de pagamentos com controle de acesso por roles.
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/financial-profile/create` | Criar perfil financeiro (subconta Asaas) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/financial-profile/list` | Listar perfis do usuário logado (com filtros) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/financial-profile/user/:id` | Buscar perfil por ID pertencente ao usuário | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/financial-profile/get-by-id/:id` | Buscar perfil por ID (dados sensíveis sanitizados) | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/financial-profile/get-all` | Listar todos os perfis (Administração) | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `DELETE` | `/financial-profile/deactivate/:id` | Desativar perfil financeiro | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/financial-profile/activate/:id` | Reativar perfil financeiro | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+
+---
+
 ### 💳 Transactions — Transações
 
 > Módulo base preparado para integração com sistema de pagamentos (Pix / Asaas).
