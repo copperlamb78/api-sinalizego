@@ -141,11 +141,21 @@ export class CompanyService {
       orderBy: orderByClause,
     });
 
+    if (!companies) {
+      throw new NotFoundException(
+        'Nenhuma empresa encontrada para este usuário.',
+      );
+    }
+
     return companies;
   }
 
   async getAllCompanies() {
     const companies = await this.prisma.company.findMany();
+
+    if (!companies) {
+      throw new NotFoundException('Nenhuma empresa encontrada.');
+    }
     return companies;
   }
 
@@ -153,6 +163,10 @@ export class CompanyService {
     const company = await this.prisma.company.findUnique({
       where: { slug: slug },
     });
+
+    if (!company) {
+      throw new NotFoundException('Nenhuma empresa encontrada para este slug.');
+    }
 
     return company;
   }
