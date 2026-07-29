@@ -2,9 +2,11 @@ import {
   Injectable,
   InternalServerErrorException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { CreateFinancialProfileDto } from 'src/modules/financial-profile/dto/create-financial-profile.dto';
 import 'dotenv/config';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 export interface AsaasAccountResponse {
   id: string;
@@ -30,6 +32,7 @@ export interface AsaasAccountResponse {
 
 @Injectable()
 export class AsaasService {
+  constructor(private readonly prisma: PrismaService) {}
   private readonly apiUrl =
     process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
   private readonly apiKey = process.env.ASAAS_API_KEY;
@@ -122,6 +125,33 @@ export class AsaasService {
     }
   }
 
+  async listSubAccountById(id: string): Promise<AsaasAccountResponse> {
+    try {
+      const response = await fetch(`${this.apiUrl}/accounts/${id}`, {
+        method: 'GET',
+        headers: this.headers,
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMessage =
+          responseData?.errors?.[0]?.description ||
+          'Erro desconhecido ao buscar subconta no Asaas.';
+        throw new BadRequestException(`Asaas: ${errorMessage}`);
+      }
+
+      return responseData as AsaasAccountResponse;
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Falha na comunicação com a API do Asaas: ${error.message}`,
+      );
+    }
+  }
+
   async listAllSubAccounts() {
     try {
       const response = await fetch(`${this.apiUrl}/accounts`, {
@@ -147,6 +177,53 @@ export class AsaasService {
       }
       throw new InternalServerErrorException(
         `Falha na comunicação com a API do Asaas: ${error.message}`,
+      );
+    }
+  }
+
+  async getSubacccountBalance(walletId: string, userId: string) {
+    const financialProfile = await this.prisma.financialProfile.findUnique({
+      where: { walletId: walletId, userId: userId },
+    });
+
+    if (!financialProfile) {
+      throw new NotFoundException('Perfil financeiro não encontrado');
+    }
+
+    const accountApiKey = financialProfile.asaasApiKey;
+
+    if (!accountApiKey) {
+      throw new BadRequestException(
+        'Asaas API Key não encontrada para este perfil financeiro. Não é possível consultar o saldo.',
+      );
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/finance/balance`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          access_token: accountApiKey,
+        },
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMessage =
+          responseData?.errors?.[0]?.description ||
+          'Erro desconhecido ao buscar saldo da subconta no Asaas.';
+        throw new BadRequestException(`Asaas: ${errorMessage}`);
+      }
+
+      return responseData;
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Falha na comunicação com a API do Asaas ao buscar saldo: ${error.message}`,
       );
     }
   }
