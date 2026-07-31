@@ -32,6 +32,7 @@ import { WebhooksModule } from './asaas/webhook-asaas/webhooks.module';
     AsaasModule,
     FinancialProfileModule,
     WebhooksModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
