@@ -10,9 +10,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CreateUserDto } from './dto/user-create.dto';
 import { UpdateUserDto } from './dto/user-update.dto';
+import { UpdateCpfCnpjDto } from './dto/update-cpf-cnpj.dto';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import type { Request } from 'express';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
@@ -22,11 +29,13 @@ import {
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
+@ApiTags('Usuários')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post('create')
+  @ApiOperation({ summary: 'Cria um novo usuário na plataforma' })
   @ApiBody({ type: CreateUserDto, description: 'Criar usuário' })
   @ApiResponse({ status: 400, description: 'Erro ao criar usuário' })
   @ApiResponse({ status: 409, description: 'E-mail já está em uso' })
@@ -57,6 +66,9 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...SYSTEM_MANAGERS)
   @Get('list')
+  @ApiOperation({
+    summary: 'Lista todos os usuários do sistema (Apenas administradores)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de usuários retornada com sucesso',
@@ -82,6 +94,7 @@ export class UsersController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch('update/:userId')
+  @ApiOperation({ summary: 'Atualiza os dados cadastrais do usuário logado' })
   @ApiBody({ type: UpdateUserDto, description: 'Atualizar usuário' })
   @ApiResponse({
     status: 200,
@@ -106,9 +119,59 @@ export class UsersController {
   }
 
   @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('update-cpf')
+  @ApiOperation({
+    summary:
+      'Atualiza o CPF/CNPJ do usuário logado e gera a conta de cliente no Asaas',
+    description:
+      'Atualiza o CPF/CNPJ do usuário autenticado no banco de dados e cria automaticamente o Customer ID na API do Asaas para pagamentos via Pix.',
+  })
+  @ApiBody({
+    type: UpdateCpfCnpjDto,
+    description: 'CPF (11 dígitos) ou CNPJ (14 dígitos) do usuário',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'CPF/CNPJ atualizado e cliente financeiro gerado no Asaas com sucesso',
+    schema: {
+      example: {
+        message: 'CPF atualizado e cliente financeiro gerado com sucesso!',
+        user: {
+          id: 'clsw0s98x000013z81z8z8z8z',
+          cpfCnpj: '12345678909',
+          asaasCustomerId: 'cus_000006093120',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados de entrada inválidos ou erro na API do Asaas',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Não autorizado (token JWT inválido ou ausente)',
+  })
+  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async updateCpfCnpj(
+    @Req() req: Request,
+    @Body() updateCpfCnpjDto: UpdateCpfCnpjDto,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.usersService.updateCpfCnpjAndCreateCustomerId(
+      userId,
+      updateCpfCnpjDto.cpfCnpj,
+    );
+  }
+
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Delete('deactivate/:userId')
+  @ApiOperation({ summary: 'Desativa o cadastro do usuário (Soft Delete)' })
   @ApiResponse({
     status: 200,
     description: 'Usuário desativado com sucesso',
@@ -136,6 +199,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch('activate/:userId')
+  @ApiOperation({ summary: 'Reativa o cadastro do usuário' })
   @ApiResponse({
     status: 200,
     description: 'Usuário ativado com sucesso',
