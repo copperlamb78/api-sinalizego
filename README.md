@@ -149,6 +149,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `POST` | `/users/create` | Criar novo usuário | ❌ | — |
 | `GET` | `/users/list` | Listar todos os usuários | 🔑 JWT | `SYSTEM_MANAGERS` |
 | `PATCH` | `/users/update/:userId` | Atualizar dados do usuário | 🔑 JWT | — |
+| `PATCH` | `/users/update-cpf` | Atualizar CPF/CNPJ e gerar Customer ID Asaas | 🔑 JWT | — |
 | `DELETE` | `/users/deactivate/:userId` | Desativar usuário (soft delete) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/users/activate/:userId` | Reativar usuário | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
