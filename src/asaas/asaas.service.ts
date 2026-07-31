@@ -3,10 +3,12 @@ import {
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
+  HttpException,
 } from '@nestjs/common';
 import { CreateFinancialProfileDto } from 'src/modules/financial-profile/dto/create-financial-profile.dto';
 import 'dotenv/config';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CalculateTax } from 'src/helpers/calculate-tax.helper';
 
 export interface AsaasAccountResponse {
   id: string;
@@ -32,7 +34,11 @@ export interface AsaasAccountResponse {
 
 @Injectable()
 export class AsaasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly calculateTax: CalculateTax,
+  ) {}
+  private readonly asaasPixFee = Number(process.env.ASAAS_PIX_FEE) || 0.99;
   private readonly apiUrl =
     process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
   private readonly apiKey = process.env.ASAAS_API_KEY;
@@ -225,6 +231,123 @@ export class AsaasService {
       throw new InternalServerErrorException(
         `Falha na comunicação com a API do Asaas ao buscar saldo: ${error.message}`,
       );
+    }
+  }
+
+  async createPixChargeWithSplit(
+    asaasCustomerId: string,
+    barberWalletId: string,
+    depositValue: number,
+    appointmentId: string,
+  ) {
+    const platformFee =
+      await this.calculateTax.calculatePlatformTax(depositValue);
+    const asaasFee = this.asaasPixFee;
+
+    const totalToCharge = depositValue + platformFee;
+    const barberNetValue = depositValue - asaasFee;
+
+    try {
+      const response = await fetch(`${this.apiUrl}/payments`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({
+          customer: asaasCustomerId,
+          billingType: 'PIX',
+          value: totalToCharge,
+          dueDate: new Date().toISOString().split('T')[0],
+          description: `SinalizeGo - Reserva de Horário #${appointmentId}`,
+          externalReference: appointmentId,
+          split: [
+            {
+              walletId: barberWalletId,
+              fixedValue: Number(barberNetValue.toFixed(2)),
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(errorData);
+        throw new BadRequestException(errorData.errors[0].description);
+      }
+
+      const { id: paymentId } = await response.json();
+
+      const pixResponse = await fetch(
+        `${this.apiUrl}/payments/${paymentId}/pixQrCode`,
+        {
+          method: 'GET',
+          headers: this.headers,
+        },
+      );
+
+      if (!pixResponse.ok) {
+        const errorData = await pixResponse.json();
+        console.error(errorData);
+        throw new BadRequestException(errorData.errors[0].description);
+      }
+
+      const {
+        encodedImage,
+        payload,
+        expirationDate,
+      }: {
+        encodedImage: string;
+        payload: string;
+        expirationDate: Date;
+      } = await pixResponse.json();
+
+      return {
+        paymentId: paymentId,
+        totalValue: totalToCharge,
+        qrCodePayload: payload,
+        qrCodeImage: encodedImage,
+        expirationDate: expirationDate,
+        barberNetValue: barberNetValue,
+        platformFee: platformFee,
+        asaasFee: asaasFee,
+      };
+    } catch (error: any) {
+      // O error.response?.data ajuda a ver se o Asaas reclamou de algo
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error(
+        'Erro ao gerar Pix no Asaas:',
+        error.response?.data || error.message,
+      );
+      throw new InternalServerErrorException('Falha ao processar pagamento');
+    }
+  }
+
+  async createCustomer(cpfCnpj: string, name: string) {
+    try {
+      const response = await fetch(`${this.apiUrl}/customers`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({
+          cpfCnpj: cpfCnpj,
+          name: name,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(errorData);
+        throw new BadRequestException(errorData.errors[0].description);
+      }
+      const { id: customerId } = await response.json();
+      return customerId;
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error(
+        'Erro ao criar cliente no Asaas:',
+        error.response?.data || error.message,
+      );
+      throw new InternalServerErrorException('Falha ao criar cliente no Asaas');
     }
   }
 }

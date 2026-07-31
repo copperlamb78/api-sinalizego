@@ -28,6 +28,10 @@ export class AppointmentsService {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
+    if (!user.cpfCnpj) {
+      throw new BadRequestException('Usuário não possui CPF/CNPJ.');
+    }
+
     const company = await this.prisma.company.findFirst({
       where: { id: data.companyId },
     });
@@ -77,7 +81,8 @@ export class AppointmentsService {
 
     const price = service.totalPrice;
     const downPayment = (price * service.downPaymentPercent) / 100;
-    const platformFee = await this.calculateTax.calculatePlatformTax(price);
+    const platformFee =
+      await this.calculateTax.calculatePlatformTaxPercentage(price);
 
     const appointment = await this.prisma.appointment.create({
       data: {

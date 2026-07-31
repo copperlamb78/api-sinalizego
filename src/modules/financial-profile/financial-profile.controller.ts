@@ -153,8 +153,7 @@ export class FinancialProfileController {
   })
   @ApiResponse({
     status: 200,
-    description:
-      'Lista completa de perfis financeiros retornada com sucesso',
+    description: 'Lista completa de perfis financeiros retornada com sucesso',
     schema: {
       example: [
         {
@@ -254,7 +253,8 @@ export class FinancialProfileController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Perfil financeiro retornado com sucesso (dados sensíveis sanitizados)',
+    description:
+      'Perfil financeiro retornado com sucesso (dados sensíveis sanitizados)',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -360,5 +360,41 @@ export class FinancialProfileController {
   async activate(@Param('id') id: string, @Req() req: Request) {
     const userId = req.user?.['sub'];
     return this.financialProfileService.activateFinancialProfile(id, userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Get('balance/:id')
+  @ApiOperation({
+    summary: 'Busca o saldo de um perfil financeiro do usuário logado',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do perfil financeiro para buscar o saldo',
+    example: 'clsw0s98x000013z81z8z8z8z',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Saldo do perfil financeiro retornado com sucesso',
+    schema: {
+      example: {
+        balance: 1234.56,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Erro de validação ou erro retornado pelo Asaas',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 404, description: 'Perfil financeiro não encontrado' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async getFinancialProfileBalance(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.financialProfileService.getFinancialProfileBalance(id, userId);
   }
 }
