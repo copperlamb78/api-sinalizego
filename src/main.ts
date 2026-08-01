@@ -7,6 +7,7 @@ import { PrismaClientExceptionFilter } from './common/filters/prisma-client-exce
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors();
   const { httpAdapter } = app.get(HttpAdapterHost);
   app.useGlobalFilters(new PrismaClientExceptionFilter(httpAdapter));
 
