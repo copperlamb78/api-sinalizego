@@ -8,10 +8,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AsaasWebhookGuard } from './guard/asaas-webhook.guard';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
+  constructor(private readonly prisma: PrismaService) {}
+
   @Post('asaas')
   @HttpCode(HttpStatus.OK)
   @UseGuards(AsaasWebhookGuard)
@@ -22,26 +25,61 @@ export class WebhooksController {
   @ApiResponse({ status: 401, description: 'Token de webhook inválido' })
   async handleAsaasWebhook(@Body() payload: any) {
     const { event, payment } = payload;
-    switch (event) {
-      case 'PAYMENT_RECEIVED':
-      case 'PAYMENT_CONFIRMED':
-        // TODO: Aqui a gente atualiza o status do Appointment no Prisma para CONFIRMED
-        console.log(
-          `Pagamento confirmado para o Pix TxId / Asaas ID: ${payment.id}`,
-        );
-        break;
-
-      case 'PAYMENT_OVERDUE':
-      case 'PAYMENT_DELETED':
-        // TODO: Aqui a gente pode cancelar o agendamento pendente se o PIX expirar
-        console.log(`Pagamento expirou ou foi cancelado: ${payment.id}`);
-        break;
-
-      default:
-        console.log(`Evento ignorado: ${event}`);
+    if (!payment?.id) {
+      return { received: true };
     }
 
-    // Retorna 200 rápido para o Asaas não achar que sua API caiu
-    return { received: true };
+    switch (event) {
+      case 'PAYMENT_RECEIVED':
+      case 'PAYMENT_CONFIRMED': {
+        const transaction = await this.prisma.transaction.findFirst({
+          where: { asaasPaymentId: payment.id },
+        });
+
+        if (transaction) {
+          await this.prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'CONFIRMED' },
+          });
+
+          await this.prisma.appointment.update({
+            where: { id: transaction.appointmentId },
+            data: { status: 'CONFIRMED' },
+          });
+          console.log(
+            `[Webhook Asaas] Pagamento ${payment.id} CONFIRMADO. Agendamento ${transaction.appointmentId} atualizado para CONFIRMED.`,
+          );
+        }
+        break;
+      }
+
+      case 'PAYMENT_OVERDUE':
+      case 'PAYMENT_DELETED': {
+        const transaction = await this.prisma.transaction.findFirst({
+          where: { asaasPaymentId: payment.id },
+        });
+
+        if (transaction) {
+          await this.prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'CANCELED' },
+          });
+
+          await this.prisma.appointment.update({
+            where: { id: transaction.appointmentId },
+            data: { status: 'CANCELED' },
+          });
+          console.log(
+            `[Webhook Asaas] Pagamento ${payment.id} CANCELADO/EXPIRADO. Agendamento ${transaction.appointmentId} cancelado.`,
+          );
+        }
+        break;
+      }
+
+      default:
+        console.log(`[Webhook Asaas] Evento ignorado: ${event}`);
+    }
+
+    return { received: true, event, paymentId: payment.id };
   }
 }
