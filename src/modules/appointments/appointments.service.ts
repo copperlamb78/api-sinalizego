@@ -42,6 +42,7 @@ export class AppointmentsService {
 
     const service = await this.prisma.service.findFirst({
       where: { id: data.serviceId },
+      include: { serviceGroup: true },
     });
 
     if (!service) {
@@ -72,8 +73,9 @@ export class AppointmentsService {
       },
     });
     // Verifica se a quantidade de serviços dentro desse bloco de tempo
-    // é maior ou igual a quantidade de empregados disponíveis
-    if (existingAppointments.length >= service.availableEmployers) {
+    // é maior ou igual a quantidade de vagas disponíveis no grupo de serviços
+    const maxCapacity = service.serviceGroup?.capacity ?? 1;
+    if (existingAppointments.length >= maxCapacity) {
       throw new ConflictException(
         'Não há vagas disponíveis para este serviço neste horário',
       );
