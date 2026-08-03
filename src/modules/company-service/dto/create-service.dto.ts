@@ -47,9 +47,9 @@ export class CreateServiceDto {
 
   @ApiProperty({
     example: 1,
-    description: 'Quantidade de cadeiras/profissionais disponíveis para o serviço',
+    description: 'Quantidade de profissionais disponíveis para o serviço',
   })
   @IsInt()
   @Min(1)
-  availableEmployers: number;
+  serviceGroupId: string;
 }

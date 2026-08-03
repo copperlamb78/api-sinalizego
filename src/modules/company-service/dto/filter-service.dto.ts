@@ -24,7 +24,7 @@ export class FilterServiceDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  availableEmployers?: number;
+  serviceGroupId?: number;
 
   @ApiPropertyOptional({ example: 10 })
   @IsOptional()

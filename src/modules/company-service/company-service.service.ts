@@ -30,7 +30,7 @@ export class CompanyServiceService {
         durationMinutes: data.durationMinutes,
         totalPrice: data.totalPrice,
         downPaymentPercent: data.downPaymentPercent,
-        availableEmployers: data.availableEmployers,
+        serviceGroupId: data.serviceGroupId,
         companyId: company.id,
       },
     });
@@ -87,8 +87,8 @@ export class CompanyServiceService {
       if (filters.totalPrice) whereClause.totalPrice = filters.totalPrice;
       if (filters.durationMinutes)
         whereClause.durationMinutes = filters.durationMinutes;
-      if (filters.availableEmployers)
-        whereClause.availableEmployers = filters.availableEmployers;
+      if (filters.serviceGroupId)
+        whereClause.serviceGroupId = filters.serviceGroupId;
       if (filters.downPaymentPercent)
         whereClause.downPaymentPercent = filters.downPaymentPercent;
       if (filters.orderBy) {
@@ -194,8 +194,8 @@ export class CompanyServiceService {
       if (filters.totalPrice) whereClause.totalPrice = filters.totalPrice;
       if (filters.durationMinutes)
         whereClause.durationMinutes = filters.durationMinutes;
-      if (filters.availableEmployers)
-        whereClause.availableEmployers = filters.availableEmployers;
+      if (filters.serviceGroupId)
+        whereClause.serviceGroupId = filters.serviceGroupId;
       if (filters.downPaymentPercent)
         whereClause.downPaymentPercent = filters.downPaymentPercent;
       if (filters.orderBy) {
