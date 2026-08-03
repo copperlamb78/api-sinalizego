@@ -18,7 +18,7 @@
 
 ## 📋 Sobre o Projeto
 
-**SinalizeGO** é uma API RESTful robusta para gerenciamento de agendamentos entre **clientes** e **empresas/prestadores de serviços** (barbearias, estúdios, salões e mais). A plataforma permite que donos de empresa cadastrem seus negócios (`Company`), definam serviços com preços e duração, e recebam agendamentos com controle de pagamento via Pix.
+**SinalizeGO** é uma API RESTful robusta para gerenciamento de agendamentos entre **clientes** e **empresas/prestadores de serviços** (barbearias, estúdios, salões e mais). A plataforma permite que donos de empresa cadastrem seus negócios (`Company`), criem subcontas financeiras no Asaas Sandbox com split de pagamentos via Pix, organizem serviços em grupos de atendimento (`ServiceGroup`) com limite de capacidade, e recebam agendamentos com confirmação em tempo real via Webhook.
 
 ### ✨ Destaques
 
@@ -26,11 +26,13 @@
 |---------|-----------|
 | 🔐 **Autenticação JWT** | Login seguro com access token + refresh token |
 | 🔑 **RBAC (Role-Based Access Control)** | Níveis de permissão com guard customizado (CLIENT, COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN) |
-| 👥 **Gestão de Usuários** | CRUD completo com ativação/desativação e hash de senha |
+| 👥 **Gestão de Usuários** | CRUD completo com atualização de CPF/CNPJ e vinculo automático de Customer ID no Asaas |
 | 🏢 **Perfil da Empresa (Company)** | Criação com slug automático, filtros, ordenação e ativação |
-| 💈 **Catálogo de Serviços** | CRUD completo por empresa com taxa da plataforma e ativação |
-| 📅 **Agendamentos** | Criação com verificação de conflitos, filtros por role e cancelamento |
-| 💳 **Transações** | Módulo preparado para integração com pagamentos (Asaas) |
+| 📁 **Grupos de Serviços (ServiceGroup)** | Organização de serviços por grupos com limite de capacidade de atendimento simultâneo |
+| 💈 **Catálogo de Serviços** | CRUD completo por empresa com vinculo ao grupo de serviços e taxa da plataforma |
+| 📅 **Agendamentos** | Criação com verificação de vagas por capacidade do grupo e expiração de reserva |
+| 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa |
+| ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 | 🛡️ **Soft Delete** | Desativação segura com rastreamento de quem desativou |
 
@@ -58,7 +60,7 @@ npm install
 
 # 3️⃣ Configure as variáveis de ambiente
 cp .env.example .env
-# Edite o .env com suas credenciais
+# Edite o .env com suas credenciais (DATABASE_URL, JWT_SECRET, ASAAS_API_KEY, etc.)
 
 # 4️⃣ Gere o Prisma Client
 npx prisma generate
@@ -73,17 +75,20 @@ npm run start:dev
 ### ⚙️ Variáveis de Ambiente
 
 ```env
-PORT=7878
+PORT=3000
 
-# Conexão com Supabase PostgreSQL (pooler - transações)
+# Conexão com Supabase PostgreSQL
 DATABASE_URL="postgresql://..."
-
-# Conexão direta (migrations)
 DIRECT_URL="postgresql://..."
 
 # JWT
 JWT_SECRET="sua-chave-secreta"
 JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
+
+# Asaas Sandbox Integration
+ASAAS_API_URL="https://sandbox.asaas.com/api/v3"
+ASAAS_API_KEY="$aact_YTU5YTE0M2..."
+ASAAS_WEBHOOK_SECRET="seu-token-webhook"
 ```
 
 ### 🏃 Scripts Disponíveis
@@ -118,9 +123,9 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 | Grupo | Roles incluídas | Uso |
 |-------|-----------------|-----|
-| `SYSTEM_MANAGERS` | ADMIN, SUPER_ADMIN | Gestão do sistema (listar usuários) |
-| `INTERNAL_USERS` | COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN | Operações internas |
-| `INTERNAL_NO_EMPLOYEE` | COMPANY_OWNER, ADMIN, SUPER_ADMIN | Operações sem funcionário (desativar/ativar) |
+| `SYSTEM_MANAGERS` | ADMIN, SUPER_ADMIN | Gestão do sistema (listar usuários, listagens globais) |
+| `INTERNAL_USERS` | COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN | Operações internas de consulta |
+| `INTERNAL_NO_EMPLOYEE` | COMPANY_OWNER, ADMIN, SUPER_ADMIN | Operações administrativas sem funcionário (criação/alteração) |
 | `ALL_USERS` | CLIENT, COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN | Acesso geral autenticado |
 
 ---
@@ -174,13 +179,29 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ---
 
-### 💈 Company-Service — Serviços da Empresa
+### 📁 Service-Group — Grupos de Serviços
 
-> CRUD completo de serviços por empresa com taxa da plataforma, ativação e vitrine pública por slug.
+> Gestão de grupos de serviços por empresa com definição de capacidade simultânea de atendimento.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `POST` | `/company-service/create` | Criar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `POST` | `/service-group` | Criar novo grupo de serviços | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/service-group` | Listar todos os grupos de serviços (com filtros) | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/service-group/company/:companyId` | Listar grupos de serviços de uma empresa | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/service-group/:id` | Buscar grupo de serviços por ID | 🔑 JWT | `INTERNAL_USERS` |
+| `PATCH` | `/service-group/:id` | Atualizar grupo de serviços por ID | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/service-group/company/:companyId/:id` | Atualizar grupo de serviços de uma empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/service-group/:id` | Remover grupo de serviços por ID | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+
+---
+
+### 💈 Company-Service — Serviços da Empresa
+
+> CRUD completo de serviços por empresa vinculados a um grupo de serviços, com taxa da plataforma e vitrine pública.
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/company-service/create` | Criar serviço vinculado a um `serviceGroupId` | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `GET` | `/company-service/list` | Listar serviços da empresa do usuário logado | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `GET` | `/company-service/list/:slug` | Listar serviços por slug da empresa (vitrine pública) | ❌ | — |
 | `PATCH` | `/company-service/update/:serviceId` | Atualizar serviço | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
@@ -203,12 +224,12 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ### 📅 Appointments — Agendamentos
 
-> Criação com verificação de disponibilidade, filtros por role, cancelamento e controle de acesso.
+> Criação com verificação de vagas pela capacidade do grupo de serviços, cancelamento e controle de status.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `POST` | `/appointments` | Criar agendamento | 🔑 JWT | — |
-| `GET` | `/appointments` | Listar todos os agendamentos (super admin) | 🔑 JWT | `SUPER_ADMIN` |
+| `POST` | `/appointments` | Criar agendamento (requer CPF cadastrado) | 🔑 JWT | — |
+| `GET` | `/appointments` | Listar todos os agendamentos | 🔑 JWT | `SUPER_ADMIN` |
 | `GET` | `/appointments/company` | Listar agendamentos da empresa | 🔑 JWT | `INTERNAL_USERS` |
 | `GET` | `/appointments/user` | Listar agendamentos do cliente | 🔑 JWT | — |
 | `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento | 🔑 JWT | — |
@@ -218,7 +239,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ### 💳 Financial Profile — Perfil Financeiro (Asaas)
 
-> Gestão de subcontas financeiras no Asaas para recebimento de pagamentos com controle de acesso por roles.
+> Gestão de subcontas financeiras no Asaas Sandbox para recebimento de pagamentos com split automatizado.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
@@ -232,9 +253,14 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ---
 
-### 💳 Transactions — Transações
+### 💳 Transactions & Webhooks — Transações e Webhooks Asaas
 
-> Módulo base preparado para integração com sistema de pagamentos (Pix / Asaas).
+> Cobrança Pix com split automático para a carteira da empresa e atualização em tempo real via Webhook.
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/transactions/pix` | Gerar cobrança Pix com split para a subconta Asaas | 🔑 JWT | — |
+| `POST` | `/webhooks/asaas` | Receber notificações do Asaas (`PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED`) | ❌ | Token Header |
 
 ---
 
@@ -246,10 +272,12 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 erDiagram
     User ||--o{ Company : "possui"
     User ||--o{ Appointment : "agenda"
+    Company ||--o{ ServiceGroup : "organiza"
     Company ||--o{ Service : "oferece"
     Company ||--o{ Appointment : "recebe"
     Company ||--o{ WorkingHour : "define"
     Company ||--o{ ScheduleException : "configura"
+    ServiceGroup ||--o{ Service : "agrupa"
     Service ||--o{ Appointment : "vincula"
 
     User {
@@ -258,6 +286,8 @@ erDiagram
         string email UK
         string password
         string phone
+        string cpfCnpj
+        string asaasCustomerId
         enum role "CLIENT | COMPANY_OWNER | EMPLOYEE | ADMIN | SUPER_ADMIN"
         string refreshToken
         boolean isActive
@@ -285,15 +315,22 @@ erDiagram
         datetime disabledAt
     }
 
+    ServiceGroup {
+        string id PK
+        string name
+        int capacity
+        string companyId FK
+    }
+
     Service {
         string id PK
         string companyId FK
+        string serviceGroupId FK
         string name
         string description
         int durationMinutes
         float totalPrice
         int downPaymentPercent
-        int availableEmployers
         boolean isActive
         datetime disabledAt
     }
@@ -357,12 +394,29 @@ src/
 │   └── filters/
 │       └── prisma-client-exception.filter.ts # Filtro global de exceções Prisma
 │
+├── 💳 asaas/
+│   ├── asaas.module.ts
+│   ├── asaas.service.ts
+│   └── webhook-asaas/
+│       ├── webhooks.controller.ts
+│       ├── webhooks.module.ts
+│       └── webhooks.service.ts
+│
 ├── ☁️ cloudinary/
 │   ├── cloudinary.module.ts
 │   ├── cloudinary.service.ts
 │   └── upload/
 │       ├── upload.controller.ts
 │       └── upload.module.ts
+│
+├── 📁 service-group/
+│   ├── service-group.module.ts
+│   ├── service-group.controller.ts
+│   ├── service-group.service.ts
+│   └── dto/
+│       ├── create-service-group.dto.ts
+│       ├── filters-service-group.dto.ts
+│       └── update-service-group.dto.ts
 │
 ├── 🗄️ prisma/
 │   ├── prisma.module.ts                # Módulo global do Prisma
@@ -418,6 +472,11 @@ src/
     │       ├── appointments-deactivate.dto.ts
     │       └── appointments-filters.dto.ts
     │
+    ├── 💳 financial-profile/
+    │   ├── financial-profile.module.ts
+    │   ├── financial-profile.controller.ts
+    │   └── financial-profile.service.ts
+    │
     └── 💳 transactions/
         ├── transactions.module.ts
         ├── transactions.controller.ts
@@ -437,6 +496,7 @@ src/
 | 🔷 **Linguagem** | TypeScript | 5.x |
 | 🗄️ **ORM** | Prisma | 7.8 |
 | 🐘 **Banco de Dados** | PostgreSQL (Supabase) | 15.x |
+| 💳 **Gateway de Pagamento** | Asaas Sandbox API v3 | — |
 | 🔐 **Autenticação** | JWT + Passport | — |
 | 🔒 **Hash** | bcrypt | 6.x |
 | ☁️ **Mídia** | Cloudinary | 2.x |
@@ -452,7 +512,7 @@ src/
 Com o servidor rodando, acesse a documentação interativa do Swagger:
 
 ```
-http://localhost:7878/api
+http://localhost:3000/api
 ```
 
 ---
