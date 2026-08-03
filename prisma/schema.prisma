@@ -70,8 +70,20 @@ model Company {
   owner              User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   services           Service[]
   appointments       Appointment[]
+  serviceGroups      ServiceGroup[]
   workingHours       WorkingHour[]
   scheduleExceptions ScheduleException[]
+}
+
+// Grupo de serviços
+model ServiceGroup {
+  id         String    @id @default(uuid())
+  name       String
+  capacity   Int        @default(1)
+  companyId  String 
+
+  company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  services   Service[]
 }
 
 // 3. OS SERVIÇOS
@@ -83,12 +95,13 @@ model Service {
   durationMinutes    Int
   totalPrice         Float
   downPaymentPercent Int
-  availableEmployers Int       @default(1)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   isActive           Boolean   @default(true)
   disabledAt         DateTime? 
+  serviceGroupId     String
 
+  serviceGroup       ServiceGroup @relation(fields: [serviceGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade) 
   company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   appointments       Appointment[]
 }
