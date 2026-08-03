@@ -9,11 +9,12 @@ import {
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AsaasWebhookGuard } from './guard/asaas-webhook.guard';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { WebhooksService } from './webhooks.service';
 
 @ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly webhooksService: WebhooksService) {}
 
   @Post('asaas')
   @HttpCode(HttpStatus.OK)
@@ -28,58 +29,6 @@ export class WebhooksController {
     if (!payment?.id) {
       return { received: true };
     }
-
-    switch (event) {
-      case 'PAYMENT_RECEIVED':
-      case 'PAYMENT_CONFIRMED': {
-        const transaction = await this.prisma.transaction.findFirst({
-          where: { asaasPaymentId: payment.id },
-        });
-
-        if (transaction) {
-          await this.prisma.transaction.update({
-            where: { id: transaction.id },
-            data: { status: 'CONFIRMED' },
-          });
-
-          await this.prisma.appointment.update({
-            where: { id: transaction.appointmentId },
-            data: { status: 'CONFIRMED' },
-          });
-          console.log(
-            `[Webhook Asaas] Pagamento ${payment.id} CONFIRMADO. Agendamento ${transaction.appointmentId} atualizado para CONFIRMED.`,
-          );
-        }
-        break;
-      }
-
-      case 'PAYMENT_OVERDUE':
-      case 'PAYMENT_DELETED': {
-        const transaction = await this.prisma.transaction.findFirst({
-          where: { asaasPaymentId: payment.id },
-        });
-
-        if (transaction) {
-          await this.prisma.transaction.update({
-            where: { id: transaction.id },
-            data: { status: 'CANCELED' },
-          });
-
-          await this.prisma.appointment.update({
-            where: { id: transaction.appointmentId },
-            data: { status: 'CANCELED' },
-          });
-          console.log(
-            `[Webhook Asaas] Pagamento ${payment.id} CANCELADO/EXPIRADO. Agendamento ${transaction.appointmentId} cancelado.`,
-          );
-        }
-        break;
-      }
-
-      default:
-        console.log(`[Webhook Asaas] Evento ignorado: ${event}`);
-    }
-
-    return { received: true, event, paymentId: payment.id };
+    return this.webhooksService.handleAsaasEvent(event, payment);
   }
 }
