@@ -14,6 +14,7 @@ import { UploadModule } from './cloudinary/upload/upload.module';
 import { AsaasModule } from './asaas/asaas.module';
 import { FinancialProfileModule } from './modules/financial-profile/financial-profile.module';
 import { WebhooksModule } from './asaas/webhook-asaas/webhooks.module';
+import { ServiceGroupModule } from './service-group/service-group.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { WebhooksModule } from './asaas/webhook-asaas/webhooks.module';
     FinancialProfileModule,
     WebhooksModule,
     TransactionsModule,
+    ServiceGroupModule,
   ],
   controllers: [AppController],
   providers: [AppService],
