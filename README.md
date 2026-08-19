@@ -259,7 +259,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `POST` | `/transactions/pix` | Gerar cobrança Pix com split para a subconta Asaas | 🔑 JWT | — |
+| `POST` | `/transactions/pix/:appointmentId` | Gerar ou recuperar cobrança Pix com split para a subconta Asaas | 🔑 JWT | — |
 | `POST` | `/webhooks/asaas` | Receber notificações do Asaas (`PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED`) | ❌ | Token Header |
 
 ---
