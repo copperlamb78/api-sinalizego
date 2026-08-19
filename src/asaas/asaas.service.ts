@@ -322,6 +322,54 @@ export class AsaasService {
     }
   }
 
+  async getPixQrCode(paymentId: string) {
+    try {
+      const pixResponse = await fetch(
+        `${this.apiUrl}/payments/${paymentId}/pixQrCode`,
+        {
+          method: 'GET',
+          headers: this.headers,
+        },
+      );
+
+      if (!pixResponse.ok) {
+        const errorData = await pixResponse.json();
+        console.error(errorData);
+        throw new BadRequestException(
+          errorData?.errors?.[0]?.description ||
+            'Falha ao obter QR Code do Pix no Asaas.',
+        );
+      }
+
+      const {
+        encodedImage,
+        payload,
+        expirationDate,
+      }: {
+        encodedImage: string;
+        payload: string;
+        expirationDate: Date;
+      } = await pixResponse.json();
+
+      return {
+        qrCodePayload: payload,
+        qrCodeImage: encodedImage,
+        expirationDate: expirationDate,
+      };
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error(
+        'Erro ao consultar QR Code Pix no Asaas:',
+        error.response?.data || error.message,
+      );
+      throw new InternalServerErrorException(
+        'Falha ao obter QR Code do Pix no Asaas',
+      );
+    }
+  }
+
   async createCustomer(cpfCnpj: string, name: string) {
     try {
       const response = await fetch(`${this.apiUrl}/customers`, {
