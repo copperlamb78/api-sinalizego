@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -11,7 +12,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { CreateAppointmentsDto } from './dto/appointments-create.dto';
 import type { Request } from 'express';
@@ -23,9 +31,13 @@ import {
 import { AppointmentsStatusUpdateDto } from './dto/appointements-update.dto';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { INTERNAL_USERS } from 'src/common/constants/role-groups.constant';
+import {
+  INTERNAL_NO_EMPLOYEE,
+  INTERNAL_USERS,
+} from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
+@ApiTags('Agendamentos')
 @Controller('appointments')
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
@@ -89,7 +101,7 @@ export class AppointmentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('user')
-  @ApiOperation({ summary: 'Retorna agendamentos de um usuário específico' })
+  @ApiOperation({ summary: 'Retorna agendamentos do cliente logado' })
   @ApiResponse({
     status: 200,
     description: 'Agendamentos encontrados com sucesso',
@@ -105,21 +117,39 @@ export class AppointmentsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch(':id/status')
-  @ApiBody({ type: AppointmentsStatusUpdateDto, description: 'Atualizar status do agendamento' })
-  @ApiOperation({ summary: 'Atualiza o status de um agendamento' })
+  @ApiBody({
+    type: AppointmentsStatusUpdateDto,
+    description: 'Atualizar status do agendamento (COMPLETED ou CANCELED)',
+  })
+  @ApiOperation({
+    summary:
+      'Atualiza o status de um agendamento da empresa (COMPLETED ou CANCELED)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
   @ApiResponse({
     status: 200,
     description: 'Status do agendamento atualizado com sucesso',
   })
+  @ApiResponse({ status: 400, description: 'Status inválido ou transição não permitida' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado para este agendamento' })
   @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
   async updateStatus(
-    @Param('id') appointmentId: string,
-    @Body('status') status: string,
+    @Param('id', ParseUUIDPipe) appointmentId: string,
+    @Body() dto: AppointmentsStatusUpdateDto,
+    @Req() req: Request,
   ) {
+    const userId = req.user?.['sub'];
     return this.appointmentsService.updateAppointmentStatus(
       appointmentId,
-      status,
+      userId,
+      dto,
     );
   }
 
@@ -127,13 +157,21 @@ export class AppointmentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id/deactivate')
   @ApiOperation({ summary: 'Desativa um agendamento' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
   @ApiResponse({
     status: 200,
     description: 'Agendamento desativado com sucesso',
   })
   @ApiResponse({ status: 400, description: 'Agendamento já está inativo' })
   @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
-  async deactivate(@Param('id') appointmentId: string, @Req() req: Request) {
+  async deactivate(
+    @Param('id', ParseUUIDPipe) appointmentId: string,
+    @Req() req: Request,
+  ) {
     const userId = req.user?.['sub'];
     return this.appointmentsService.deactivateAppointment(
       appointmentId,
