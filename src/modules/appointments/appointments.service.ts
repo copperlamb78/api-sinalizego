@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +13,8 @@ import {
   AppointmentsAdminFiltersDto,
   AppointmentsFiltersDto,
 } from './dto/appointments-filters.dto';
+import { AppointmentsStatusUpdateDto } from './dto/appointements-update.dto';
+import { ApptStatus, Role } from '@prisma/client';
 
 @Injectable()
 export class AppointmentsService {
@@ -205,21 +208,93 @@ export class AppointmentsService {
     return appointments;
   }
 
-  async updateAppointmentStatus(appointmentId: string, status: any) {
+  async updateAppointmentStatus(
+    appointmentId: string,
+    userId: string,
+    dto: AppointmentsStatusUpdateDto,
+  ) {
+    if (
+      dto.status === ApptStatus.CONFIRMED ||
+      (dto.status as string) === 'CONFIRMED'
+    ) {
+      throw new BadRequestException(
+        'A confirmação de agendamento é exclusiva do processamento automático de pagamento via Webhook.',
+      );
+    }
+
+    if (
+      dto.status === ApptStatus.PENDING_PAYMENT ||
+      (dto.status as string) === 'PENDING_PAYMENT'
+    ) {
+      throw new BadRequestException(
+        'Não é permitido alterar o status manualmente para aguardando pagamento.',
+      );
+    }
+
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
+      include: {
+        company: true,
+      },
     });
 
     if (!appointment) {
       throw new NotFoundException('Agendamento não encontrado.');
     }
 
-    const updatedAppointment = await this.prisma.appointment.update({
-      where: { id: appointmentId },
-      data: { status },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
     });
 
-    return updatedAppointment;
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+    const isCompanyOwner = appointment.company.userId === userId;
+
+    if (!isSystemManager && !isCompanyOwner) {
+      throw new ForbiddenException(
+        'Você não tem permissão para alterar o status deste agendamento.',
+      );
+    }
+
+    if (appointment.status === ApptStatus.CANCELED) {
+      throw new BadRequestException(
+        'Não é possível alterar o status de um agendamento já cancelado.',
+      );
+    }
+
+    if (dto.status === ApptStatus.COMPLETED) {
+      if (appointment.status !== ApptStatus.CONFIRMED) {
+        throw new BadRequestException(
+          'Apenas agendamentos confirmados podem ser marcados como concluídos.',
+        );
+      }
+
+      return this.prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { status: ApptStatus.COMPLETED },
+      });
+    }
+
+    if (dto.status === ApptStatus.CANCELED) {
+      return this.prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: ApptStatus.CANCELED,
+          isActive: false,
+          disabledAt: new Date(),
+          disabledBy: user.id,
+        },
+      });
+    }
+
+    return this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: dto.status },
+    });
   }
 
   async deactivateAppointment(appointmentId: string, userId: string) {
