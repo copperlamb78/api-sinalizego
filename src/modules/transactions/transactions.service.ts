@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  GoneException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreatePixTransactionDto } from './dto/transactions-create.dto';
 
 @Injectable()
 export class TransactionsService {
@@ -14,42 +16,85 @@ export class TransactionsService {
     private readonly asaas: AsaasService,
   ) {}
 
-  async createPixTransaction(data: CreatePixTransactionDto) {
-    const existingCustomer = await this.prisma.user.findUnique({
-      where: { id: data.customerId },
-      select: { id: true, asaasCustomerId: true },
-    });
-    if (!existingCustomer) {
-      throw new NotFoundException('Cliente não encontrado');
-    }
-    if (!existingCustomer.asaasCustomerId) {
-      throw new BadRequestException(
-        'Cliente não possui cadastro financeiro na Asaas',
-      );
-    }
-
+  async createPixForAppointment(appointmentId: string, userId: string) {
     const appointment = await this.prisma.appointment.findUnique({
-      where: { id: data.appointmentId },
+      where: { id: appointmentId },
+      include: {
+        company: {
+          include: {
+            financialProfile: true,
+          },
+        },
+        client: true,
+        service: true,
+      },
     });
+
     if (!appointment) {
       throw new NotFoundException('Agendamento não encontrado.');
     }
 
-    const existingBarber = await this.prisma.financialProfile.findUnique({
-      where: { walletId: data.barberWalletId },
-    });
-
-    if (!existingBarber) {
-      throw new NotFoundException(
-        'Barbearia não encontrada ou sem carteira cadastrada.',
+    if (appointment.clientId !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para pagar por este agendamento.',
       );
     }
 
+    if (appointment.status !== 'PENDING_PAYMENT') {
+      throw new ConflictException(
+        'Agendamento não está aguardando pagamento.',
+      );
+    }
+
+    if (appointment.expiresAt && appointment.expiresAt < new Date()) {
+      throw new GoneException('Reserva expirada.');
+    }
+
+    const walletId = appointment.company?.financialProfile?.walletId;
+    if (!walletId) {
+      throw new NotFoundException(
+        'Empresa não possui perfil financeiro ou carteira Asaas configurada.',
+      );
+    }
+
+    const asaasCustomerId = appointment.client?.asaasCustomerId;
+    if (!asaasCustomerId) {
+      throw new BadRequestException(
+        'Cliente não possui cadastro financeiro na Asaas.',
+      );
+    }
+
+    // Idempotência: se já existe Transaction PENDING para esse appointmentId, devolver o Pix existente
+    const existingTransaction = await this.prisma.transaction.findFirst({
+      where: {
+        appointmentId: appointment.id,
+        status: 'PENDING',
+      },
+    });
+
+    if (existingTransaction && existingTransaction.asaasPaymentId) {
+      const qrCodeData = await this.asaas.getPixQrCode(
+        existingTransaction.asaasPaymentId,
+      );
+      return {
+        paymentId: existingTransaction.asaasPaymentId,
+        totalValue: existingTransaction.totalValue,
+        qrCodePayload: qrCodeData.qrCodePayload,
+        qrCodeImage: qrCodeData.qrCodeImage,
+        expirationDate: qrCodeData.expirationDate,
+        barberNetValue: existingTransaction.netValue,
+        platformFee: existingTransaction.platformFee,
+        asaasFee: existingTransaction.asaasFee,
+      };
+    }
+
+    const deposit = appointment.downPaymentAmount; // do banco, nunca do body
+
     const pixData = await this.asaas.createPixChargeWithSplit(
-      data.asaasCustomerId,
-      data.barberWalletId,
-      data.depositValue,
-      data.appointmentId,
+      asaasCustomerId,
+      walletId,
+      deposit,
+      appointment.id,
     );
 
     await this.prisma.transaction.create({
@@ -62,9 +107,9 @@ export class TransactionsService {
         status: 'PENDING',
         type: 'DEPOSIT',
         billingType: 'PIX',
-        customerId: data.customerId,
-        barberWalletId: data.barberWalletId,
-        appointmentId: data.appointmentId,
+        customerId: appointment.clientId,
+        barberWalletId: walletId,
+        appointmentId: appointment.id,
       },
     });
 
