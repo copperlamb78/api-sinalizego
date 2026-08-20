@@ -10,6 +10,7 @@ describe('UsersController', () => {
     createUser: jest.fn(),
     getAllUsers: jest.fn(),
     updateUser: jest.fn(),
+    changePassword: jest.fn(),
     updateCpfCnpjAndCreateCustomerId: jest.fn(),
     deactivateUser: jest.fn(),
     activateUser: jest.fn(),
@@ -43,7 +44,7 @@ describe('UsersController', () => {
         phone: '75999998888',
         password: 'password123',
       };
-      const expected = { message: 'Usuário criado com sucesso', user: { id: 'user-1', ...dto } };
+      const expected = { message: 'Usuário criado com sucesso', user: { id: 'user-1', name: 'Cliente Teste', email: 'cliente@test.com' } };
       mockUsersService.createUser.mockResolvedValue(expected);
 
       const result = await controller.createUser(dto);
@@ -53,8 +54,8 @@ describe('UsersController', () => {
   });
 
   describe('getAllUsers', () => {
-    it('should return list of all users', async () => {
-      const expected = [{ id: 'user-1', name: 'User 1' }, { id: 'user-2', name: 'User 2' }];
+    it('should return list of all users without sensitive fields', async () => {
+      const expected = [{ id: 'user-1', name: 'User 1', email: 'u1@test.com' }];
       mockUsersService.getAllUsers.mockResolvedValue(expected);
 
       const result = await controller.getAllUsers();
@@ -72,6 +73,19 @@ describe('UsersController', () => {
 
       const result = await controller.updateUser(req, updateDto);
       expect(usersService.updateUser).toHaveBeenCalledWith('user-1', updateDto);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should change password for authenticated user', async () => {
+      const req = { user: { sub: 'user-1' } } as any;
+      const dto = { currentPassword: 'oldPassword123', newPassword: 'newPassword456' };
+      const expected = { message: 'Senha alterada com sucesso.' };
+      mockUsersService.changePassword.mockResolvedValue(expected);
+
+      const result = await controller.changePassword(req, dto);
+      expect(usersService.changePassword).toHaveBeenCalledWith('user-1', dto);
       expect(result).toEqual(expected);
     });
   });
