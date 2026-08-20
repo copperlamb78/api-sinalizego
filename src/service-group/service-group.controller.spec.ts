@@ -37,17 +37,18 @@ describe('ServiceGroupController', () => {
   });
 
   describe('create', () => {
-    it('should create a service group with capacity and companyId', async () => {
+    it('should create a service group for the authenticated user company', async () => {
+      const req = { user: { sub: 'owner-1' } } as any;
       const dto = {
         name: 'Cabeleireiros',
         capacity: 3,
-        companyId: 'company-1',
+        companyId: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
       };
       const expected = { id: 'group-1', ...dto };
       mockServiceGroupService.create.mockResolvedValue(expected);
 
-      const result = await controller.create(dto);
-      expect(service.create).toHaveBeenCalledWith(dto);
+      const result = await controller.create(dto, req);
+      expect(service.create).toHaveBeenCalledWith(dto, 'owner-1');
       expect(result).toEqual(expected);
     });
   });
@@ -64,58 +65,62 @@ describe('ServiceGroupController', () => {
   });
 
   describe('findAllByCompanyId', () => {
-    it('should return list of service groups for a specific company', async () => {
-      const expected = [{ id: 'group-1', name: 'Cabeleireiros', capacity: 3, companyId: 'company-1' }];
+    it('should return list of service groups for a specific company if owner', async () => {
+      const req = { user: { sub: 'owner-1' } } as any;
+      const expected = [{ id: 'group-1', name: 'Cabeleireiros', capacity: 3, companyId: 'f1e2d3c4-b5a6-0987-6543-210fedcba987' }];
       mockServiceGroupService.findAllByCompanyId.mockResolvedValue(expected);
 
-      const result = await controller.findAllByCompanyId('company-1', undefined);
-      expect(service.findAllByCompanyId).toHaveBeenCalledWith('company-1', undefined);
+      const result = await controller.findAllByCompanyId('f1e2d3c4-b5a6-0987-6543-210fedcba987', req, undefined);
+      expect(service.findAllByCompanyId).toHaveBeenCalledWith('f1e2d3c4-b5a6-0987-6543-210fedcba987', 'owner-1', undefined);
       expect(result).toEqual(expected);
     });
   });
 
   describe('findOne', () => {
     it('should return service group by ID', async () => {
-      const expected = { id: 'group-1', name: 'Cabeleireiros', capacity: 3 };
+      const expected = { id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987', name: 'Cabeleireiros', capacity: 3 };
       mockServiceGroupService.findOneById.mockResolvedValue(expected);
 
-      const result = await controller.findOne('group-1');
-      expect(service.findOneById).toHaveBeenCalledWith('group-1');
+      const result = await controller.findOne('f1e2d3c4-b5a6-0987-6543-210fedcba987');
+      expect(service.findOneById).toHaveBeenCalledWith('f1e2d3c4-b5a6-0987-6543-210fedcba987');
       expect(result).toEqual(expected);
     });
   });
 
   describe('update', () => {
-    it('should update service group details', async () => {
+    it('should update service group details with user auth check', async () => {
+      const req = { user: { sub: 'owner-1' } } as any;
       const updateDto = { name: 'Cabeleireiros & Barbeiros', capacity: 4 };
-      const expected = { id: 'group-1', ...updateDto };
+      const expected = { id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987', ...updateDto };
       mockServiceGroupService.update.mockResolvedValue(expected);
 
-      const result = await controller.update('group-1', updateDto);
-      expect(service.update).toHaveBeenCalledWith('group-1', updateDto);
+      const result = await controller.update('f1e2d3c4-b5a6-0987-6543-210fedcba987', updateDto, req);
+      expect(service.update).toHaveBeenCalledWith('f1e2d3c4-b5a6-0987-6543-210fedcba987', 'owner-1', updateDto);
       expect(result).toEqual(expected);
     });
   });
 
   describe('updateByCompanyId', () => {
-    it('should update service group verifying companyId', async () => {
+    it('should update service group verifying companyId and user auth', async () => {
+      const req = { user: { sub: 'owner-1' } } as any;
       const updateDto = { capacity: 5 };
-      const expected = { id: 'group-1', companyId: 'company-1', capacity: 5 };
+      const expected = { id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987', companyId: 'f1e2d3c4-b5a6-0987-6543-210fedcba988', capacity: 5 };
       mockServiceGroupService.updateByCompanyId.mockResolvedValue(expected);
 
-      const result = await controller.updateByCompanyId('group-1', 'company-1', updateDto);
-      expect(service.updateByCompanyId).toHaveBeenCalledWith('group-1', 'company-1', updateDto);
+      const result = await controller.updateByCompanyId('f1e2d3c4-b5a6-0987-6543-210fedcba987', 'f1e2d3c4-b5a6-0987-6543-210fedcba988', updateDto, req);
+      expect(service.updateByCompanyId).toHaveBeenCalledWith('f1e2d3c4-b5a6-0987-6543-210fedcba987', 'f1e2d3c4-b5a6-0987-6543-210fedcba988', 'owner-1', updateDto);
       expect(result).toEqual(expected);
     });
   });
 
   describe('remove', () => {
-    it('should delete service group by string ID', async () => {
-      const expected = { id: 'group-1', name: 'Cabeleireiros' };
+    it('should deactivate service group with user auth check', async () => {
+      const req = { user: { sub: 'owner-1' } } as any;
+      const expected = { id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987', name: 'Cabeleireiros', isActive: false };
       mockServiceGroupService.remove.mockResolvedValue(expected);
 
-      const result = await controller.remove('group-1');
-      expect(service.remove).toHaveBeenCalledWith('group-1');
+      const result = await controller.remove('f1e2d3c4-b5a6-0987-6543-210fedcba987', req);
+      expect(service.remove).toHaveBeenCalledWith('f1e2d3c4-b5a6-0987-6543-210fedcba987', 'owner-1');
       expect(result).toEqual(expected);
     });
   });
