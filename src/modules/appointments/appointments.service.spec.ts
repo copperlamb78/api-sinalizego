@@ -25,6 +25,9 @@ describe('AppointmentsService', () => {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
     },
+    company: {
+      findMany: jest.fn(),
+    },
     companyService: {
       findFirst: jest.fn(),
     },
@@ -56,6 +59,81 @@ describe('AppointmentsService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('getAppointmentByUserId', () => {
+    it('should query appointments strictly filtering by clientId', async () => {
+      const expected = [{ id: 'appointment-1', clientId: 'client-123' }];
+      mockPrisma.appointment.findMany.mockResolvedValue(expected);
+
+      const result = await service.getAppointmentByUserId('client-123');
+
+      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
+        where: { clientId: 'client-123' },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getAppointmentByCompanyId', () => {
+    it('should return empty list if user has no companies', async () => {
+      mockPrisma.company.findMany.mockResolvedValue([]);
+
+      const result = await service.getAppointmentByCompanyId('owner-without-company');
+
+      expect(mockPrisma.company.findMany).toHaveBeenCalledWith({
+        where: { userId: 'owner-without-company' },
+        select: { id: true },
+      });
+      expect(result).toEqual([]);
+    });
+
+    it('should scope query to all companies owned by user when no companyId filter is passed', async () => {
+      mockPrisma.company.findMany.mockResolvedValue([
+        { id: 'company-1' },
+        { id: 'company-2' },
+      ]);
+      const expected = [{ id: 'appointment-1', companyId: 'company-1' }];
+      mockPrisma.appointment.findMany.mockResolvedValue(expected);
+
+      const result = await service.getAppointmentByCompanyId('owner-1');
+
+      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
+        where: { companyId: { in: ['company-1', 'company-2'] } },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual(expected);
+    });
+
+    it('should throw ForbiddenException if user tries to query a companyId they do not own (IDOR)', async () => {
+      mockPrisma.company.findMany.mockResolvedValue([{ id: 'company-1' }]);
+
+      await expect(
+        service.getAppointmentByCompanyId('owner-1', {
+          companyId: 'competitor-company-99',
+        } as any),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow querying specific companyId if user is the owner', async () => {
+      mockPrisma.company.findMany.mockResolvedValue([
+        { id: 'company-1' },
+        { id: 'company-2' },
+      ]);
+      const expected = [{ id: 'appointment-1', companyId: 'company-1' }];
+      mockPrisma.appointment.findMany.mockResolvedValue(expected);
+
+      const result = await service.getAppointmentByCompanyId('owner-1', {
+        companyId: 'company-1',
+      } as any);
+
+      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
+        where: { companyId: 'company-1' },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual(expected);
+    });
   });
 
   describe('updateAppointmentStatus', () => {
@@ -186,6 +264,59 @@ describe('AppointmentsService', () => {
           status: ApptStatus.CANCELED,
           isActive: false,
           disabledBy: 'owner-1',
+        }),
+      });
+      expect(result.status).toEqual(ApptStatus.CANCELED);
+    });
+  });
+
+  describe('deactivateAppointment', () => {
+    const appointmentMock = {
+      id: 'appointment-1',
+      clientId: 'client-1',
+      status: ApptStatus.CONFIRMED,
+      isActive: true,
+      company: {
+        id: 'company-1',
+        userId: 'owner-1',
+      },
+    };
+
+    it('should throw ForbiddenException if user is neither client, nor company owner, nor admin', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(appointmentMock);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'stranger-id',
+        role: Role.CLIENT,
+      });
+
+      await expect(
+        service.deactivateAppointment('appointment-1', 'stranger-id'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow client to deactivate their own appointment', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(appointmentMock);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'client-1',
+        role: Role.CLIENT,
+      });
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...appointmentMock,
+        status: ApptStatus.CANCELED,
+        isActive: false,
+      });
+
+      const result = await service.deactivateAppointment(
+        'appointment-1',
+        'client-1',
+      );
+
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: 'appointment-1' },
+        data: expect.objectContaining({
+          status: ApptStatus.CANCELED,
+          isActive: false,
+          disabledBy: 'client-1',
         }),
       });
       expect(result.status).toEqual(ApptStatus.CANCELED);

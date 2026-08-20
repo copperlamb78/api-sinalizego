@@ -147,10 +147,32 @@ export class AppointmentsService {
     userId: string,
     filters?: AppointmentsAdminFiltersDto,
   ) {
+    const userCompanies = await this.prisma.company.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+
+    const companyIds = userCompanies.map((company) => company.id);
+
+    if (companyIds.length === 0) {
+      return [];
+    }
+
     const whereClause: any = {};
+
+    if (filters?.companyId) {
+      if (!companyIds.includes(filters.companyId)) {
+        throw new ForbiddenException(
+          'Você não tem permissão para acessar os agendamentos desta empresa.',
+        );
+      }
+      whereClause.companyId = filters.companyId;
+    } else {
+      whereClause.companyId = { in: companyIds };
+    }
+
     let orderByClause: any = { createdAt: 'desc' };
     if (filters) {
-      if (filters.companyId) whereClause.companyId = filters.companyId;
       if (filters.clientId) whereClause.clientId = filters.clientId;
       if (filters.serviceId) whereClause.serviceId = filters.serviceId;
       if (filters.status) whereClause.status = filters.status;
@@ -174,10 +196,6 @@ export class AppointmentsService {
       orderBy: orderByClause,
     });
 
-    if (!appointments) {
-      throw new NotFoundException('Nenhum agendamento encontrado.');
-    }
-
     return appointments;
   }
 
@@ -185,7 +203,7 @@ export class AppointmentsService {
     userId: string,
     filters?: AppointmentsFiltersDto,
   ) {
-    const whereClause: any = {};
+    const whereClause: any = { clientId: userId };
     let orderByClause: any = { createdAt: 'desc' };
     if (filters) {
       if (filters.serviceId) whereClause.serviceId = filters.serviceId;
@@ -200,10 +218,6 @@ export class AppointmentsService {
       where: whereClause,
       orderBy: orderByClause,
     });
-
-    if (!appointments) {
-      throw new NotFoundException('Nenhum agendamento encontrado.');
-    }
 
     return appointments;
   }
@@ -300,6 +314,9 @@ export class AppointmentsService {
   async deactivateAppointment(appointmentId: string, userId: string) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
+      include: {
+        company: true,
+      },
     });
 
     if (!appointment) {
@@ -312,6 +329,17 @@ export class AppointmentsService {
 
     if (!user) {
       throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+    const isCompanyOwner = appointment.company?.userId === userId;
+    const isClientOwner = appointment.clientId === userId;
+
+    if (!isSystemManager && !isCompanyOwner && !isClientOwner) {
+      throw new ForbiddenException(
+        'Você não tem permissão para cancelar este agendamento.',
+      );
     }
 
     if (appointment.status === 'CANCELED' || !appointment.isActive) {
