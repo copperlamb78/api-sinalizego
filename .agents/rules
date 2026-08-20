@@ -41,3 +41,8 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Formatting:** Prettier and ESLint are configured. Ensure all code generated respects these rules.
 *   **Testing:** The project boasts high test coverage. When adding features, write or update corresponding unit tests (`.spec.ts`) using Jest.
 *   **Soft Deletes:** Notice in the Prisma schema that entities like `User`, `Company`, `Appointment` have `isActive` and `disabledAt` fields. Implement soft deletes rather than hard `DELETE` operations unless strictly necessary.
+
+## 5. Git & Version Control Guidelines
+
+*   **Commits:** You are allowed to commit changes (`git commit`) when appropriate, using clear and descriptive commit messages following Conventional Commits.
+*   **Push / Remote Operations:** Always ask the user for confirmation **before** executing any `git push`. Never push to remote branches without explicit user authorization.
