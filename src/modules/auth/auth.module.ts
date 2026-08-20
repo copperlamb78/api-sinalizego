@@ -6,10 +6,12 @@ import { AuthController } from './auth.controller';
 import 'dotenv/config';
 import { JwtStrategy } from './jwt/strategy/jwt.strategy';
 import { JwtRefreshStrategy } from './jwt/strategy/jwt-refresh.strategy';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
-  imports: [PassportModule, JwtModule],
+  imports: [PassportModule, JwtModule.register({}), MailModule],
   providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
   controllers: [AuthController],
+  exports: [AuthService],
 })
 export class AuthModule {}
