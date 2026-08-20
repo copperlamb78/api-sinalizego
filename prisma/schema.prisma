@@ -79,10 +79,14 @@ model Company {
 model ServiceGroup {
   id         String    @id @default(uuid())
   name       String
-  capacity   Int        @default(1)
+  capacity   Int       @default(1)
   companyId  String 
+  isActive   Boolean   @default(true)
+  disabledAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   services   Service[]
 }
 
@@ -101,7 +105,7 @@ model Service {
   disabledAt         DateTime? 
   serviceGroupId     String
 
-  serviceGroup       ServiceGroup @relation(fields: [serviceGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade) 
+  serviceGroup       ServiceGroup @relation(fields: [serviceGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade) 
   company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   appointments       Appointment[]
 }
@@ -127,7 +131,7 @@ model Appointment {
   disabledBy      String?
 
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   transactions    Transaction[]
 }
