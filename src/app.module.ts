@@ -15,6 +15,7 @@ import { AsaasModule } from './asaas/asaas.module';
 import { FinancialProfileModule } from './modules/financial-profile/financial-profile.module';
 import { WebhooksModule } from './asaas/webhook-asaas/webhooks.module';
 import { ServiceGroupModule } from './service-group/service-group.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -33,8 +34,8 @@ import { ServiceGroupModule } from './service-group/service-group.module';
     AsaasModule,
     FinancialProfileModule,
     WebhooksModule,
-    TransactionsModule,
     ServiceGroupModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
