@@ -1,33 +1,56 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateServiceGroupDto } from './dto/create-service-group.dto';
 import { UpdateServiceGroupDto } from './dto/update-service-group.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { FiltersServiceGroupDto } from './dto/filters-service-group.dto';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class ServiceGroupService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: CreateServiceGroupDto) {
-    const existingCompany = this.prisma.company.findUnique({
+  async create(data: CreateServiceGroupDto, userId: string) {
+    const company = await this.prisma.company.findUnique({
       where: { id: data.companyId },
     });
-    if (!existingCompany) {
-      throw new NotFoundException('Empresa não encontrada');
+
+    if (!company) {
+      throw new NotFoundException('Empresa não encontrada.');
     }
 
-    const serviceGroup = this.prisma.serviceGroup.create({
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+
+    if (!isSystemManager && company.userId !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para criar grupos de serviços nesta empresa.',
+      );
+    }
+
+    return this.prisma.serviceGroup.create({
       data: {
         name: data.name,
         capacity: data.capacity,
         companyId: data.companyId,
       },
     });
-    return serviceGroup;
   }
 
-  findAll(filters?: FiltersServiceGroupDto) {
-    const whereClause: any = {};
+  async findAll(filters?: FiltersServiceGroupDto) {
+    const whereClause: any = { isActive: true };
 
     if (filters) {
       if (filters.name) whereClause.name = filters.name;
@@ -35,84 +58,189 @@ export class ServiceGroupService {
       if (filters.companyId) whereClause.companyId = filters.companyId;
     }
 
-    const serviceGroups = this.prisma.serviceGroup.findMany({
+    return this.prisma.serviceGroup.findMany({
       where: whereClause,
     });
-    return serviceGroups;
   }
 
-  findOneById(id: string) {
-    const serviceGroup = this.prisma.serviceGroup.findUnique({
-      where: { id: id },
+  async findOneById(id: string) {
+    const serviceGroup = await this.prisma.serviceGroup.findUnique({
+      where: { id },
+      include: {
+        company: true,
+      },
     });
+
+    if (!serviceGroup) {
+      throw new NotFoundException('Grupo de serviços não encontrado.');
+    }
+
     return serviceGroup;
   }
 
-  findAllByCompanyId(companyId: string, filters?: FiltersServiceGroupDto) {
-    const whereClause: any = { companyId: companyId };
+  async findAllByCompanyId(
+    companyId: string,
+    userId: string,
+    filters?: FiltersServiceGroupDto,
+  ) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Empresa não encontrada.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+
+    if (!isSystemManager && company.userId !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para visualizar os grupos de serviços desta empresa.',
+      );
+    }
+
+    const whereClause: any = { companyId, isActive: true };
 
     if (filters) {
       if (filters.name) whereClause.name = filters.name;
       if (filters.capacity) whereClause.capacity = filters.capacity;
     }
 
-    const serviceGroups = this.prisma.serviceGroup.findMany({
+    return this.prisma.serviceGroup.findMany({
       where: whereClause,
     });
-    return serviceGroups;
   }
 
-  updateByCompanyId(
+  async updateByCompanyId(
     id: string,
     companyId: string,
+    userId: string,
     data: UpdateServiceGroupDto,
   ) {
-    const serviceGroupExisits = this.prisma.serviceGroup.findFirst({
-      where: { id: id, companyId: companyId },
+    const serviceGroup = await this.prisma.serviceGroup.findFirst({
+      where: { id, companyId },
+      include: {
+        company: true,
+      },
     });
 
-    if (!serviceGroupExisits) {
+    if (!serviceGroup) {
       throw new NotFoundException(
         'Grupo de serviços não encontrado para esta empresa.',
       );
     }
 
-    const updatedServiceGroup = this.prisma.serviceGroup.update({
-      where: { id: id },
-      data: data,
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
     });
-    return updatedServiceGroup;
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+
+    if (!isSystemManager && serviceGroup.company?.userId !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para alterar este grupo de serviços.',
+      );
+    }
+
+    return this.prisma.serviceGroup.update({
+      where: { id },
+      data,
+    });
   }
 
-  update(id: string, data: UpdateServiceGroupDto) {
-    const serviceGroupExists = this.prisma.serviceGroup.findUnique({
-      where: { id: id },
+  async update(id: string, userId: string, data: UpdateServiceGroupDto) {
+    const serviceGroup = await this.prisma.serviceGroup.findUnique({
+      where: { id },
+      include: {
+        company: true,
+      },
     });
 
-    if (!serviceGroupExists) {
+    if (!serviceGroup) {
       throw new NotFoundException('Grupo de serviços não encontrado.');
     }
 
-    const updatedServiceGroup = this.prisma.serviceGroup.update({
-      where: { id: id },
-      data: data,
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
     });
 
-    return updatedServiceGroup;
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+
+    if (!isSystemManager && serviceGroup.company?.userId !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para alterar este grupo de serviços.',
+      );
+    }
+
+    return this.prisma.serviceGroup.update({
+      where: { id },
+      data,
+    });
   }
 
-  remove(id: string) {
-    const serviceGroupExists = this.prisma.serviceGroup.findUnique({
-      where: { id: id },
+  async remove(id: string, userId: string) {
+    const serviceGroup = await this.prisma.serviceGroup.findUnique({
+      where: { id },
+      include: {
+        company: true,
+        services: {
+          where: { isActive: true },
+        },
+      },
     });
 
-    if (!serviceGroupExists) {
+    if (!serviceGroup) {
       throw new NotFoundException('Grupo de serviços não encontrado.');
     }
 
-    const deletedServiceGroup = this.prisma.serviceGroup.delete({
-      where: { id: id },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
     });
-    return deletedServiceGroup;
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+
+    if (!isSystemManager && serviceGroup.company?.userId !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para remover este grupo de serviços.',
+      );
+    }
+
+    if (serviceGroup.services && serviceGroup.services.length > 0) {
+      throw new BadRequestException(
+        'Não é possível remover um grupo de serviços que ainda possui serviços ativos vinculados. Desative ou transfira os serviços primeiro.',
+      );
+    }
+
+    return this.prisma.serviceGroup.update({
+      where: { id },
+      data: {
+        isActive: false,
+        disabledAt: new Date(),
+      },
+    });
   }
 }

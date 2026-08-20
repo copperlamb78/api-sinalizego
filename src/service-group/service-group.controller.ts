@@ -4,9 +4,11 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ServiceGroupService } from './service-group.service';
@@ -28,6 +30,7 @@ import {
   INTERNAL_NO_EMPLOYEE,
   INTERNAL_USERS,
 } from 'src/common/constants/role-groups.constant';
+import type { Request } from 'express';
 
 @ApiTags('Grupo de Serviços')
 @Controller('service-group')
@@ -57,10 +60,15 @@ export class ServiceGroupController {
   })
   @ApiResponse({ status: 400, description: 'Dados de requisição inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado para esta empresa' })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async create(@Body() createServiceGroupDto: CreateServiceGroupDto) {
-    return this.serviceGroupService.create(createServiceGroupDto);
+  async create(
+    @Body() createServiceGroupDto: CreateServiceGroupDto,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.serviceGroupService.create(createServiceGroupDto, userId);
   }
 
   @ApiBearerAuth()
@@ -97,7 +105,7 @@ export class ServiceGroupController {
   })
   @ApiParam({
     name: 'companyId',
-    description: 'ID da empresa',
+    description: 'ID da empresa (UUID)',
     example: '6e463255-9c3e-47e1-b417-60382e3d2223',
   })
   @ApiResponse({
@@ -116,12 +124,20 @@ export class ServiceGroupController {
     },
   })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado para esta empresa' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async findAllByCompanyId(
-    @Param('companyId') companyId: string,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Req() req: Request,
     @Query() filters?: FiltersServiceGroupDto,
   ) {
-    return this.serviceGroupService.findAllByCompanyId(companyId, filters);
+    const userId = req.user?.['sub'];
+    return this.serviceGroupService.findAllByCompanyId(
+      companyId,
+      userId,
+      filters,
+    );
   }
 
   @ApiBearerAuth()
@@ -131,7 +147,7 @@ export class ServiceGroupController {
   @ApiOperation({ summary: 'Busca um grupo de serviços pelo ID' })
   @ApiParam({
     name: 'id',
-    description: 'ID único do grupo de serviços',
+    description: 'ID único do grupo de serviços (UUID)',
     example: 'clsw0s98x000013z81z8z8z8z',
   })
   @ApiResponse({
@@ -152,7 +168,7 @@ export class ServiceGroupController {
     description: 'Grupo de serviços não encontrado',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.serviceGroupService.findOneById(id);
   }
 
@@ -163,7 +179,7 @@ export class ServiceGroupController {
   @ApiOperation({ summary: 'Atualiza um grupo de serviços pelo ID' })
   @ApiParam({
     name: 'id',
-    description: 'ID único do grupo de serviços',
+    description: 'ID único do grupo de serviços (UUID)',
     example: 'clsw0s98x000013z81z8z8z8z',
   })
   @ApiBody({
@@ -184,16 +200,19 @@ export class ServiceGroupController {
   })
   @ApiResponse({ status: 400, description: 'Dados de requisição inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado para este grupo de serviços' })
   @ApiResponse({
     status: 404,
     description: 'Grupo de serviços não encontrado',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateServiceGroupDto: UpdateServiceGroupDto,
+    @Req() req: Request,
   ) {
-    return this.serviceGroupService.update(id, updateServiceGroupDto);
+    const userId = req.user?.['sub'];
+    return this.serviceGroupService.update(id, userId, updateServiceGroupDto);
   }
 
   @ApiBearerAuth()
@@ -205,12 +224,12 @@ export class ServiceGroupController {
   })
   @ApiParam({
     name: 'companyId',
-    description: 'ID da empresa',
+    description: 'ID da empresa (UUID)',
     example: '6e463255-9c3e-47e1-b417-60382e3d2223',
   })
   @ApiParam({
     name: 'id',
-    description: 'ID único do grupo de serviços',
+    description: 'ID único do grupo de serviços (UUID)',
     example: 'clsw0s98x000013z81z8z8z8z',
   })
   @ApiBody({
@@ -231,19 +250,23 @@ export class ServiceGroupController {
   })
   @ApiResponse({ status: 400, description: 'Dados de requisição inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado para esta empresa' })
   @ApiResponse({
     status: 404,
     description: 'Grupo de serviços não encontrado para esta empresa',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async updateByCompanyId(
-    @Param('id') id: string,
-    @Param('companyId') companyId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
     @Body() updateServiceGroupDto: UpdateServiceGroupDto,
+    @Req() req: Request,
   ) {
+    const userId = req.user?.['sub'];
     return this.serviceGroupService.updateByCompanyId(
       id,
       companyId,
+      userId,
       updateServiceGroupDto,
     );
   }
@@ -252,31 +275,36 @@ export class ServiceGroupController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Delete(':id')
-  @ApiOperation({ summary: 'Remove um grupo de serviços pelo ID' })
+  @ApiOperation({ summary: 'Desativa/remove um grupo de serviços pelo ID' })
   @ApiParam({
     name: 'id',
-    description: 'ID único do grupo de serviços a ser removido',
+    description: 'ID único do grupo de serviços a ser removido (UUID)',
     example: 'clsw0s98x000013z81z8z8z8z',
   })
   @ApiResponse({
     status: 200,
-    description: 'Grupo de serviços removido com sucesso',
+    description: 'Grupo de serviços desativado com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'Cabeleireiros',
         capacity: 2,
         companyId: '6e463255-9c3e-47e1-b417-60382e3d2223',
+        isActive: false,
+        disabledAt: '2026-08-19T21:00:00.000Z',
       },
     },
   })
+  @ApiResponse({ status: 400, description: 'Grupo possui serviços ativos vinculados' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado para este grupo de serviços' })
   @ApiResponse({
     status: 404,
     description: 'Grupo de serviços não encontrado',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async remove(@Param('id') id: string) {
-    return this.serviceGroupService.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    const userId = req.user?.['sub'];
+    return this.serviceGroupService.remove(id, userId);
   }
 }
