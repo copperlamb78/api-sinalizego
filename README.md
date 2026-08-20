@@ -2,7 +2,7 @@
 
 # 🟢 SinalizeGO API
 
-<img src="https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" /> <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" /> <img src="https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white" /> <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" /> <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white" /> <img src="https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black" />
+<img src="https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" /> <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" /> <img src="https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white" /> <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" /> <img src="https://img.shields.io/badge/Brevo-0B996F?style=for-the-badge&logo=brevo&logoColor=white" /> <img src="https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black" />
 
 **Plataforma de agendamento inteligente para empresas e prestadores de serviços**
 
@@ -10,7 +10,7 @@
 
 ---
 
-[📖 Documentação](#-documentação-da-api) · [🚀 Começando](#-começando) · [📦 Módulos](#-módulos) · [🗄️ Banco de Dados](#️-banco-de-dados) · [🔑 Permissões](#-sistema-de-permissões)
+[📖 Documentação](#-documentação-da-api) · [🚀 Começando](#-começando) · [📦 Módulos](#-módulos) · [🗄️ Banco de Dados](#️-banco-de-dados) · [🔑 Permissões](#-sistema-de-permissões) · [🧪 Testes Unitários](#-testes-unitários)
 
 </div>
 
@@ -18,23 +18,26 @@
 
 ## 📋 Sobre o Projeto
 
-**SinalizeGO** é uma API RESTful robusta para gerenciamento de agendamentos entre **clientes** e **empresas/prestadores de serviços** (barbearias, estúdios, salões e mais). A plataforma permite que donos de empresa cadastrem seus negócios (`Company`), criem subcontas financeiras no Asaas Sandbox com split de pagamentos via Pix, organizem serviços em grupos de atendimento (`ServiceGroup`) com limite de capacidade, e recebam agendamentos com confirmação em tempo real via Webhook.
+**SinalizeGO** é uma API RESTful robusta e segura para gerenciamento de agendamentos entre **clientes** e **empresas/prestadores de serviços** (barbearias, estúdios, salões e mais). A plataforma permite que donos de empresa cadastrem seus negócios (`Company`), criem subcontas financeiras no Asaas Sandbox com split de pagamentos via Pix, organizem serviços em grupos de atendimento (`ServiceGroup`) com limite de capacidade, recuperem senhas de forma stateless via JWT dinâmico e e-mail transacional Brevo, e recebam agendamentos com confirmação em tempo real via Webhook.
 
-### ✨ Destaques
+### ✨ Destaques & Segurança
 
 | Recurso | Descrição |
 |---------|-----------|
 | 🔐 **Autenticação JWT** | Login seguro com access token + refresh token |
 | 🔑 **RBAC (Role-Based Access Control)** | Níveis de permissão com guard customizado (CLIENT, COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN) |
-| 👥 **Gestão de Usuários** | CRUD completo com atualização de CPF/CNPJ e vinculo automático de Customer ID no Asaas |
+| 🛡️ **Proteção Multi-tenancy & IDOR** | Validação estrita de posse de empresa e filtros travados pelo `userId` autenticado |
+| 🔄 **Recuperação de Senha Stateless** | Token JWT assinado com chave dinâmica (`JWT_SECRET + user.password`) com expiração de 15min e invalidação imediata pós-uso |
+| ✉️ **E-mails Transacionais (Brevo)** | Módulo de e-mail integrado com `@getbrevo/brevo` e templates HTML responsivos centralizados |
+| 👥 **Gestão de Usuários Segura** | Sanitização centralizada com `USER_PUBLIC_SELECT` (sem vazamento de hashes/tokens), alteração de senha autenticada e vínculo de CPF/CNPJ ao Asaas |
 | 🏢 **Perfil da Empresa (Company)** | Criação com slug automático, filtros, ordenação e ativação |
-| 📁 **Grupos de Serviços (ServiceGroup)** | Organização de serviços por grupos com limite de capacidade de atendimento simultâneo |
-| 💈 **Catálogo de Serviços** | CRUD completo por empresa com vinculo ao grupo de serviços e taxa da plataforma |
-| 📅 **Agendamentos** | Criação com verificação de vagas por capacidade do grupo e expiração de reserva |
-| 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa |
+| 📁 **Grupos de Serviços (ServiceGroup)** | Organização de serviços por grupos com limite de capacidade, validação de posse e soft delete protegido |
+| 💈 **Catálogo de Serviços** | CRUD completo por empresa vinculado ao grupo de serviços e taxa da plataforma |
+| 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga e auditoria de cancelamento |
+| 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
+| 🧪 **Suíte de Testes Completa** | Mais de 115 testes unitários cobrindo todos os módulos, regras de negócio e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
-| 🛡️ **Soft Delete** | Desativação segura com rastreamento de quem desativou |
 
 ---
 
@@ -60,7 +63,7 @@ npm install
 
 # 3️⃣ Configure as variáveis de ambiente
 cp .env.example .env
-# Edite o .env com suas credenciais (DATABASE_URL, JWT_SECRET, ASAAS_API_KEY, etc.)
+# Edite o .env com suas credenciais (DATABASE_URL, JWT_SECRET, BREVO_API_KEY, ASAAS_API_KEY, etc.)
 
 # 4️⃣ Gere o Prisma Client
 npx prisma generate
@@ -85,6 +88,12 @@ DIRECT_URL="postgresql://..."
 JWT_SECRET="sua-chave-secreta"
 JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
 
+# Brevo (Transactional Email)
+BREVO_API_KEY="xkeysib-..."
+MAIL_FROM_EMAIL="neodevzone@gmail.com"
+MAIL_FROM_NAME="SinalizeGo"
+FRONTEND_URL="http://localhost:3000"
+
 # Asaas Sandbox Integration
 ASAAS_API_URL="https://sandbox.asaas.com/api/v3"
 ASAAS_API_KEY="$aact_YTU5YTE0M2..."
@@ -97,17 +106,19 @@ ASAAS_WEBHOOK_SECRET="seu-token-webhook"
 |---------|-----------|
 | `npm run start:dev` | 🔄 Inicia em modo watch (desenvolvimento) |
 | `npm run start:debug` | 🐛 Inicia em modo debug com watch |
-| `npm run build` | 📦 Compila para produção |
-| `npm run start:prod` | 🚀 Inicia build de produção |
-| `npm run lint` | 🔍 Executa o linter (ESLint) |
+| `npm run build` | 📦 Compila o projeto com o compilador NestJS |
+| `npm run start:prod` | 🚀 Inicia a build de produção compilada |
+| `npm run lint` | 🔍 Executa o linter (ESLint) com correção automática |
 | `npm run format` | 🎨 Formata o código (Prettier) |
-| `npm run test` | 🧪 Executa os testes |
+| `npm run test` | 🧪 Executa a suíte de testes unitários |
+| `npm run test:watch` | 🧪 Executa os testes em modo interativo/watch |
+| `npm run test:cov` | 📊 Gera relatório de cobertura de testes |
 
 ---
 
 ## 🔑 Sistema de Permissões
 
-A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e grupos predefinidos.
+A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e grupos predefinidos em `src/common/constants/role-groups.constant.ts`.
 
 ### Roles
 
@@ -132,28 +143,31 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ## 📦 Módulos
 
-### 🔐 Auth — Autenticação
+### 🔐 Auth — Autenticação & Recuperação de Senha
 
-> Gerenciamento de login com JWT (access token de 15min + refresh token de 30 dias).
+> Gerenciamento de login com JWT, refresh token, e recuperação de senha stateless via e-mail Brevo.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
 | `POST` | `/auth/login` | Login com email e senha | ❌ | — |
-| `POST` | `/auth/refresh` | Renovar access token | 🔑 Refresh | — |
-| `GET` | `/auth/me` | Dados do usuário logado | 🔑 Refresh | — |
-| `POST` | `/auth/logout` | Encerrar sessão | 🔑 Refresh | — |
+| `POST` | `/auth/refresh` | Renovar access token com refresh token | 🔑 Refresh | — |
+| `GET` | `/auth/me` | Dados do usuário logado | 🔑 JWT | — |
+| `POST` | `/auth/logout` | Encerrar sessão e invalidar refresh token | 🔑 JWT | — |
+| `POST` | `/auth/forgot-password` | Solicitar link de recuperação de senha por e-mail | ❌ | — |
+| `POST` | `/auth/reset-password` | Redefinir senha com token dinâmico stateless | ❌ | — |
 
 ---
 
 ### 👥 Users — Usuários
 
-> CRUD completo com validação, hash de senha (bcrypt), ativação/desativação e controle de acesso por roles.
+> CRUD completo com sanitização de campos sensíveis (`USER_PUBLIC_SELECT`), alteração de senha autenticada, ativação/desativação e vínculo com Asaas.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
 | `POST` | `/users/create` | Criar novo usuário | ❌ | — |
-| `GET` | `/users/list` | Listar todos os usuários | 🔑 JWT | `SYSTEM_MANAGERS` |
-| `PATCH` | `/users/update/:userId` | Atualizar dados do usuário | 🔑 JWT | — |
+| `GET` | `/users/list` | Listar todos os usuários (sem senhas/tokens) | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `PATCH` | `/users/update` | Atualizar dados cadastrais (nome, telefone) | 🔑 JWT | — |
+| `PATCH` | `/users/change-password` | Alterar senha mediante confirmação da senha atual | 🔑 JWT | — |
 | `PATCH` | `/users/update-cpf` | Atualizar CPF/CNPJ e gerar Customer ID Asaas | 🔑 JWT | — |
 | `DELETE` | `/users/deactivate/:userId` | Desativar usuário (soft delete) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/users/activate/:userId` | Reativar usuário | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
@@ -181,17 +195,17 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ### 📁 Service-Group — Grupos de Serviços
 
-> Gestão de grupos de serviços por empresa com definição de capacidade simultânea de atendimento.
+> Gestão de grupos de serviços por empresa com definição de capacidade simultânea de atendimento, integridade relacional (`Restrict`) e soft delete seguro.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `POST` | `/service-group` | Criar novo grupo de serviços | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `POST` | `/service-group` | Criar novo grupo de serviços (valida posse da empresa) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `GET` | `/service-group` | Listar todos os grupos de serviços (com filtros) | 🔑 JWT | `INTERNAL_USERS` |
-| `GET` | `/service-group/company/:companyId` | Listar grupos de serviços de uma empresa | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/service-group/company/:companyId` | Listar grupos de serviços de uma empresa do usuário | 🔑 JWT | `INTERNAL_USERS` |
 | `GET` | `/service-group/:id` | Buscar grupo de serviços por ID | 🔑 JWT | `INTERNAL_USERS` |
-| `PATCH` | `/service-group/:id` | Atualizar grupo de serviços por ID | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/service-group/:id` | Atualizar grupo de serviços por ID (valida posse) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/service-group/company/:companyId/:id` | Atualizar grupo de serviços de uma empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
-| `DELETE` | `/service-group/:id` | Remover grupo de serviços por ID | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/service-group/:id` | Desativar grupo de serviços (soft delete protegido) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
 ---
 
@@ -224,16 +238,16 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ### 📅 Appointments — Agendamentos
 
-> Criação com verificação de vagas pela capacidade do grupo de serviços, cancelamento e controle de status.
+> Criação com verificação de vagas pela capacidade do grupo de serviços, cancelamento auditado, proteção contra IDOR e bloqueio de confirmação manual fraudulenta.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
 | `POST` | `/appointments` | Criar agendamento (requer CPF cadastrado) | 🔑 JWT | — |
 | `GET` | `/appointments` | Listar todos os agendamentos | 🔑 JWT | `SUPER_ADMIN` |
-| `GET` | `/appointments/company` | Listar agendamentos da empresa | 🔑 JWT | `INTERNAL_USERS` |
-| `GET` | `/appointments/user` | Listar agendamentos do cliente | 🔑 JWT | — |
-| `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento | 🔑 JWT | — |
-| `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento | 🔑 JWT | — |
+| `GET` | `/appointments/company` | Listar agendamentos da empresa do usuário (blindado contra IDOR) | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/appointments/user` | Listar agendamentos do cliente autenticado (blindado contra IDOR) | 🔑 JWT | — |
+| `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento (apenas transições válidas) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento com log de auditoria | 🔑 JWT | — |
 
 ---
 
@@ -255,7 +269,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ### 💳 Transactions & Webhooks — Transações e Webhooks Asaas
 
-> Cobrança Pix com split automático para a carteira da empresa e atualização em tempo real via Webhook.
+> Cobrança Pix com split automático derivada 100% dos dados seguros do banco e atualização em tempo real via Webhook.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
@@ -277,8 +291,8 @@ erDiagram
     Company ||--o{ Appointment : "recebe"
     Company ||--o{ WorkingHour : "define"
     Company ||--o{ ScheduleException : "configura"
-    ServiceGroup ||--o{ Service : "agrupa"
-    Service ||--o{ Appointment : "vincula"
+    ServiceGroup ||--o{ Service : "agrupa (Restrict)"
+    Service ||--o{ Appointment : "vincula (Restrict)"
 
     User {
         string id PK
@@ -292,6 +306,7 @@ erDiagram
         string refreshToken
         boolean isActive
         datetime createdAt
+        datetime updatedAt
         datetime disabledAt
     }
 
@@ -312,6 +327,8 @@ erDiagram
         string logoPhoto
         string bannerPhoto
         boolean isActive
+        datetime createdAt
+        datetime updatedAt
         datetime disabledAt
     }
 
@@ -320,6 +337,10 @@ erDiagram
         string name
         int capacity
         string companyId FK
+        boolean isActive
+        datetime createdAt
+        datetime updatedAt
+        datetime disabledAt
     }
 
     Service {
@@ -332,6 +353,8 @@ erDiagram
         float totalPrice
         int downPaymentPercent
         boolean isActive
+        datetime createdAt
+        datetime updatedAt
         datetime disabledAt
     }
 
@@ -350,6 +373,8 @@ erDiagram
         float platformFeeAmount
         string disabledBy
         boolean isActive
+        datetime createdAt
+        datetime updatedAt
         datetime disabledAt
     }
 
@@ -381,7 +406,7 @@ erDiagram
 ```
 src/
 ├── 📄 main.ts                          # Bootstrap + Swagger + Global Exception Filters
-├── 📄 app.module.ts                    # Módulo raiz
+├── 📄 app.module.ts                    # Módulo raiz com registro de todos os submódulos
 ├── 📄 app.controller.ts               # Controller padrão
 ├── 📄 app.service.ts                   # Service padrão
 │
@@ -390,9 +415,16 @@ src/
 │
 ├── 📋 common/
 │   ├── constants/
-│   │   └── role-groups.constant.ts    # Grupos de roles (SYSTEM_MANAGERS, etc.)
+│   │   └── role-groups.constant.ts    # Grupos de roles (SYSTEM_MANAGERS, INTERNAL_USERS, etc.)
 │   └── filters/
 │       └── prisma-client-exception.filter.ts # Filtro global de exceções Prisma
+│
+├── ✉️ modules/mail/
+│   ├── mail.module.ts                 # Módulo de envio de e-mails Brevo
+│   ├── mail.service.ts                # Serviço de e-mail transacional
+│   ├── mail.service.spec.ts           # Testes unitários do MailService
+│   └── templates/
+│       └── email.templates.ts         # Repositório centralizado de templates HTML
 │
 ├── 💳 asaas/
 │   ├── asaas.module.ts
@@ -412,7 +444,9 @@ src/
 ├── 📁 service-group/
 │   ├── service-group.module.ts
 │   ├── service-group.controller.ts
+│   ├── service-group.controller.spec.ts
 │   ├── service-group.service.ts
+│   ├── service-group.service.spec.ts
 │   └── dto/
 │       ├── create-service-group.dto.ts
 │       ├── filters-service-group.dto.ts
@@ -426,7 +460,13 @@ src/
     ├── 🔐 auth/
     │   ├── auth.module.ts
     │   ├── auth.controller.ts
+    │   ├── auth.controller.spec.ts
     │   ├── auth.service.ts
+    │   ├── auth.service.spec.ts
+    │   ├── dto/
+    │   │   ├── forgot-password.dto.ts
+    │   │   ├── reset-password.dto.ts
+    │   │   └── user-login.dto.ts
     │   └── roles/
     │       ├── decorators/
     │       │   └── roles.decorator.ts
@@ -436,14 +476,21 @@ src/
     ├── 👥 users/
     │   ├── users.module.ts
     │   ├── users.controller.ts
+    │   ├── users.controller.spec.ts
     │   ├── users.service.ts
+    │   ├── users.service.spec.ts
+    │   ├── constants/
+    │   │   └── user-select.constant.ts # Seleção sanitizada de campos de usuário
     │   └── dto/
+    │       ├── change-password.dto.ts
+    │       ├── update-cpf-cnpj.dto.ts
     │       ├── user-create.dto.ts
     │       └── user-update.dto.ts
     │
     ├── 🏢 company/
     │   ├── company.module.ts
     │   ├── company.controller.ts
+    │   ├── company.controller.spec.ts
     │   ├── company.service.ts
     │   ├── dto/
     │   │   ├── company-create.dto.ts
@@ -455,6 +502,7 @@ src/
     ├── 💈 company-service/
     │   ├── company-service.module.ts
     │   ├── company-service.controller.ts
+    │   ├── company-service.controller.spec.ts
     │   ├── company-service.service.ts
     │   └── dto/
     │       ├── create-service.dto.ts
@@ -465,23 +513,51 @@ src/
     ├── 📅 appointments/
     │   ├── appointments.module.ts
     │   ├── appointments.controller.ts
+    │   ├── appointments.controller.spec.ts
     │   ├── appointments.service.ts
+    │   ├── appointments.service.spec.ts
     │   └── dto/
-    │       ├── appointments-create.dto.ts
     │       ├── appointements-update.dto.ts
+    │       ├── appointments-create.dto.ts
     │       ├── appointments-deactivate.dto.ts
     │       └── appointments-filters.dto.ts
     │
     ├── 💳 financial-profile/
     │   ├── financial-profile.module.ts
     │   ├── financial-profile.controller.ts
-    │   └── financial-profile.service.ts
+    │   ├── financial-profile.controller.spec.ts
+    │   ├── financial-profile.service.ts
+    │   └── dto/
+    │       ├── create-financial-profile.dto.ts
+    │       └── filter-financial-profile.dto.ts
     │
     └── 💳 transactions/
         ├── transactions.module.ts
         ├── transactions.controller.ts
-        └── transactions.service.ts
+        ├── transactions.controller.spec.ts
+        ├── transactions.service.ts
+        └── transactions.service.spec.ts
 ```
+
+---
+
+## 🧪 Testes Unitários
+
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **16 suítes de teste e 116 testes unitários automatizados**.
+
+Para rodar todos os testes:
+
+```bash
+npm test
+```
+
+### O que é coberto pelos testes:
+- **Autenticação & Tokens:** Login, geração e renovação de JWT/refresh token, logout.
+- **Recuperação de Senha:** Proteção contra enumeração de e-mail, assinatura dinâmica stateless com `JWT_SECRET + user.password`, rejeição de tokens expirados/usados e redefinição de senha com invalidação de refresh token.
+- **E-mails Brevo:** Disparo correto com dados populados e tratamento silencioso de erros de rede da API Brevo.
+- **Usuários:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF.
+- **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos ou grupos de serviços de empresas concorrentes, validação estrita de posse em criação, edição e exclusão.
+- **Integridade Financeira:** Bloqueio de confirmação manual fraudulenta de agendamento, derivação de valores e carteiras exclusivamente do banco de dados na rota de cobrança Pix.
 
 ---
 
@@ -496,10 +572,12 @@ src/
 | 🔷 **Linguagem** | TypeScript | 5.x |
 | 🗄️ **ORM** | Prisma | 7.8 |
 | 🐘 **Banco de Dados** | PostgreSQL (Supabase) | 15.x |
+| ✉️ **E-mails Transacionais** | Brevo SDK (@getbrevo/brevo) | 6.x |
 | 💳 **Gateway de Pagamento** | Asaas Sandbox API v3 | — |
-| 🔐 **Autenticação** | JWT + Passport | — |
+| 🔐 **Autenticação** | JWT (@nestjs/jwt) + Passport | — |
 | 🔒 **Hash** | bcrypt | 6.x |
 | ☁️ **Mídia** | Cloudinary | 2.x |
+| 🧪 **Testes** | Jest + ts-jest | 30.x |
 | 📖 **Documentação** | Swagger / OpenAPI | 11.x |
 | ✅ **Validação** | class-validator | 0.15 |
 
