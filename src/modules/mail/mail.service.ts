@@ -20,7 +20,7 @@ export class MailService {
     this.senderEmail =
       this.configService.get<string>('MAIL_FROM_EMAIL') ||
       process.env.MAIL_FROM_EMAIL ||
-      'nao-responda@sinalizego.com';
+      'neodevzone@gmail.com';
     this.senderName =
       this.configService.get<string>('MAIL_FROM_NAME') ||
       process.env.MAIL_FROM_NAME ||
