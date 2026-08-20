@@ -1,0 +1,43 @@
+# SinalizeGO - AI Agent Rules & Codebase Guidelines
+
+Welcome, Antigravity Agent. This document outlines the core architectural patterns, folder structures, and existing functionalities you **must** adhere to and utilize when working on this NestJS API.
+
+## 1. Architectural Patterns & Strengths to Maintain
+
+*   **Framework:** NestJS (v11). Always follow NestJS conventions: use Dependency Injection, Modules, Controllers, and Services.
+*   **Database ORM:** Prisma (v7). Use Prisma for all database interactions. Ensure schema changes are reflected correctly in `prisma/schema.prisma` and migrations are managed.
+*   **Modularity:** The application is highly modular. Every distinct domain/feature has its own module under `src/modules/` or in the root `src/` (like `asaas`, `cloudinary`, `service-group`). Do not create monolithic services.
+*   **Validation:** Use `class-validator` and `class-transformer` in DTOs (Data Transfer Objects) for all incoming requests. The `ValidationPipe` is set up globally.
+*   **Security & RBAC:** Role-Based Access Control is enforced. Roles include `CLIENT`, `COMPANY_OWNER`, `EMPLOYEE`, `ADMIN`, `SUPER_ADMIN`.
+*   **Error Handling:** A global Prisma exception filter handles database errors gracefully (e.g., conflicts, not found).
+
+## 2. Folder Structure Guidelines
+
+*   `src/modules/`: Contains business logic modules (Auth, Users, Company, Appointments, etc.). When creating a new domain, put it here.
+*   `src/common/`: Shared resources like Constants (`src/common/constants/`) and Filters (`src/common/filters/`).
+*   `src/helpers/`: Utility functions and isolated business logic helpers.
+*   `prisma/`: Contains `schema.prisma` (Database models) and `migrations`.
+
+## 3. Existing Functions & Helpers to Re-use
+
+You must reuse existing code instead of rewriting functionality. Pay special attention to these existing components:
+
+*   **`CalculateTax` (Helper - `src/helpers/calculate-tax.helper.ts`)**:
+    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices.
+    *   **Methods**: `calculatePlatformTaxPercentage(totalPrice)` and `calculatePlatformTax(totalPrice)`.
+
+*   **`PrismaClientExceptionFilter` (Filter - `src/common/filters/prisma-client-exception.filter.ts`)**:
+    *   **Purpose**: This is already registered globally in `main.ts`. It maps Prisma errors (`P2002` Conflict, `P2025` Not Found) to proper HTTP responses. Do not write manual try-catch blocks in controllers just to return 404 or 409 for these Prisma errors. Rely on the global filter.
+
+*   **`RolesGuard` (Guard - `src/modules/auth/roles/guard/roles.guard.ts`)**:
+    *   **Purpose**: Use this guard alongside the `@Roles()` decorator to protect routes based on user roles.
+    *   **Usage**: Check `src/common/constants/role-groups.constant.ts` (if it exists) or use individual roles from the `Role` enum in Prisma.
+
+*   **Authentication**: The app uses JWT via Passport. Routes are typically protected by a JwtAuthGuard (implied, verify per module). User data is extracted from the request (`req.user`).
+
+## 4. Coding Standards
+
+*   **Language:** TypeScript strictly. Avoid `any`. Use proper types or interfaces.
+*   **Formatting:** Prettier and ESLint are configured. Ensure all code generated respects these rules.
+*   **Testing:** The project boasts high test coverage. When adding features, write or update corresponding unit tests (`.spec.ts`) using Jest.
+*   **Soft Deletes:** Notice in the Prisma schema that entities like `User`, `Company`, `Appointment` have `isActive` and `disabledAt` fields. Implement soft deletes rather than hard `DELETE` operations unless strictly necessary.
