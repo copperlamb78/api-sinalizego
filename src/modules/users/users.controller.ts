@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Param,
   Patch,
   Post,
   Req,
@@ -19,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { CreateUserDto } from './dto/user-create.dto';
 import { UpdateUserDto } from './dto/user-update.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateCpfCnpjDto } from './dto/update-cpf-cnpj.dto';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import type { Request } from 'express';
@@ -71,7 +71,7 @@ export class UsersController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de usuários retornada com sucesso',
+    description: 'Lista de usuários retornada com sucesso (senhas e tokens omitidos)',
     schema: {
       example: [
         {
@@ -86,15 +86,17 @@ export class UsersController {
       ],
     },
   })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async getAllUsers() {
     return this.usersService.getAllUsers();
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Patch('update/:userId')
-  @ApiOperation({ summary: 'Atualiza os dados cadastrais do usuário logado' })
+  @UseGuards(JwtAuthGuard)
+  @Patch('update')
+  @ApiOperation({ summary: 'Atualiza os dados cadastrais (nome, telefone) do usuário logado' })
   @ApiBody({ type: UpdateUserDto, description: 'Atualizar usuário' })
   @ApiResponse({
     status: 200,
@@ -103,7 +105,7 @@ export class UsersController {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'João Silva Atualizado',
-        email: 'joao.silva.updated@example.com',
+        email: 'joao.silva@example.com',
         phone: '5561999999999',
         role: 'USER',
         createdAt: '2026-07-18T10:33:00.000Z',
@@ -111,11 +113,38 @@ export class UsersController {
       },
     },
   })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async updateUser(@Req() req: Request, @Body() data: UpdateUserDto) {
     const userId = req.user?.['sub'];
     return this.usersService.updateUser(userId, data);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('change-password')
+  @ApiOperation({ summary: 'Altera a senha do usuário logado mediante confirmação da senha atual' })
+  @ApiBody({ type: ChangePasswordDto, description: 'Senha atual e nova senha' })
+  @ApiResponse({
+    status: 200,
+    description: 'Senha alterada com sucesso',
+    schema: {
+      example: {
+        message: 'Senha alterada com sucesso.',
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  @ApiResponse({ status: 401, description: 'Senha atual incorreta' })
+  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async changePassword(
+    @Req() req: Request,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.usersService.changePassword(userId, changePasswordDto);
   }
 
   @ApiBearerAuth()

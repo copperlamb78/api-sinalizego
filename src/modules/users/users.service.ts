@@ -2,12 +2,15 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/user-create.dto';
 import * as bcrypt from 'bcrypt';
 import { UpdateUserDto } from './dto/user-update.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AsaasService } from 'src/asaas/asaas.service';
+import { USER_PUBLIC_SELECT } from './constants/user-select.constant';
 
 @Injectable()
 export class UsersService {
@@ -27,27 +30,21 @@ export class UsersService {
         ...data,
         password: hashedPassword,
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        createdAt: true,
-        isActive: true,
-      },
+      select: USER_PUBLIC_SELECT,
     });
 
     return { message: 'Usuário criado com sucesso', user: user };
   }
 
   async getAllUsers() {
-    const users = await this.prisma.user.findMany();
+    const users = await this.prisma.user.findMany({
+      select: USER_PUBLIC_SELECT,
+    });
     return users;
   }
 
   async updateUser(userId: string, data: UpdateUserDto) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
@@ -55,14 +52,52 @@ export class UsersService {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
-      data: data,
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.phone && { phone: data.phone }),
+      },
+      select: USER_PUBLIC_SELECT,
     });
+
+    return updatedUser;
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      dto.currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Senha atual incorreta.');
+    }
+
+    const newHashedPassword = await bcrypt.hash(dto.newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: newHashedPassword,
+        refreshToken: null, // Invalida sessões ativas com o refresh token antigo
+      },
+    });
+
+    return { message: 'Senha alterada com sucesso.' };
   }
 
   async updateCpfCnpjAndCreateCustomerId(userId: string, cpfCnpj: string) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
     if (!user) {
@@ -78,20 +113,21 @@ export class UsersService {
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { cpfCnpj: cpfCnpj, asaasCustomerId: asaasCustomerId },
+      select: {
+        id: true,
+        cpfCnpj: true,
+        asaasCustomerId: true,
+      },
     });
 
     return {
       message: 'CPF atualizado e cliente financeiro gerado com sucesso!',
-      user: {
-        id: updatedUser.id,
-        cpfCnpj: updatedUser.cpfCnpj,
-        asaasCustomerId: updatedUser.asaasCustomerId,
-      },
+      user: updatedUser,
     };
   }
 
   async deactivateUser(userId: string) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
@@ -102,13 +138,14 @@ export class UsersService {
     const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
       data: { isActive: false, disabledAt: new Date() },
+      select: USER_PUBLIC_SELECT,
     });
 
     return updatedUser;
   }
 
   async activateUser(userId: string) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
@@ -119,6 +156,7 @@ export class UsersService {
     const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
       data: { isActive: true, disabledAt: null },
+      select: USER_PUBLIC_SELECT,
     });
 
     return updatedUser;
