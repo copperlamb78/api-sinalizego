@@ -93,3 +93,24 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   If a client requests a cancellation *before* the 24-hour mark prior to the appointment, the system triggers the Asaas refund API.
     *   If the cancellation request occurs *within* the 24-hour mark, the cancellation is permitted to free the calendar, but the refund is blocked, and the deposit is released to the barber as a vacancy loss compensation.
 
+## 9. Cybersecurity & Data Integrity (MANDATORY)
+
+*   **Anti-IDOR & Multi-tenancy Enforcement (Zero Trust):**
+    *   Never trust `companyId`, `userId` or resource IDs passed via DTO, params, or request body for authorization.
+    *   Always validate ownership by checking `req.user.sub` against the database before querying, updating, or deleting resources.
+    *   Never create endpoints that delete or mutate records with Prisma using solely a raw `:id` parameter without scoping by tenant/owner (`userId` / `companyId`).
+
+*   **Zero Trust on Financial Inputs:**
+    *   Endpoints related to payments, deposits, splits, or bookings must **NEVER** accept monetary values, fee percentages, or wallet IDs from client payloads.
+    *   All financial values must be derived strictly on the server from validated database entities (`Service`, `Appointment`, constants) and frozen in the transaction record.
+
+*   **Credential & Secret Leak Prevention:**
+    *   Never query `User` models using wildcard selections (`findMany()` / `findUnique()` without explicit `select`). Always exclude sensitive columns (`password`, `refreshToken`, `asaasApiKey`, `cpfCnpj`).
+    *   Never return raw sub-account API keys, internal secrets, or webhook tokens in any HTTP response or Swagger documentation example.
+
+*   **Authorization Guard Integrity:**
+    *   Every protected route must apply `JwtAuthGuard`.
+    *   When `@Roles()` is declared, ensure `RolesGuard` is explicitly included in `@UseGuards(JwtAuthGuard, RolesGuard)` at the method or controller level.
+    *   Critical business state transitions (e.g., setting an appointment to `CONFIRMED`) must **ONLY** be executable via authenticated gateway webhooks, never via manual user PATCH endpoints.
+
+
