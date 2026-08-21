@@ -3,7 +3,7 @@ import {
   IsNotEmpty,
   IsNumber,
   Min,
-  Max,
+  IsIn,
   IsInt,
   IsOptional,
 } from 'class-validator';
@@ -38,18 +38,21 @@ export class CreateServiceDto {
 
   @ApiProperty({
     example: 50,
-    description: 'Porcentagem do valor do sinal (depósito)',
+    description:
+      'Porcentagem mínima do valor do sinal (depósito) - exclusivamente 25% ou 50%',
+    enum: [25, 50],
   })
-  @IsInt()
-  @Min(0)
-  @Max(50)
+  @IsInt({ message: 'A porcentagem de sinal deve ser um número inteiro' })
+  @IsIn([25, 50], {
+    message: 'A porcentagem de sinal deve ser exclusivamente 25% ou 50%',
+  })
   downPaymentPercent: number;
 
   @ApiProperty({
-    example: 1,
-    description: 'Quantidade de profissionais disponíveis para o serviço',
+    example: 'group-uuid-123',
+    description: 'ID do grupo de serviços (ServiceGroup) associado',
   })
-  @IsInt()
-  @Min(1)
+  @IsString({ message: 'O ID do grupo de serviços deve ser uma string' })
+  @IsNotEmpty({ message: 'O ID do grupo de serviços é obrigatório' })
   serviceGroupId: string;
 }

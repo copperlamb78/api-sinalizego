@@ -58,15 +58,6 @@ export class AppointmentsService {
       throw new BadRequestException('O serviço não pertence a esta empresa.');
     }
 
-    if (
-      data.downPaymentPercent !== undefined &&
-      data.downPaymentPercent < service.downPaymentPercent
-    ) {
-      throw new BadRequestException(
-        `A porcentagem de sinal não pode ser inferior ao mínimo exigido pela empresa (${service.downPaymentPercent}%).`,
-      );
-    }
-
     const startDate = new Date(data.appointmentDate);
 
     const endDate = new Date(data.appointmentDate);

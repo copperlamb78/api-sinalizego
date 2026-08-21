@@ -129,26 +129,26 @@ describe('AppointmentsService', () => {
       expect(result).toEqual(createdAppointment);
     });
 
-    it('should enforce 100% upfront payment when calculated deposit is lower than R$ 15.00 (Safety Gate)', async () => {
+    it('should strictly enforce 100% upfront for service price below R$ 15.00', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
-      // Serviço de R$ 40 com sinal de 25% = R$ 10 (< R$ 15) -> Deve forçar R$ 40
+      // Serviço de R$ 12,00 com piso 50% -> Força R$ 12,00 (100%)
       mockPrisma.service.findFirst.mockResolvedValue({
         ...mockService,
-        totalPrice: 40.0,
-        downPaymentPercent: 25,
+        totalPrice: 12.0,
+        downPaymentPercent: 50,
       });
       mockPrisma.appointment.findMany.mockResolvedValue([]);
-      mockCalculateTax.calculatePlatformTax.mockReturnValue(6.0);
+      mockCalculateTax.calculatePlatformTax.mockReturnValue(2.0);
 
       const createdAppointment = {
-        id: 'appt-safety-gate',
+        id: 'appt-below-15',
         companyId: 'company-1',
         serviceId: 'service-1',
         clientId: 'user-1',
-        servicePrice: 40.0,
-        downPaymentAmount: 40.0,
-        platformFeeAmount: 6.0,
+        servicePrice: 12.0,
+        downPaymentAmount: 12.0,
+        platformFeeAmount: 2.0,
       };
       mockPrisma.appointment.create.mockResolvedValue(createdAppointment);
 
@@ -164,13 +164,73 @@ describe('AppointmentsService', () => {
       expect(mockPrisma.appointment.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            servicePrice: 40.0,
-            downPaymentAmount: 40.0,
-            platformFeeAmount: 6.0,
+            servicePrice: 12.0,
+            downPaymentAmount: 12.0,
+            platformFeeAmount: 2.0,
           }),
         }),
       );
-      expect(result.downPaymentAmount).toBe(40.0);
+      expect(result.downPaymentAmount).toBe(12.0);
+    });
+
+    it('should support valid dynamic blocks (25%, 50%, 75%, 100%) for R$ 100 service', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        totalPrice: 100.0,
+        downPaymentPercent: 25,
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockCalculateTax.calculatePlatformTax.mockReturnValue(12.5);
+
+      mockPrisma.appointment.create.mockResolvedValue({
+        id: 'appt-100',
+        downPaymentAmount: 75.0,
+      });
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2026-09-01T10:00:00Z',
+          downPaymentPercent: 75,
+        } as any,
+        'user-1',
+      );
+
+      expect(mockPrisma.appointment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            servicePrice: 100.0,
+            downPaymentAmount: 75.0,
+          }),
+        }),
+      );
+      expect(result.downPaymentAmount).toBe(75.0);
+    });
+
+    it('should throw BadRequestException if client selects 25% on a R$ 40 service (25% = R$ 10 < R$ 15)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      // Serviço de R$ 40 com piso 25%: bloco de 25% gera R$ 10 (< 15) e deve ser rejeitado
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        totalPrice: 40.0,
+        downPaymentPercent: 25,
+      });
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2026-09-01T10:00:00Z',
+            downPaymentPercent: 25, // R$ 10 < R$ 15 -> rejeita
+          } as any,
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if client passes downPaymentPercent lower than company requirement', async () => {
@@ -184,7 +244,7 @@ describe('AppointmentsService', () => {
             companyId: 'company-1',
             serviceId: 'service-1',
             appointmentDate: '2026-09-01T10:00:00Z',
-            downPaymentPercent: 20, // lower than 50%
+            downPaymentPercent: 25, // lower than 50%
           } as any,
           'user-1',
         ),

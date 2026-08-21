@@ -547,7 +547,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **18 suítes de teste e 135 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **18 suítes de teste e 143 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -561,7 +561,7 @@ npm test
 - **E-mails Brevo:** Disparo correto com dados populados e tratamento silencioso de erros de rede da API Brevo.
 - **Usuários:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF.
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos ou grupos de serviços de empresas concorrentes, validação estrita de posse em criação, edição e exclusão.
-- **Integridade Financeira & Split Asaas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com piso mínimo de R$ 2,00, **trava de microtransações (Safety Gate de R$ 15,00)** que força 100% upfront se o sinal for menor que R$ 15,00, split garantido ao barbeiro com desconto fixo de R$ 0,99 e derivação de valores/carteiras exclusivamente do banco de dados na cobrança Pix.
+- **Integridade Financeira, Blocos Dinâmicos & Split Asaas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (25% ou 50%), seleção dinâmica de blocos pelo cliente (`[piso, 50, 75, 100]`), **trava de microtransações (Safety Gate de R$ 15,00)** com descarte de blocos inválidos/rejeição de sinais menores que R$ 15,00 e repasse fixo ao barbeiro (desconto de R$ 0,99).
 
 ---
 
