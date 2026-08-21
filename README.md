@@ -412,10 +412,13 @@ src/
 │
 ├── 🧰 helpers/
 │   ├── calculate-tax.helper.ts        # Cálculo de taxa da plataforma (faixas progressivas cumulativas)
-│   └── calculate-tax.helper.spec.ts   # Testes unitários do helper de taxas
+│   ├── calculate-tax.helper.spec.ts   # Testes unitários do helper de taxas
+│   ├── calculate-deposit.helper.ts    # Cálculo de sinal com trava de microtransações (R$ 15,00)
+│   └── calculate-deposit.helper.spec.ts # Testes unitários da trava de microtransações
 │
 ├── 📋 common/
 │   ├── constants/
+│   │   ├── billing.constant.ts        # Constantes de faturamento, split Asaas e travas
 │   │   └── role-groups.constant.ts    # Grupos de roles (SYSTEM_MANAGERS, INTERNAL_USERS, etc.)
 │   └── filters/
 │       └── prisma-client-exception.filter.ts # Filtro global de exceções Prisma
@@ -544,7 +547,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **17 suítes de teste e 126 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **18 suítes de teste e 135 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -558,7 +561,7 @@ npm test
 - **E-mails Brevo:** Disparo correto com dados populados e tratamento silencioso de erros de rede da API Brevo.
 - **Usuários:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF.
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos ou grupos de serviços de empresas concorrentes, validação estrita de posse em criação, edição e exclusão.
-- **Integridade Financeira & Taxas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com piso mínimo de R$ 2,00, bloqueio de confirmação manual fraudulenta de agendamento e derivação de valores/carteiras exclusivamente do banco de dados na cobrança Pix.
+- **Integridade Financeira & Split Asaas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com piso mínimo de R$ 2,00, **trava de microtransações (Safety Gate de R$ 15,00)** que força 100% upfront se o sinal for menor que R$ 15,00, split garantido ao barbeiro com desconto fixo de R$ 0,99 e derivação de valores/carteiras exclusivamente do banco de dados na cobrança Pix.
 
 ---
 

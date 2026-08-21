@@ -23,8 +23,12 @@ Welcome, Antigravity Agent. This document outlines the core architectural patter
 You must reuse existing code instead of rewriting functionality. Pay special attention to these existing components:
 
 *   **`CalculateTax` (Helper - `src/helpers/calculate-tax.helper.ts`)**:
-    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices.
+    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices (cumulative progressive brackets).
     *   **Methods**: `calculatePlatformTaxPercentage(totalPrice)` and `calculatePlatformTax(totalPrice)`.
+
+*   **`CalculateDeposit` (Helper - `src/helpers/calculate-deposit.helper.ts`)**:
+    *   **Purpose**: Use this for deposit calculation applying the Micro-Transaction Safety Gate (R$ 15.00 minimum threshold).
+    *   **Methods**: `calculateDeposit(totalPrice, configuredPercent, clientSelectedPercent?)` and `calculateDepositDetails(totalPrice, configuredPercent, clientSelectedPercent?)`.
 
 *   **`PrismaClientExceptionFilter` (Filter - `src/common/filters/prisma-client-exception.filter.ts`)**:
     *   **Purpose**: This is already registered globally in `main.ts`. It maps Prisma errors (`P2002` Conflict, `P2025` Not Found) to proper HTTP responses. Do not write manual try-catch blocks in controllers just to return 404 or 409 for these Prisma errors. Rely on the global filter.

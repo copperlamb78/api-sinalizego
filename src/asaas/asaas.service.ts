@@ -9,6 +9,10 @@ import { CreateFinancialProfileDto } from 'src/modules/financial-profile/dto/cre
 import 'dotenv/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CalculateTax } from 'src/helpers/calculate-tax.helper';
+import {
+  BARBER_ASAAS_PIX_FEE,
+  DEFAULT_ASAAS_GATEWAY_COST,
+} from 'src/common/constants/billing.constant';
 
 export interface AsaasAccountResponse {
   id: string;
@@ -242,10 +246,18 @@ export class AsaasService {
   ) {
     const platformFee =
       await this.calculateTax.calculatePlatformTax(depositValue);
-    const asaasFee = this.asaasPixFee;
 
-    const totalToCharge = depositValue + platformFee;
-    const barberNetValue = depositValue - asaasFee;
+    // O barbeiro sempre paga R$ 0,99 fixo de taxa do gateway Asaas
+    const barberAsaasFee = BARBER_ASAAS_PIX_FEE;
+
+    const totalToCharge = Number((depositValue + platformFee).toFixed(2));
+    const barberNetValue = Number(
+      Math.max(0, depositValue - barberAsaasFee).toFixed(2),
+    );
+
+    // Nota: O Asaas cobra R$ 0,99 nos primeiros meses e R$ 1,99 posteriormente.
+    // O split fixo transferido para a carteira do barbeiro é garantido em (depositValue - 0.99).
+    // Quando o custo do Asaas for R$ 1,99, a plataforma absorve a diferença de R$ 1,00.
 
     try {
       const response = await fetch(`${this.apiUrl}/payments`, {
@@ -307,7 +319,7 @@ export class AsaasService {
         expirationDate: expirationDate,
         barberNetValue: barberNetValue,
         platformFee: platformFee,
-        asaasFee: asaasFee,
+        asaasFee: barberAsaasFee,
       };
     } catch (error: any) {
       // O error.response?.data ajuda a ver se o Asaas reclamou de algo

@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { ApptStatus, Role } from '@prisma/client';
 
+import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
+
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
   let prisma: PrismaService;
@@ -46,6 +48,7 @@ describe('AppointmentsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AppointmentsService,
+        CalculateDeposit,
         {
           provide: PrismaService,
           useValue: mockPrisma,
@@ -86,7 +89,7 @@ describe('AppointmentsService', () => {
       serviceGroup: { capacity: 2 },
     };
 
-    it('should create appointment with correct platformFeeAmount calculated from CalculateTax helper', async () => {
+    it('should create appointment with correct downPayment and platformFeeAmount', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue(mockService);
@@ -108,7 +111,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: new Date('2026-09-01T10:00:00Z'),
+          appointmentDate: '2026-09-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -124,6 +127,68 @@ describe('AppointmentsService', () => {
         }),
       );
       expect(result).toEqual(createdAppointment);
+    });
+
+    it('should enforce 100% upfront payment when calculated deposit is lower than R$ 15.00 (Safety Gate)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      // Serviço de R$ 40 com sinal de 25% = R$ 10 (< R$ 15) -> Deve forçar R$ 40
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        totalPrice: 40.0,
+        downPaymentPercent: 25,
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockCalculateTax.calculatePlatformTax.mockReturnValue(6.0);
+
+      const createdAppointment = {
+        id: 'appt-safety-gate',
+        companyId: 'company-1',
+        serviceId: 'service-1',
+        clientId: 'user-1',
+        servicePrice: 40.0,
+        downPaymentAmount: 40.0,
+        platformFeeAmount: 6.0,
+      };
+      mockPrisma.appointment.create.mockResolvedValue(createdAppointment);
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2026-09-01T10:00:00Z',
+        } as any,
+        'user-1',
+      );
+
+      expect(mockPrisma.appointment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            servicePrice: 40.0,
+            downPaymentAmount: 40.0,
+            platformFeeAmount: 6.0,
+          }),
+        }),
+      );
+      expect(result.downPaymentAmount).toBe(40.0);
+    });
+
+    it('should throw BadRequestException if client passes downPaymentPercent lower than company requirement', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue(mockService); // requires 50%
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2026-09-01T10:00:00Z',
+            downPaymentPercent: 20, // lower than 50%
+          } as any,
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

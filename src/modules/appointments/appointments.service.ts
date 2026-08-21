@@ -8,6 +8,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAppointmentsDto } from './dto/appointments-create.dto';
 import { CalculateTax } from 'src/helpers/calculate-tax.helper';
+import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
 import {
   AppointmentsSuperFiltersDto,
   AppointmentsAdminFiltersDto,
@@ -21,6 +22,7 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calculateTax: CalculateTax,
+    private readonly calculateDeposit: CalculateDeposit,
   ) {}
 
   async createAppointment(data: CreateAppointmentsDto, userId: string) {
@@ -56,6 +58,15 @@ export class AppointmentsService {
       throw new BadRequestException('O serviço não pertence a esta empresa.');
     }
 
+    if (
+      data.downPaymentPercent !== undefined &&
+      data.downPaymentPercent < service.downPaymentPercent
+    ) {
+      throw new BadRequestException(
+        `A porcentagem de sinal não pode ser inferior ao mínimo exigido pela empresa (${service.downPaymentPercent}%).`,
+      );
+    }
+
     const startDate = new Date(data.appointmentDate);
 
     const endDate = new Date(data.appointmentDate);
@@ -85,9 +96,12 @@ export class AppointmentsService {
     }
 
     const price = service.totalPrice;
-    const downPayment = (price * service.downPaymentPercent) / 100;
-    const platformFee =
-      await this.calculateTax.calculatePlatformTax(price);
+    const downPayment = this.calculateDeposit.calculateDeposit(
+      price,
+      service.downPaymentPercent,
+      data.downPaymentPercent,
+    );
+    const platformFee = this.calculateTax.calculatePlatformTax(price);
 
     const appointment = await this.prisma.appointment.create({
       data: {
