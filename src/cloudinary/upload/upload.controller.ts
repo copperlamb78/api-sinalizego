@@ -4,8 +4,11 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ForbiddenException,
+  NotFoundException,
   UseGuards,
   Param,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CloudinaryService } from '../cloudinary.service';
@@ -18,16 +21,26 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/jwt/guard/jwt-auth.guard';
+import { RolesGuard } from 'src/modules/auth/roles/guard/roles.guard';
 import { Roles } from 'src/modules/auth/roles/decorators/roles.decorator';
-import { INTERNAL_NO_EMPLOYEE } from 'src/common/constants/role-groups.constant';
+import {
+  INTERNAL_NO_EMPLOYEE,
+  SYSTEM_MANAGERS,
+} from 'src/common/constants/role-groups.constant';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { ValidateImage } from 'src/helpers/validate-image.helper';
 
 @ApiTags('Uploads')
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly cloudinaryService: CloudinaryService) {}
+  constructor(
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly prisma: PrismaService,
+    private readonly validateImage: ValidateImage,
+  ) {}
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Post('image/:companyId/:imageType')
   @ApiOperation({
@@ -38,7 +51,11 @@ export class UploadController {
     name: 'imageType',
     description: 'Tipo da imagem (ex: logo, banner, service)',
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // Limite máximo de 5MB
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -55,6 +72,7 @@ export class UploadController {
     @UploadedFile() file: Express.Multer.File,
     @Param('companyId') companyId: string,
     @Param('imageType') imageType: 'logo' | 'banner' | 'service',
+    @Req() req: any,
   ) {
     if (!file) {
       throw new BadRequestException('Nenhum arquivo de imagem foi enviado.');
@@ -67,9 +85,33 @@ export class UploadController {
       );
     }
 
-    if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+    // Proteção Anti-IDOR: Validação de posse da empresa
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Empresa não encontrada.');
+    }
+
+    const isSystemManager = SYSTEM_MANAGERS.includes(req.user?.role);
+    if (!isSystemManager && company.userId !== req.user?.sub) {
+      throw new ForbiddenException(
+        'Você não tem permissão para enviar imagens para esta empresa.',
+      );
+    }
+
+    // Validação de formato declarado pelo cliente
+    if (!file.mimetype || !file.mimetype.match(/\/(jpg|jpeg|png|webp)$/i)) {
       throw new BadRequestException(
         'Formato de imagem inválido. Use JPG, PNG ou WEBP.',
+      );
+    }
+
+    // Validação real de integridade por Magic Bytes
+    if (!this.validateImage.isValidImageMagicBytes(file.buffer)) {
+      throw new BadRequestException(
+        'O arquivo enviado não possui uma assinatura de imagem válida (JPG, PNG ou WEBP).',
       );
     }
 
@@ -83,3 +125,4 @@ export class UploadController {
     };
   }
 }
+

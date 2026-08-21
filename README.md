@@ -414,7 +414,9 @@ src/
 │   ├── calculate-tax.helper.ts        # Cálculo de taxa da plataforma (faixas progressivas cumulativas)
 │   ├── calculate-tax.helper.spec.ts   # Testes unitários do helper de taxas
 │   ├── calculate-deposit.helper.ts    # Cálculo de sinal com trava de microtransações (R$ 15,00)
-│   └── calculate-deposit.helper.spec.ts # Testes unitários da trava de microtransações
+│   ├── calculate-deposit.helper.spec.ts # Testes unitários da trava de microtransações
+│   ├── validate-image.helper.ts       # Validador de assinaturas binárias (Magic Bytes)
+│   └── validate-image.helper.spec.ts  # Testes unitários do validador de imagens
 │
 ├── 📋 common/
 │   ├── constants/
@@ -440,9 +442,11 @@ src/
 │
 ├── ☁️ cloudinary/
 │   ├── cloudinary.module.ts
+│   ├── cloudinary.provider.ts         # Provedor do SDK Cloudinary (CLOUDINARY_API_SECRET)
 │   ├── cloudinary.service.ts
 │   └── upload/
-│       ├── upload.controller.ts
+│       ├── upload.controller.ts       # Controlador blindado com RolesGuard e Anti-IDOR
+│       ├── upload.controller.spec.ts  # Testes unitários de upload
 │       └── upload.module.ts
 │
 ├── 📁 service-group/
@@ -547,7 +551,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **18 suítes de teste e 143 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **20 suítes de teste e 158 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -560,7 +564,8 @@ npm test
 - **Recuperação de Senha:** Proteção contra enumeração de e-mail, assinatura dinâmica stateless com `JWT_SECRET + user.password`, rejeição de tokens expirados/usados e redefinição de senha com invalidação de refresh token.
 - **E-mails Brevo:** Disparo correto com dados populados e tratamento silencioso de erros de rede da API Brevo.
 - **Usuários:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF.
-- **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos ou grupos de serviços de empresas concorrentes, validação estrita de posse em criação, edição e exclusão.
+- **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos, grupos de serviços e uploads de empresas concorrentes, validação estrita de posse em criação, edição, exclusão e uploads.
+- **Uploads Seguros & Magic Bytes:** Proteção com `RolesGuard`, limite de 5MB por arquivo, validação de posse da empresa e inspeção binária real de magic bytes para JPEG, PNG e WEBP.
 - **Integridade Financeira, Blocos Dinâmicos & Split Asaas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (25% ou 50%), seleção dinâmica de blocos pelo cliente (`[piso, 50, 75, 100]`), **trava de microtransações (Safety Gate de R$ 15,00)** com descarte de blocos inválidos/rejeição de sinais menores que R$ 15,00 e repasse fixo ao barbeiro (desconto de R$ 0,99).
 
 ---

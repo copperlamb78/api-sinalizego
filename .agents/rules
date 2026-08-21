@@ -27,8 +27,12 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   **Methods**: `calculatePlatformTaxPercentage(totalPrice)` and `calculatePlatformTax(totalPrice)`.
 
 *   **`CalculateDeposit` (Helper - `src/helpers/calculate-deposit.helper.ts`)**:
-    *   **Purpose**: Use this for deposit calculation applying the Micro-Transaction Safety Gate (R$ 15.00 minimum threshold).
-    *   **Methods**: `calculateDeposit(totalPrice, configuredPercent, clientSelectedPercent?)` and `calculateDepositDetails(totalPrice, configuredPercent, clientSelectedPercent?)`.
+    *   **Purpose**: Use this for deposit calculation applying the Micro-Transaction Safety Gate (R$ 15.00 minimum threshold) and dynamic blocks.
+    *   **Methods**: `calculateDeposit(totalPrice, configuredFloor, clientSelectedPercent?)`, `calculateDepositDetails(totalPrice, configuredFloor, clientSelectedPercent?)` and `getAvailableBlocks(totalPrice, configuredFloor)`.
+
+*   **`ValidateImage` (Helper - `src/helpers/validate-image.helper.ts`)**:
+    *   **Purpose**: Validates real binary file signatures (Magic Bytes) for image uploads (JPEG, PNG, WEBP) to prevent malicious or forged MIME uploads.
+    *   **Methods**: `isValidImageMagicBytes(buffer: Buffer): boolean`.
 
 *   **`PrismaClientExceptionFilter` (Filter - `src/common/filters/prisma-client-exception.filter.ts`)**:
     *   **Purpose**: This is already registered globally in `main.ts`. It maps Prisma errors (`P2002` Conflict, `P2025` Not Found) to proper HTTP responses. Do not write manual try-catch blocks in controllers just to return 404 or 409 for these Prisma errors. Rely on the global filter.
