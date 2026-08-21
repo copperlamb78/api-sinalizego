@@ -10,17 +10,23 @@ import {
 import { ApptStatus, Role } from '@prisma/client';
 
 import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
+import { AsaasService } from 'src/asaas/asaas.service';
 
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
   let prisma: PrismaService;
+  let asaasService: AsaasService;
 
   const mockPrisma = {
     appointment: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
       create: jest.fn(),
+      update: jest.fn(),
+    },
+    transaction: {
       update: jest.fn(),
     },
     user: {
@@ -44,6 +50,10 @@ describe('AppointmentsService', () => {
     calculatePlatformTaxPercentage: jest.fn().mockReturnValue(0.15),
   };
 
+  const mockAsaasService = {
+    cancelPayment: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -57,11 +67,16 @@ describe('AppointmentsService', () => {
           provide: CalculateTax,
           useValue: mockCalculateTax,
         },
+        {
+          provide: AsaasService,
+          useValue: mockAsaasService,
+        },
       ],
     }).compile();
 
     service = module.get<AppointmentsService>(AppointmentsService);
     prisma = module.get<PrismaService>(PrismaService);
+    asaasService = module.get<AsaasService>(AsaasService);
     jest.clearAllMocks();
   });
 
@@ -233,10 +248,9 @@ describe('AppointmentsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should throw BadRequestException if client passes downPaymentPercent lower than company requirement', async () => {
+    it('should throw BadRequestException if client already has 3 active PENDING_PAYMENT appointments (Anti-DoS)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
-      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
-      mockPrisma.service.findFirst.mockResolvedValue(mockService); // requires 50%
+      mockPrisma.appointment.count.mockResolvedValue(3); // Já possui 3 pendentes
 
       await expect(
         service.createAppointment(
@@ -244,11 +258,47 @@ describe('AppointmentsService', () => {
             companyId: 'company-1',
             serviceId: 'service-1',
             appointmentDate: '2026-09-01T10:00:00Z',
-            downPaymentPercent: 25, // lower than 50%
           } as any,
           'user-1',
         ),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Você já possui 3 agendamentos pendentes de pagamento. Conclua o pagamento ou aguarde a expiração para criar novas reservas.',
+        ),
+      );
+    });
+
+    it('should query slots excluding expired PENDING_PAYMENT appointments', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+      mockPrisma.appointment.findMany.mockResolvedValue([]); // Nenhuma reserva ativa não-expirada ocupando vaga
+      mockPrisma.appointment.create.mockResolvedValue({ id: 'appt-new' });
+
+      await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2026-09-01T10:00:00Z',
+        } as any,
+        'user-1',
+      );
+
+      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            isActive: true,
+            status: { notIn: [ApptStatus.CANCELED] },
+            OR: [
+              { status: { not: ApptStatus.PENDING_PAYMENT } },
+              { expiresAt: expect.any(Object) },
+            ],
+          }),
+        }),
+      );
     });
   });
 
@@ -511,6 +561,52 @@ describe('AppointmentsService', () => {
         }),
       });
       expect(result.status).toEqual(ApptStatus.CANCELED);
+    });
+  });
+
+  describe('handleExpiredAppointments (Cron Job)', () => {
+    it('should return 0 if no appointments are expired', async () => {
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      const result = await service.handleExpiredAppointments();
+      expect(result).toBe(0);
+    });
+
+    it('should cancel expired PENDING_PAYMENT appointments and trigger Asaas cancellation', async () => {
+      const expiredAppt = {
+        id: 'appt-expired-1',
+        status: ApptStatus.PENDING_PAYMENT,
+        isActive: true,
+        transactions: [
+          {
+            id: 'tx-1',
+            asaasPaymentId: 'pay_12345',
+            status: 'PENDING',
+          },
+        ],
+      };
+
+      mockPrisma.appointment.findMany.mockResolvedValue([expiredAppt]);
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...expiredAppt,
+        status: ApptStatus.CANCELED,
+        isActive: false,
+      });
+
+      const result = await service.handleExpiredAppointments();
+
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: 'appt-expired-1' },
+        data: {
+          status: ApptStatus.CANCELED,
+          isActive: false,
+        },
+      });
+      expect(asaasService.cancelPayment).toHaveBeenCalledWith('pay_12345');
+      expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
+        where: { id: 'tx-1' },
+        data: { status: 'CANCELED' },
+      });
+      expect(result).toBe(1);
     });
   });
 });

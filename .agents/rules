@@ -86,6 +86,21 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     1. `amountPaidOnline`: Processed immediately via gateway.
     2. `amountToPayInSalon`: To be paid locally to the barber.
     3. `platformTaxCharged`: Based on the cumulative bracket formula from `CalculateTaxHelper`.
+*   **Establishment Down Payment Configuration:**
+    *   When creating or editing services, the professional/barber must define the minimum required deposit (`downPaymentPercent`) exclusively as either **25%** or **50%**.
+
+*   **Dynamic Customer Selection Blocks:**
+    *   During checkout, the customer can select the deposit fraction they wish to pay upfront to secure their slot using progressive intervals: `[configured_floor, ..., 75%, 100%]`.
+    *   *Example (Floor 25%):* Available baseline options = `[25%, 50%, 75%, 100%]`.
+    *   *Example (Floor 50%):* Available baseline options = `[50%, 75%, 100%]`.
+
+*   **Micro-Transaction Safety Gate:**
+    *   The absolute minimum amount allowed for fractional/deposit payments is **R$ 15.00**.
+    *   If the total service price is below R$ 15.00, the system **must strictly enforce 100% upfront payment** at booking.
+    *   For services priced at R$ 15.00 or higher, available percentage blocks must be dynamically filtered: any block resulting in a monetary value `< R$ 15.00` is discarded, exposing only options with a value `>= R$ 15.00` alongside the `100%` full payment option.
+
+*   **Platform Margin & Floor Tax Guarantee:**
+    *   The platform minimum fee (**R$ 2.00**) is immutable and mandatory across all transactions, guaranteeing a positive net margin regardless of the service price.
 
 ## 8. Advanced Business Logic & Gateway Safeguards
 
@@ -116,5 +131,3 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   Every protected route must apply `JwtAuthGuard`.
     *   When `@Roles()` is declared, ensure `RolesGuard` is explicitly included in `@UseGuards(JwtAuthGuard, RolesGuard)` at the method or controller level.
     *   Critical business state transitions (e.g., setting an appointment to `CONFIRMED`) must **ONLY** be executable via authenticated gateway webhooks, never via manual user PATCH endpoints.
-
-

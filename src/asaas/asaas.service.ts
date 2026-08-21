@@ -410,4 +410,30 @@ export class AsaasService {
       throw new InternalServerErrorException('Falha ao criar cliente no Asaas');
     }
   }
+
+  /**
+   * Cancela uma cobrança no Asaas (DELETE /v3/payments/{id})
+   */
+  async cancelPayment(paymentId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.apiUrl}/payments/${paymentId}`, {
+        method: 'DELETE',
+        headers: this.headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Erro ao cancelar cobrança no Asaas:', errorData);
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      console.error(
+        'Falha na comunicação com Asaas ao cancelar cobrança:',
+        error.message,
+      );
+      return false;
+    }
+  }
 }

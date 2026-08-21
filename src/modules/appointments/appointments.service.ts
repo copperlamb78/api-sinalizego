@@ -3,8 +3,10 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAppointmentsDto } from './dto/appointments-create.dto';
 import { CalculateTax } from 'src/helpers/calculate-tax.helper';
@@ -16,13 +18,17 @@ import {
 } from './dto/appointments-filters.dto';
 import { AppointmentsStatusUpdateDto } from './dto/appointements-update.dto';
 import { ApptStatus, Role } from '@prisma/client';
+import { AsaasService } from 'src/asaas/asaas.service';
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly calculateTax: CalculateTax,
     private readonly calculateDeposit: CalculateDeposit,
+    private readonly asaasService: AsaasService,
   ) {}
 
   async createAppointment(data: CreateAppointmentsDto, userId: string) {
@@ -35,6 +41,22 @@ export class AppointmentsService {
 
     if (!user.cpfCnpj) {
       throw new BadRequestException('Usuário não possui CPF/CNPJ.');
+    }
+
+    // Camada de Segurança Anti-DoS: Máximo de 3 agendamentos PENDING_PAYMENT ativos por cliente
+    const activePendingCount = await this.prisma.appointment.count({
+      where: {
+        clientId: user.id,
+        status: ApptStatus.PENDING_PAYMENT,
+        isActive: true,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (activePendingCount >= 3) {
+      throw new BadRequestException(
+        'Você já possui 3 agendamentos pendentes de pagamento. Conclua o pagamento ou aguarde a expiração para criar novas reservas.',
+      );
     }
 
     const company = await this.prisma.company.findFirst({
@@ -64,19 +86,25 @@ export class AppointmentsService {
     endDate.setMinutes(endDate.getMinutes() + service.durationMinutes);
 
     const expirationDate = new Date(Date.now() + 15 * 60000);
-    // Verifica os agendamentos existentes no banco dentro desse bloco de tempo
+
+    // Verifica agendamentos válidos dentro desse bloco de tempo (exclui reservas PENDING_PAYMENT já expiradas)
     const existingAppointments = await this.prisma.appointment.findMany({
       where: {
         companyId: data.companyId,
         serviceId: data.serviceId,
         isActive: true,
-        status: { notIn: ['CANCELED'] },
+        status: { notIn: [ApptStatus.CANCELED] },
         appointmentDate: {
           gte: new Date(data.appointmentDate),
           lt: endDate,
         },
+        OR: [
+          { status: { not: ApptStatus.PENDING_PAYMENT } },
+          { expiresAt: { gt: new Date() } },
+        ],
       },
     });
+
     // Verifica se a quantidade de serviços dentro desse bloco de tempo
     // é maior ou igual a quantidade de vagas disponíveis no grupo de serviços
     const maxCapacity = service.serviceGroup?.capacity ?? 1;
@@ -109,6 +137,71 @@ export class AppointmentsService {
     });
 
     return appointment;
+  }
+
+  /**
+   * Cron Job executado a cada minuto para cancelar agendamentos pendentes expirados
+   * e liberar o horário cancelando a cobrança no gateway Asaas.
+   */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async handleExpiredAppointments(): Promise<number> {
+    const now = new Date();
+    const expiredAppointments = await this.prisma.appointment.findMany({
+      where: {
+        status: ApptStatus.PENDING_PAYMENT,
+        isActive: true,
+        expiresAt: { lt: now },
+      },
+      include: {
+        transactions: true,
+      },
+    });
+
+    if (expiredAppointments.length === 0) {
+      return 0;
+    }
+
+    this.logger.log(
+      `Processando ${expiredAppointments.length} agendamento(s) expirado(s)...`,
+    );
+
+    let canceledCount = 0;
+
+    for (const appt of expiredAppointments) {
+      try {
+        await this.prisma.appointment.update({
+          where: { id: appt.id },
+          data: {
+            status: ApptStatus.CANCELED,
+            isActive: false,
+          },
+        });
+
+        if (appt.transactions && appt.transactions.length > 0) {
+          for (const tx of appt.transactions) {
+            if (tx.asaasPaymentId && tx.status === 'PENDING') {
+              await this.asaasService.cancelPayment(tx.asaasPaymentId);
+              await this.prisma.transaction.update({
+                where: { id: tx.id },
+                data: { status: 'CANCELED' },
+              });
+            }
+          }
+        }
+
+        canceledCount++;
+      } catch (error: any) {
+        this.logger.error(
+          `Erro ao processar expiração do agendamento #${appt.id}: ${error.message}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `${canceledCount} agendamento(s) expirado(s) cancelado(s) com sucesso.`,
+    );
+
+    return canceledCount;
   }
 
   async getAppointments(filters?: AppointmentsSuperFiltersDto) {

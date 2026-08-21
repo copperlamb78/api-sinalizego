@@ -551,7 +551,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **20 suítes de teste e 158 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **20 suítes de teste e 161 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -566,6 +566,7 @@ npm test
 - **Usuários:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF.
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos, grupos de serviços e uploads de empresas concorrentes, validação estrita de posse em criação, edição, exclusão e uploads.
 - **Uploads Seguros & Magic Bytes:** Proteção com `RolesGuard`, limite de 5MB por arquivo, validação de posse da empresa e inspeção binária real de magic bytes para JPEG, PNG e WEBP.
+- **Proteção Anti-DoS de Reservas & Limpeza Automática:** Descarte imediato de reservas `PENDING_PAYMENT` expiradas na contagem de vagas, limite estrito de 3 reservas pendentes simultâneas por cliente e cron job a cada minuto (`@nestjs/schedule`) cancelando agendamentos/cobranças Asaas expiradas.
 - **Integridade Financeira, Blocos Dinâmicos & Split Asaas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (25% ou 50%), seleção dinâmica de blocos pelo cliente (`[piso, 50, 75, 100]`), **trava de microtransações (Safety Gate de R$ 15,00)** com descarte de blocos inválidos/rejeição de sinais menores que R$ 15,00 e repasse fixo ao barbeiro (desconto de R$ 0,99).
 
 ---
