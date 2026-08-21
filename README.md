@@ -32,11 +32,11 @@
 | 👥 **Gestão de Usuários Segura** | Sanitização centralizada com `USER_PUBLIC_SELECT` (sem vazamento de hashes/tokens), alteração de senha autenticada e vínculo de CPF/CNPJ ao Asaas |
 | 🏢 **Perfil da Empresa (Company)** | Criação com slug automático, filtros, ordenação e ativação |
 | 📁 **Grupos de Serviços (ServiceGroup)** | Organização de serviços por grupos com limite de capacidade, validação de posse e soft delete protegido |
-| 💈 **Catálogo de Serviços** | CRUD completo por empresa vinculado ao grupo de serviços e taxa da plataforma |
+| 💈 **Catálogo & Taxas Progressivas** | CRUD completo de serviços com taxa de plataforma calculada por faixas progressivas cumulativas (15% até R$ 50, 10% até R$ 250, 5% acima) com piso mínimo de R$ 2,00 |
 | 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga e auditoria de cancelamento |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
-| 🧪 **Suíte de Testes Completa** | Mais de 115 testes unitários cobrindo todos os módulos, regras de negócio e permissões |
+| 🧪 **Suíte de Testes Completa** | Mais de 125 testes unitários cobrindo todos os módulos, helpers, regras de negócio e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -411,7 +411,8 @@ src/
 ├── 📄 app.service.ts                   # Service padrão
 │
 ├── 🧰 helpers/
-│   └── calculate-tax.helper.ts        # Cálculo de taxa da plataforma
+│   ├── calculate-tax.helper.ts        # Cálculo de taxa da plataforma (faixas progressivas cumulativas)
+│   └── calculate-tax.helper.spec.ts   # Testes unitários do helper de taxas
 │
 ├── 📋 common/
 │   ├── constants/
@@ -543,7 +544,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **16 suítes de teste e 116 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **17 suítes de teste e 126 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -557,7 +558,7 @@ npm test
 - **E-mails Brevo:** Disparo correto com dados populados e tratamento silencioso de erros de rede da API Brevo.
 - **Usuários:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF.
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos ou grupos de serviços de empresas concorrentes, validação estrita de posse em criação, edição e exclusão.
-- **Integridade Financeira:** Bloqueio de confirmação manual fraudulenta de agendamento, derivação de valores e carteiras exclusivamente do banco de dados na rota de cobrança Pix.
+- **Integridade Financeira & Taxas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com piso mínimo de R$ 2,00, bloqueio de confirmação manual fraudulenta de agendamento e derivação de valores/carteiras exclusivamente do banco de dados na cobrança Pix.
 
 ---
 

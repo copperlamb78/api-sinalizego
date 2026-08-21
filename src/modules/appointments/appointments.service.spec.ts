@@ -27,6 +27,10 @@ describe('AppointmentsService', () => {
     },
     company: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    service: {
+      findFirst: jest.fn(),
     },
     companyService: {
       findFirst: jest.fn(),
@@ -34,7 +38,8 @@ describe('AppointmentsService', () => {
   };
 
   const mockCalculateTax = {
-    calculateTotal: jest.fn(),
+    calculatePlatformTax: jest.fn().mockReturnValue(7.5),
+    calculatePlatformTaxPercentage: jest.fn().mockReturnValue(0.15),
   };
 
   beforeEach(async () => {
@@ -59,6 +64,67 @@ describe('AppointmentsService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('createAppointment', () => {
+    const mockUser = {
+      id: 'user-1',
+      cpfCnpj: '12345678900',
+    };
+
+    const mockCompany = {
+      id: 'company-1',
+      userId: 'owner-1',
+    };
+
+    const mockService = {
+      id: 'service-1',
+      companyId: 'company-1',
+      durationMinutes: 30,
+      totalPrice: 50.0,
+      downPaymentPercent: 50,
+      serviceGroup: { capacity: 2 },
+    };
+
+    it('should create appointment with correct platformFeeAmount calculated from CalculateTax helper', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockCalculateTax.calculatePlatformTax.mockReturnValue(7.5);
+
+      const createdAppointment = {
+        id: 'appt-1',
+        companyId: 'company-1',
+        serviceId: 'service-1',
+        clientId: 'user-1',
+        servicePrice: 50.0,
+        downPaymentAmount: 25.0,
+        platformFeeAmount: 7.5,
+      };
+      mockPrisma.appointment.create.mockResolvedValue(createdAppointment);
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: new Date('2026-09-01T10:00:00Z'),
+        } as any,
+        'user-1',
+      );
+
+      expect(mockCalculateTax.calculatePlatformTax).toHaveBeenCalledWith(50.0);
+      expect(mockPrisma.appointment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            servicePrice: 50.0,
+            downPaymentAmount: 25.0,
+            platformFeeAmount: 7.5,
+          }),
+        }),
+      );
+      expect(result).toEqual(createdAppointment);
+    });
   });
 
   describe('getAppointmentByUserId', () => {

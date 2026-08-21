@@ -87,7 +87,7 @@ export class AppointmentsService {
     const price = service.totalPrice;
     const downPayment = (price * service.downPaymentPercent) / 100;
     const platformFee =
-      await this.calculateTax.calculatePlatformTaxPercentage(price);
+      await this.calculateTax.calculatePlatformTax(price);
 
     const appointment = await this.prisma.appointment.create({
       data: {
