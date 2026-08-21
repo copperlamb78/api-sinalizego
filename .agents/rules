@@ -2,6 +2,12 @@
 
 Welcome, Antigravity Agent. This document outlines the core architectural patterns, folder structures, and existing functionalities you **must** adhere to and utilize when working on this NestJS API.
 
+### Database Schema & TypeScript Synchronization (MANDATORY)
+
+*   **Prisma Client Generation on Schema Changes:**
+    *   Whenever `prisma/schema.prisma` is modified, you **MUST** immediately run `npx prisma generate` so that TypeScript and the Prisma Client types reflect the updated models, enums, and relations.
+    *   Never proceed to writing service logic or running tests after a schema edit without regenerating the Prisma client first.
+
 ## 1. Architectural Patterns & Strengths to Maintain
 
 *   **Framework:** NestJS (v11). Always follow NestJS conventions: use Dependency Injection, Modules, Controllers, and Services.
