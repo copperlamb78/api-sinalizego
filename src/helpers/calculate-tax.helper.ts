@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MIN_PLATFORM_TAX } from 'src/common/constants/billing.constant';
 
 @Injectable()
 export class CalculateTax {
@@ -29,8 +30,11 @@ export class CalculateTax {
       baseFee += tier3Amount * 0.05;
     }
 
-    const platformFee = Math.max(baseFee, 2.0); // Taxa mínima de R$ 2,00
-    return Number(platformFee.toFixed(2));
+    const platformFee = Math.max(baseFee, MIN_PLATFORM_TAX); // Taxa mínima de R$ 2,00
+
+    // Arredondamento para cima sempre em múltiplos de R$ 0,25 (ex: 2.25, 2.50, 2.75, 3.00)
+    const roundedFee = Math.ceil(platformFee * 4) / 4;
+    return Number(roundedFee.toFixed(2));
   }
 }
 

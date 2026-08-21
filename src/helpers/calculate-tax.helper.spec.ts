@@ -50,11 +50,22 @@ describe('CalculateTax Helper', () => {
       expect(helper.calculatePlatformTax(500)).toBe(40.0);
     });
 
-    it('should handle boundary decimals accurately', () => {
-      // 50.01 -> 50 * 0.15 = 7.50 + 0.01 * 0.10 = 0.001 -> 7.50
-      expect(helper.calculatePlatformTax(50.01)).toBe(7.5);
-      // 250.01 -> 27.50 + 0.01 * 0.05 = 27.50
-      expect(helper.calculatePlatformTax(250.01)).toBe(27.5);
+    it('should always round UP to the nearest multiple of R$ 0.25 (ex: 2.25, 2.50, 2.75, 3.00)', () => {
+      // 15.80 * 0.15 = 2.37 -> rounds UP to 2.50
+      expect(helper.calculatePlatformTax(15.8)).toBe(2.5);
+      // 22.80 * 0.15 = 3.42 -> rounds UP to 3.50
+      expect(helper.calculatePlatformTax(22.8)).toBe(3.5);
+      // 16.00 * 0.15 = 2.40 -> rounds UP to 2.50
+      expect(helper.calculatePlatformTax(16)).toBe(2.5);
+      // 18.00 * 0.15 = 2.70 -> rounds UP to 2.75
+      expect(helper.calculatePlatformTax(18)).toBe(2.75);
+    });
+
+    it('should handle boundary decimals rounding up to multiple of 0.25 accurately', () => {
+      // 50.01 -> 50 * 0.15 = 7.50 + 0.01 * 0.10 = 0.001 -> 7.501 -> rounds up to 7.75
+      expect(helper.calculatePlatformTax(50.01)).toBe(7.75);
+      // 250.01 -> 27.50 + 0.01 * 0.05 = 27.5005 -> rounds up to 27.75
+      expect(helper.calculatePlatformTax(250.01)).toBe(27.75);
     });
   });
 
