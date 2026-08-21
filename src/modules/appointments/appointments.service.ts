@@ -81,38 +81,16 @@ export class AppointmentsService {
     }
 
     const startDate = new Date(data.appointmentDate);
-
-    const endDate = new Date(data.appointmentDate);
-    endDate.setMinutes(endDate.getMinutes() + service.durationMinutes);
-
-    const expirationDate = new Date(Date.now() + 15 * 60000);
-
-    // Verifica agendamentos válidos dentro desse bloco de tempo (exclui reservas PENDING_PAYMENT já expiradas)
-    const existingAppointments = await this.prisma.appointment.findMany({
-      where: {
-        companyId: data.companyId,
-        serviceId: data.serviceId,
-        isActive: true,
-        status: { notIn: [ApptStatus.CANCELED] },
-        appointmentDate: {
-          gte: new Date(data.appointmentDate),
-          lt: endDate,
-        },
-        OR: [
-          { status: { not: ApptStatus.PENDING_PAYMENT } },
-          { expiresAt: { gt: new Date() } },
-        ],
-      },
-    });
-
-    // Verifica se a quantidade de serviços dentro desse bloco de tempo
-    // é maior ou igual a quantidade de vagas disponíveis no grupo de serviços
-    const maxCapacity = service.serviceGroup?.capacity ?? 1;
-    if (existingAppointments.length >= maxCapacity) {
-      throw new ConflictException(
-        'Não há vagas disponíveis para este serviço neste horário',
+    if (isNaN(startDate.getTime()) || startDate <= new Date()) {
+      throw new BadRequestException(
+        'A data do agendamento deve ser uma data futura.',
       );
     }
+
+    const endDate = new Date(
+      startDate.getTime() + service.durationMinutes * 60000,
+    );
+    const expirationDate = new Date(Date.now() + 15 * 60000);
 
     const price = service.totalPrice;
     const downPayment = this.calculateDeposit.calculateDeposit(
@@ -122,18 +100,49 @@ export class AppointmentsService {
     );
     const platformFee = this.calculateTax.calculatePlatformTax(downPayment);
 
-    const appointment = await this.prisma.appointment.create({
-      data: {
-        companyId: company.id,
-        serviceId: service.id,
-        clientId: user.id,
-        appointmentDate: startDate,
-        appointmentEndDate: endDate,
-        expiresAt: expirationDate,
-        servicePrice: price,
-        downPaymentAmount: downPayment,
-        platformFeeAmount: platformFee,
-      },
+    // Proteção Anti-Race Condition: atomicidade na verificação de capacidade e criação do agendamento
+    const appointment = await this.prisma.$transaction(async (tx) => {
+      const maxCapacity = service.serviceGroup?.capacity ?? 1;
+
+      // Consulta de sobreposição canônica de intervalos:
+      // Intervalo A colide com B se (A.start < B.end) E (A.end > B.start)
+      // Agrupado pelo serviceGroupId para compartilhar capacidade entre serviços da mesma categoria/cadeira
+      const existingAppointments = await tx.appointment.findMany({
+        where: {
+          companyId: data.companyId,
+          isActive: true,
+          status: { notIn: [ApptStatus.CANCELED] },
+          appointmentDate: { lt: endDate },
+          appointmentEndDate: { gt: startDate },
+          service: {
+            serviceGroupId: service.serviceGroupId,
+          },
+          OR: [
+            { status: { not: ApptStatus.PENDING_PAYMENT } },
+            { expiresAt: { gt: new Date() } },
+          ],
+        },
+      });
+
+      if (existingAppointments.length >= maxCapacity) {
+        throw new ConflictException(
+          'Não há vagas disponíveis para este serviço neste horário',
+        );
+      }
+
+      return tx.appointment.create({
+        data: {
+          companyId: company.id,
+          serviceId: service.id,
+          clientId: user.id,
+          appointmentDate: startDate,
+          appointmentEndDate: endDate,
+          expiresAt: expirationDate,
+          servicePrice: price,
+          downPaymentAmount: downPayment,
+          platformFeeAmount: platformFee,
+        },
+      });
     });
 
     return appointment;

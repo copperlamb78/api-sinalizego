@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CalculateTax } from 'src/helpers/calculate-tax.helper';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -43,6 +44,9 @@ describe('AppointmentsService', () => {
     companyService: {
       findFirst: jest.fn(),
     },
+    $transaction: jest.fn((cb) =>
+      typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb),
+    ),
   };
 
   const mockCalculateTax = {
@@ -268,11 +272,34 @@ describe('AppointmentsService', () => {
       );
     });
 
-    it('should query slots excluding expired PENDING_PAYMENT appointments', async () => {
+    it('should throw BadRequestException if appointmentDate is in the past or invalid', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
       mockPrisma.appointment.count.mockResolvedValue(0);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue(mockService);
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2020-01-01T10:00:00Z', // data no passado
+          } as any,
+          'user-1',
+        ),
+      ).rejects.toThrow(
+        new BadRequestException('A data do agendamento deve ser uma data futura.'),
+      );
+    });
+
+    it('should query slots using canonical overlap check grouped by serviceGroupId and excluding expired pending bookings', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        serviceGroupId: 'group-1',
+      });
       mockPrisma.appointment.findMany.mockResolvedValue([]); // Nenhuma reserva ativa não-expirada ocupando vaga
       mockPrisma.appointment.create.mockResolvedValue({ id: 'appt-new' });
 
@@ -289,9 +316,13 @@ describe('AppointmentsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             companyId: 'company-1',
-            serviceId: 'service-1',
             isActive: true,
             status: { notIn: [ApptStatus.CANCELED] },
+            appointmentDate: { lt: expect.any(Date) },
+            appointmentEndDate: { gt: expect.any(Date) },
+            service: {
+              serviceGroupId: 'group-1',
+            },
             OR: [
               { status: { not: ApptStatus.PENDING_PAYMENT } },
               { expiresAt: expect.any(Object) },
@@ -299,6 +330,32 @@ describe('AppointmentsService', () => {
           }),
         }),
       );
+    });
+
+    it('should throw ConflictException if group capacity is reached due to overlapping appointments', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        serviceGroupId: 'group-1',
+        serviceGroup: { capacity: 1 }, // Capacidade de apenas 1 atendimento simultâneo
+      });
+      // 1 agendamento já sobrepondo o horário
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        { id: 'appt-existing-overlap', appointmentDate: new Date('2026-09-01T10:15:00Z') },
+      ]);
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2026-09-01T10:00:00Z',
+          } as any,
+          'user-1',
+        ),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

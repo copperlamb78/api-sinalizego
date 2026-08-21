@@ -40,7 +40,7 @@ export class ServiceGroupService {
       );
     }
 
-    return this.prisma.serviceGroup.create({
+    return await this.prisma.serviceGroup.create({
       data: {
         name: data.name,
         capacity: data.capacity,
@@ -58,7 +58,7 @@ export class ServiceGroupService {
       if (filters.companyId) whereClause.companyId = filters.companyId;
     }
 
-    return this.prisma.serviceGroup.findMany({
+    return await this.prisma.serviceGroup.findMany({
       where: whereClause,
     });
   }
@@ -115,7 +115,7 @@ export class ServiceGroupService {
       if (filters.capacity) whereClause.capacity = filters.capacity;
     }
 
-    return this.prisma.serviceGroup.findMany({
+    return await this.prisma.serviceGroup.findMany({
       where: whereClause,
     });
   }
@@ -156,7 +156,7 @@ export class ServiceGroupService {
       );
     }
 
-    return this.prisma.serviceGroup.update({
+    return await this.prisma.serviceGroup.update({
       where: { id },
       data,
     });
@@ -191,7 +191,7 @@ export class ServiceGroupService {
       );
     }
 
-    return this.prisma.serviceGroup.update({
+    return await this.prisma.serviceGroup.update({
       where: { id },
       data,
     });
@@ -235,7 +235,7 @@ export class ServiceGroupService {
       );
     }
 
-    return this.prisma.serviceGroup.update({
+    return await this.prisma.serviceGroup.update({
       where: { id },
       data: {
         isActive: false,
