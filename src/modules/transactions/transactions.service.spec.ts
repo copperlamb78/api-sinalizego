@@ -62,6 +62,7 @@ describe('TransactionsService', () => {
       status: 'PENDING_PAYMENT',
       expiresAt: new Date(Date.now() + 600000), // +10 min
       downPaymentAmount: 50.0,
+      platformFeeAmount: 7.5,
       company: {
         id: 'company-1',
         financialProfile: {
@@ -108,7 +109,7 @@ describe('TransactionsService', () => {
     it('should throw GoneException if appointment reservation has expired', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue({
         ...validAppointment,
-        expiresAt: new Date(Date.now() - 60000), // -1 min (past)
+        expiresAt: new Date(Date.now() - 1000), // já expirou
       });
 
       await expect(
@@ -116,7 +117,7 @@ describe('TransactionsService', () => {
       ).rejects.toThrow(GoneException);
     });
 
-    it('should throw NotFoundException if company has no financial profile / walletId', async () => {
+    it('should throw NotFoundException if company has no walletId configured', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue({
         ...validAppointment,
         company: { id: 'company-1', financialProfile: null },
@@ -163,18 +164,18 @@ describe('TransactionsService', () => {
       expect(result.qrCodePayload).toEqual('payload_existing');
     });
 
-    it('should create a new Pix charge with split and save Transaction when none exists', async () => {
+    it('should create a new Pix charge with split using frozen platformFeeAmount and save Transaction', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue(validAppointment);
       mockPrisma.transaction.findFirst.mockResolvedValue(null);
 
       const pixResponse = {
         paymentId: 'pay_new_456',
-        totalValue: 52.0,
+        totalValue: 57.5,
         qrCodePayload: 'payload_new',
         qrCodeImage: 'image_new',
         expirationDate: new Date(),
         barberNetValue: 49.01,
-        platformFee: 2.0,
+        platformFee: 7.5,
         asaasFee: 0.99,
       };
 
@@ -188,11 +189,12 @@ describe('TransactionsService', () => {
         'wallet-1',
         50.0,
         'appointment-1',
+        7.5,
       );
       expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           asaasPaymentId: 'pay_new_456',
-          totalValue: 52.0,
+          totalValue: 57.5,
           status: 'PENDING',
           customerId: 'client-1',
           barberWalletId: 'wallet-1',

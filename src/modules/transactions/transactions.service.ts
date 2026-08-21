@@ -89,12 +89,14 @@ export class TransactionsService {
     }
 
     const deposit = appointment.downPaymentAmount; // do banco, nunca do body
+    const platformFee = appointment.platformFeeAmount; // do banco, nunca do body ou recálculo
 
     const pixData = await this.asaas.createPixChargeWithSplit(
       asaasCustomerId,
       walletId,
       deposit,
       appointment.id,
+      platformFee,
     );
 
     await this.prisma.transaction.create({

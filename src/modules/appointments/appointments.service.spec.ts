@@ -104,12 +104,12 @@ describe('AppointmentsService', () => {
       serviceGroup: { capacity: 2 },
     };
 
-    it('should create appointment with correct downPayment and platformFeeAmount', async () => {
+    it('should create appointment with correct downPayment and platformFeeAmount in Reais', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue(mockService);
       mockPrisma.appointment.findMany.mockResolvedValue([]);
-      mockCalculateTax.calculatePlatformTax.mockReturnValue(7.5);
+      mockCalculateTax.calculatePlatformTax.mockReturnValue(3.75); // 25.00 * 0.15 = 3.75
 
       const createdAppointment = {
         id: 'appt-1',
@@ -118,7 +118,7 @@ describe('AppointmentsService', () => {
         clientId: 'user-1',
         servicePrice: 50.0,
         downPaymentAmount: 25.0,
-        platformFeeAmount: 7.5,
+        platformFeeAmount: 3.75,
       };
       mockPrisma.appointment.create.mockResolvedValue(createdAppointment);
 
@@ -131,13 +131,13 @@ describe('AppointmentsService', () => {
         'user-1',
       );
 
-      expect(mockCalculateTax.calculatePlatformTax).toHaveBeenCalledWith(50.0);
+      expect(mockCalculateTax.calculatePlatformTax).toHaveBeenCalledWith(25.0);
       expect(mockPrisma.appointment.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             servicePrice: 50.0,
             downPaymentAmount: 25.0,
-            platformFeeAmount: 7.5,
+            platformFeeAmount: 3.75,
           }),
         }),
       );

@@ -243,9 +243,12 @@ export class AsaasService {
     barberWalletId: string,
     depositValue: number,
     appointmentId: string,
+    persistedPlatformFee?: number,
   ) {
     const platformFee =
-      await this.calculateTax.calculatePlatformTax(depositValue);
+      persistedPlatformFee !== undefined
+        ? persistedPlatformFee
+        : this.calculateTax.calculatePlatformTax(depositValue);
 
     // O barbeiro sempre paga R$ 0,99 fixo de taxa do gateway Asaas
     const barberAsaasFee = BARBER_ASAAS_PIX_FEE;
