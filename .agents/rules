@@ -56,7 +56,7 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 
 ## 5. Git & Version Control Guidelines
 
-*   **Commits:** You are allowed to commit changes (`git commit`) when appropriate, using clear and descriptive commit messages following Conventional Commits.
+*   **Commits:** You are allowed to commit changes (`git commit`) when appropriate. Commit messages **must be written strictly in Portuguese**, following Conventional Commits (ex: `feat(agendamentos): adicionar validacao de sinal`, `fix(seguranca): corrigir vazamento de idor`).
 *   **Push / Remote Operations:** Always ask the user for confirmation **before** executing any `git push`. Never push to remote branches without explicit user authorization.
 
 ## 6. Development Workflow & Safety Protocols
