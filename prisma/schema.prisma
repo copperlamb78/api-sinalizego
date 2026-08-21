@@ -222,6 +222,7 @@ enum TransactionStatus {
   CONFIRMED
   OVERDUE
   CANCELED
+  REFUNDED
 }
 
 enum TransactionType {

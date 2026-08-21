@@ -436,4 +436,45 @@ export class AsaasService {
       return false;
     }
   }
+
+  /**
+   * Estorna uma cobrança no Asaas (POST /v3/payments/{id}/refund)
+   */
+  async refundPayment(
+    paymentId: string,
+    value?: number,
+    description?: string,
+  ): Promise<boolean> {
+    try {
+      const payload: { value?: number; description?: string } = {};
+      if (value !== undefined) payload.value = value;
+      if (description) payload.description = description;
+
+      const response = await fetch(
+        `${this.apiUrl}/payments/${paymentId}/refund`,
+        {
+          method: 'POST',
+          headers: this.headers,
+          body:
+            Object.keys(payload).length > 0
+              ? JSON.stringify(payload)
+              : undefined,
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Erro ao estornar cobrança no Asaas:', errorData);
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      console.error(
+        'Falha na comunicação com Asaas ao estornar cobrança:',
+        error.message,
+      );
+      return false;
+    }
+  }
 }

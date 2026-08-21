@@ -128,4 +128,9 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   When `@Roles()` is declared, ensure `RolesGuard` is explicitly included in `@UseGuards(JwtAuthGuard, RolesGuard)` at the method or controller level.
     *   Critical business state transitions (e.g., setting an appointment to `CONFIRMED`) must **ONLY** be executable via authenticated gateway webhooks, never via manual user PATCH endpoints.
 
+### 10. External Integrations & Reference Documentation
 
+*   **Asaas Payment Gateway Reference:**
+    *   Documentation index for LLM agents: `https://docs.asaas.com/llms.txt`
+    *   To read any Asaas reference page in markdown format, append `.md` to the documentation URL (e.g., `https://docs.asaas.com/reference/criar-nova-cobranca.md`).
+    *   Always refer to official Asaas v3 schemas when constructing payloads for customer creation, Pix generation, and split processing.
