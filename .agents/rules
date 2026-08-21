@@ -41,8 +41,41 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Formatting:** Prettier and ESLint are configured. Ensure all code generated respects these rules.
 *   **Testing:** The project boasts high test coverage. When adding features, write or update corresponding unit tests (`.spec.ts`) using Jest.
 *   **Soft Deletes:** Notice in the Prisma schema that entities like `User`, `Company`, `Appointment` have `isActive` and `disabledAt` fields. Implement soft deletes rather than hard `DELETE` operations unless strictly necessary.
+*   **New Reusable Functions Registry (STRICT):** Whenever you (or the agent) create a new reusable function or helper, it **must** be placed in the appropriate directory (e.g., `src/helpers/` or `src/common/`). Immediately after creation, you **must document it in this rules file** under section `3. Existing Functions & Helpers to Re-use`, following the exact same pattern as `CalculateTax`.
+*   **Prisma Performance & N+1 Prevention:** When fetching data via Prisma, never blindly include heavy relations (`include: { all: true }`). Always explicitly select (`select`) or include (`include`) only the fields strictly required for the specific task to prevent performance bottlenecks.
+*   **DTO and Validation Rigidity:** Every new endpoint must have a dedicated DTO. Do not bypass `class-validator` decorators. If an ID is passed, ensure it validates against the correct type (e.g., `@IsUUID()` or `@IsInt()`).
+*   **Idiomatic NestJS Exception Handling:** Never throw generic `Error` objects. Always throw semantic NestJS Built-in HTTP Exceptions (e.g., `BadRequestException`, `UnauthorizedException`, `InternalServerErrorException`) when business rules are violated outside of Prisma's automatic scope.
+
+---
+
+> ⚠️ **Antigravity Agent Warning:** If you create a helper/utility and forget to update this rules document, you are violating the SinalizeGO ecosystem maintenance protocol.
 
 ## 5. Git & Version Control Guidelines
 
 *   **Commits:** You are allowed to commit changes (`git commit`) when appropriate, using clear and descriptive commit messages following Conventional Commits.
 *   **Push / Remote Operations:** Always ask the user for confirmation **before** executing any `git push`. Never push to remote branches without explicit user authorization.
+
+## 6. Development Workflow & Safety Protocols
+
+*   **Pull Request (PR) Simulation:** Whenever you modify or write new code, do not commit it immediately. You **must** present the changes in the chat formatted as a Pull Request (including description and code diff/blocks). You are only allowed to execute a `git commit` **after** the user explicitly reviews and accepts the PR.
+*   **Documentation Synchronization:** Every time code modifications are made, you must simultaneously review and update the project's `README.md` (or relevant documentation files) to ensure information never falls out of date.
+*   **Refactoring & Divergence Check:** If you have doubts, want to diverge from the original request, or notice an opportunity for refactoring while executing a task, stop immediately. Ask the user in a simple, direct manner what you intend to do, and **only** proceed if the user grants explicit approval.
+*   **Security Vulnerability Protocol:** If you encounter a potential security flaw while reading or exploring the codebase, you must:
+    1. Analyze and understand why it exists.
+    2. Determine how it could be exploited.
+    3. Plan a clean architectural fix.
+    4. Report this entire analysis directly in the chat.
+    *Do not patch, fix, or modify the security flaw until the user explicitly commands you to do so.*
+*   **Mocking Third-Party Services in Tests:** When writing unit or integration tests (`.spec.ts`), you must completely mock external APIs (like Asaas, Cloudinary, or SMTP). Never allow actual network calls during test execution.
+
+## 7. Core Business & Billing Rules (CRITICAL)
+
+*   **Micro-Transaction Protection (Safety Gate):** To prevent platform fee bleeding from gateway fixed costs (Asaas), the system enforces a strict absolute minimum deposit rule. 
+    *   The absolute minimum deposit amount is **R$ 15.00**.
+    *   If a company's configured deposit percentage (e.g., 25%) results in a dollar amount *lower* than R$ 15.00, the system **must override** the option and force a **100% upfront payment** for that service.
+*   **Flexible Down-Payment Blocks:** For transactions exceeding the R$ 15.00 safety gate, the system must offer the client flexible payment options in fixed intervals of 25% (e.g., Company Minimum%, 50%, 75%, 100%).
+*   **Financial Reporting Splits:** Every booking must explicitly calculate and persist:
+    1. `amountPaidOnline`: Processed immediately via gateway.
+    2. `amountToPayInSalon`: To be paid locally to the barber.
+    3. `platformTaxCharged`: Based on the cumulative bracket formula from `CalculateTaxHelper`.
+
