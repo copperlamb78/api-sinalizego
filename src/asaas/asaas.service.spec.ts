@@ -18,6 +18,7 @@ describe('AsaasService', () => {
   const mockPrisma = {
     financialProfile: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
   };
 
@@ -28,6 +29,7 @@ describe('AsaasService', () => {
   const originalEnv = process.env;
 
   beforeEach(async () => {
+    jest.restoreAllMocks();
     process.env = {
       ...originalEnv,
       ASAAS_API_URL: 'https://sandbox.asaas.com/api/v3',
@@ -337,7 +339,7 @@ describe('AsaasService', () => {
 
   describe('getSubacccountBalance', () => {
     it('should throw NotFoundException if financial profile is not found', async () => {
-      mockPrisma.financialProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
 
       await expect(
         service.getSubacccountBalance('wallet_123', 'user_123'),
@@ -345,7 +347,7 @@ describe('AsaasService', () => {
     });
 
     it('should throw BadRequestException if asaasApiKey is missing', async () => {
-      mockPrisma.financialProfile.findUnique.mockResolvedValue({
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
         walletId: 'wallet_123',
         userId: 'user_123',
         asaasApiKey: null,
@@ -358,7 +360,7 @@ describe('AsaasService', () => {
 
     it('should decrypt asaasApiKey and fetch balance successfully', async () => {
       const encryptedKey = CryptoHelper.encrypt('raw_api_key_123');
-      mockPrisma.financialProfile.findUnique.mockResolvedValue({
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
         walletId: 'wallet_123',
         userId: 'user_123',
         asaasApiKey: encryptedKey,

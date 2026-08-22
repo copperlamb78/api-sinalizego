@@ -222,9 +222,14 @@ export class AsaasService implements OnModuleInit {
     }
   }
 
-  async getSubacccountBalance(walletId: string, userId: string) {
-    const financialProfile = await this.prisma.financialProfile.findUnique({
-      where: { walletId: walletId, userId: userId },
+  async getSubacccountBalance(walletId: string, userId?: string) {
+    const whereClause: any = { walletId: walletId };
+    if (userId) {
+      whereClause.userId = userId;
+    }
+
+    const financialProfile = await this.prisma.financialProfile.findFirst({
+      where: whereClause,
       select: { asaasApiKey: true },
     });
 

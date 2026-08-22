@@ -79,26 +79,38 @@ npm run start:dev
 
 ```env
 PORT=3000
+NODE_ENV="development"
 
-# Conexão com Supabase PostgreSQL
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
+# Conexão com Banco de Dados PostgreSQL
+DATABASE_URL="postgresql://postgres:password123@localhost:5432/sinalizego?schema=public"
 
-# JWT
-JWT_SECRET="sua-chave-secreta"
-JWT_REFRESH_SECRET="sua-chave-refresh-secreta"
+# Autenticação e Criptografia
+JWT_SECRET="super_secret_jwt_access_key"
+JWT_REFRESH_SECRET="super_secret_jwt_refresh_key"
+ENCRYPTION_SECRET="super_secret_encryption_key_32_characters_minimum"
 
-# Brevo (Transactional Email)
-BREVO_API_KEY="xkeysib-..."
-MAIL_FROM_EMAIL="neodevzone@gmail.com"
-MAIL_FROM_NAME="SinalizeGo"
+# Frontend & CORS
 FRONTEND_URL="http://localhost:3000"
+CORS_ORIGINS="http://localhost:3000,http://localhost:5173"
+ENABLE_SWAGGER_IN_PROD="false"
 
-# Asaas Sandbox Integration
+# Gateway Asaas
 ASAAS_API_URL="https://sandbox.asaas.com/api/v3"
 ASAAS_API_KEY="$aact_YTU5YTE0M2..."
-ASAAS_WEBHOOK_SECRET="seu-token-webhook"
 ASAAS_PIX_FEE=0.99
+ASAAS_WEBHOOK_URL="https://api.sinalizego.com/api/v1/webhooks/asaas"
+ASAAS_WEBHOOK_EMAIL="neodevzone@gmail.com"
+ASAAS_WEBHOOK_TOKEN="asaas_webhook_secret_token_123456"
+
+# Cloudinary Storage
+CLOUDINARY_CLOUD_NAME="your_cloudinary_cloud_name"
+CLOUDINARY_API_KEY="your_cloudinary_api_key"
+CLOUDINARY_API_SECRET="your_cloudinary_api_secret"
+
+# Brevo (E-mails Transacionais)
+BREVO_API_KEY="xkeysib-..."
+MAIL_FROM_EMAIL="neodevzone@gmail.com"
+MAIL_FROM_NAME="SinalizeGO Suporte"
 ```
 
 ### 🏃 Scripts Disponíveis
