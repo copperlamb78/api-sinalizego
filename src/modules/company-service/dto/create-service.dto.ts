@@ -6,6 +6,7 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -49,10 +50,10 @@ export class CreateServiceDto {
   downPaymentPercent: number;
 
   @ApiProperty({
-    example: 'group-uuid-123',
+    example: 'd9b2b63d-a233-4123-8478-831d12345678',
     description: 'ID do grupo de serviços (ServiceGroup) associado',
   })
-  @IsString({ message: 'O ID do grupo de serviços deve ser uma string' })
+  @IsUUID('4', { message: 'O ID do grupo de serviços deve ser um UUID válido' })
   @IsNotEmpty({ message: 'O ID do grupo de serviços é obrigatório' })
   serviceGroupId: string;
 }

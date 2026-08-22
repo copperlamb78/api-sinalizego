@@ -23,6 +23,16 @@ export class CompanyServiceService {
       );
     }
 
+    const serviceGroup = await this.prisma.serviceGroup.findFirst({
+      where: { id: data.serviceGroupId, companyId: company.id },
+    });
+
+    if (!serviceGroup) {
+      throw new NotFoundException(
+        'Grupo de serviços não encontrado ou não pertence a esta empresa.',
+      );
+    }
+
     const service = await this.prisma.service.create({
       data: {
         name: data.name,
@@ -123,6 +133,18 @@ export class CompanyServiceService {
 
     if (!serviceExists) {
       throw new NotFoundException('Serviço não encontrado.');
+    }
+
+    if (data.serviceGroupId) {
+      const serviceGroup = await this.prisma.serviceGroup.findFirst({
+        where: { id: data.serviceGroupId, companyId: company.id },
+      });
+
+      if (!serviceGroup) {
+        throw new NotFoundException(
+          'Grupo de serviços não encontrado ou não pertence a esta empresa.',
+        );
+      }
     }
 
     return this.prisma.service.update({

@@ -102,4 +102,90 @@ describe('CompanyServiceService', () => {
       ]);
     });
   });
+
+  describe('createService', () => {
+    const createDto = {
+      name: 'Corte Masculino',
+      durationMinutes: 45,
+      totalPrice: 40.0,
+      downPaymentPercent: 50,
+      serviceGroupId: 'group-uuid-1',
+    };
+
+    it('should throw NotFoundException if user has no company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createService(createDto as any, 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if serviceGroup does not belong to the user company (Anti-IDOR)', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'comp-1' });
+      mockPrisma.serviceGroup = {
+        findFirst: jest.fn().mockResolvedValue(null),
+      };
+
+      await expect(
+        service.createService(createDto as any, 'user-1'),
+      ).rejects.toThrow(
+        new NotFoundException(
+          'Grupo de serviços não encontrado ou não pertence a esta empresa.',
+        ),
+      );
+    });
+
+    it('should create service when company and serviceGroup are valid', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'comp-1' });
+      mockPrisma.serviceGroup = {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'group-uuid-1', companyId: 'comp-1' }),
+      };
+      const createdService = {
+        id: 'svc-1',
+        ...createDto,
+        companyId: 'comp-1',
+      };
+      mockPrisma.service.create.mockResolvedValue(createdService);
+
+      const result = await service.createService(createDto as any, 'user-1');
+
+      expect(mockPrisma.service.create).toHaveBeenCalledWith({
+        data: {
+          name: createDto.name,
+          description: undefined,
+          durationMinutes: createDto.durationMinutes,
+          totalPrice: createDto.totalPrice,
+          downPaymentPercent: createDto.downPaymentPercent,
+          serviceGroupId: createDto.serviceGroupId,
+          companyId: 'comp-1',
+        },
+      });
+      expect(result).toEqual(createdService);
+    });
+  });
+
+  describe('updateService', () => {
+    it('should throw NotFoundException if updating to a serviceGroupId of another company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'comp-1' });
+      mockPrisma.service.findFirst.mockResolvedValue({
+        id: 'svc-1',
+        companyId: 'comp-1',
+      });
+      mockPrisma.serviceGroup = {
+        findFirst: jest.fn().mockResolvedValue(null),
+      };
+
+      await expect(
+        service.updateService('user-1', 'svc-1', {
+          serviceGroupId: 'foreign-group-uuid',
+        }),
+      ).rejects.toThrow(
+        new NotFoundException(
+          'Grupo de serviços não encontrado ou não pertence a esta empresa.',
+        ),
+      );
+    });
+  });
 });

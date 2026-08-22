@@ -40,13 +40,15 @@ describe('CompanyServiceController', () => {
   });
 
   describe('CreateServiceDto Validation', () => {
+    const validUUID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
     it('should fail validation when downPaymentPercent is not 25 or 50 (e.g. 30%)', async () => {
       const dto = plainToInstance(CreateServiceDto, {
         name: 'Corte',
         durationMinutes: 30,
         totalPrice: 50,
         downPaymentPercent: 30,
-        serviceGroupId: 'group-1',
+        serviceGroupId: validUUID,
       });
       const errors = await validate(dto);
       expect(errors.length).toBeGreaterThan(0);
@@ -55,13 +57,28 @@ describe('CompanyServiceController', () => {
       );
     });
 
-    it('should pass validation when downPaymentPercent is 25 or 50', async () => {
+    it('should fail validation when serviceGroupId is not a valid UUID', async () => {
+      const dto = plainToInstance(CreateServiceDto, {
+        name: 'Corte',
+        durationMinutes: 30,
+        totalPrice: 50,
+        downPaymentPercent: 50,
+        serviceGroupId: 'invalid-non-uuid-string',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some((err) => err.property === 'serviceGroupId')).toBe(
+        true,
+      );
+    });
+
+    it('should pass validation when downPaymentPercent is 25 or 50 and serviceGroupId is a valid UUID', async () => {
       const dto25 = plainToInstance(CreateServiceDto, {
         name: 'Corte',
         durationMinutes: 30,
         totalPrice: 50,
         downPaymentPercent: 25,
-        serviceGroupId: 'group-1',
+        serviceGroupId: validUUID,
       });
       const errors25 = await validate(dto25);
       expect(errors25.length).toBe(0);
@@ -71,7 +88,7 @@ describe('CompanyServiceController', () => {
         durationMinutes: 30,
         totalPrice: 50,
         downPaymentPercent: 50,
-        serviceGroupId: 'group-1',
+        serviceGroupId: validUUID,
       });
       const errors50 = await validate(dto50);
       expect(errors50.length).toBe(0);
