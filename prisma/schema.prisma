@@ -270,3 +270,14 @@ model Transaction {
 
   @@map("transactions")
 }
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique
+  event       String
+  paymentId   String?
+  payload     Json?
+  processedAt DateTime @default(now())
+
+  @@map("webhook_events")
+}

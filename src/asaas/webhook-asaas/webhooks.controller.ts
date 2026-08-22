@@ -25,10 +25,15 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Evento processado com sucesso' })
   @ApiResponse({ status: 401, description: 'Token de webhook inválido' })
   async handleAsaasWebhook(@Body() payload: any) {
-    const { event, payment } = payload;
+    const { event, payment, id: eventId } = payload || {};
     if (!payment?.id) {
       return { received: true };
     }
-    return this.webhooksService.handleAsaasEvent(event, payment);
+    return this.webhooksService.handleAsaasEvent(
+      event,
+      payment,
+      eventId,
+      payload,
+    );
   }
 }

@@ -61,6 +61,8 @@ describe('WebhooksController', () => {
       expect(service.handleAsaasEvent).toHaveBeenCalledWith(
         'PAYMENT_CONFIRMED',
         { id: 'pay_12345' },
+        undefined,
+        payload,
       );
       expect(result).toEqual(expected);
     });

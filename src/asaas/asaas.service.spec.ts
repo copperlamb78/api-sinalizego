@@ -355,4 +355,31 @@ describe('AsaasService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('getPaymentById', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should return payment data when found', async () => {
+      const mockPayment = { id: 'pay_123', status: 'RECEIVED', value: 50.0 };
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockPayment),
+      } as any);
+
+      const result = await service.getPaymentById('pay_123');
+      expect(result).toEqual(mockPayment);
+    });
+
+    it('should return null when fetch fails', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        json: jest.fn().mockResolvedValue({ errors: [] }),
+      } as any);
+
+      const result = await service.getPaymentById('pay_invalid');
+      expect(result).toBeNull();
+    });
+  });
 });

@@ -523,4 +523,32 @@ export class AsaasService implements OnModuleInit {
       return false;
     }
   }
+
+  /**
+   * Consulta os dados de uma cobrança no Asaas (GET /v3/payments/{id})
+   */
+  async getPaymentById(paymentId: string): Promise<any | null> {
+    try {
+      const response = await fetch(`${this.apiUrl}/payments/${paymentId}`, {
+        method: 'GET',
+        headers: this.headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        this.logger.error(
+          `Erro ao consultar cobrança #${paymentId} no Asaas:`,
+          errorData,
+        );
+        return null;
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      this.logger.error(
+        `Falha na comunicação com Asaas ao consultar cobrança #${paymentId}: ${error.message}`,
+      );
+      return null;
+    }
+  }
 }
