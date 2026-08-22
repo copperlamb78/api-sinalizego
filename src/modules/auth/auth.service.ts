@@ -54,6 +54,10 @@ export class AuthService {
       throw new NotFoundException('Usuário não encontrado');
     }
 
+    if (!user.isActive) {
+      throw new UnauthorizedException('Conta desativada.');
+    }
+
     const isPasswordValid = await bcrypt.compare(data.password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Senha inválida');
@@ -76,7 +80,7 @@ export class AuthService {
   async refreshTokens(userId: string, refreshToken: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
 
-    if (!user || !user.refreshToken) {
+    if (!user || !user.isActive || !user.refreshToken) {
       throw new ForbiddenException('Acesso Negado');
     }
 

@@ -1,28 +1,44 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PrismaService } from 'src/prisma/prisma.service';
 import 'dotenv/config';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     super({
-      // Pega o token do cabeçalho de Autorização (Bearer Token)
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      // Rejeita tokens vencidos
-      ignoreExpiration: false, // Define como false para que o Passport-JWT rejeite automaticamente tokens expirados
-      // Usa a mesma chave secreta que usamos para gerar o token
+      ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET as string,
     });
   }
 
-  // Se o token for válido, o NestJS chama essa função automaticamente.
-  // O que retornarmos aqui ficará disponível na requisição (req.user)
   async validate(payload: any) {
+    if (!payload?.sub) {
+      throw new UnauthorizedException('Token JWT inválido.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException(
+        'Conta desativada ou usuário não encontrado.',
+      );
+    }
+
     return {
-      sub: payload.sub,
-      email: payload.email,
-      role: payload.role,
+      sub: user.id,
+      email: user.email,
+      role: user.role,
     };
   }
 }

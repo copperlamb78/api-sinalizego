@@ -199,4 +199,62 @@ describe('AuthService', () => {
       expect(result.message).toEqual('Senha redefinida com sucesso.');
     });
   });
+
+  describe('login', () => {
+    it('should throw UnauthorizedException if account is deactivated (isActive === false)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'desativado@test.com',
+        password: 'hashedPassword',
+        isActive: false,
+      });
+
+      await expect(
+        service.login({
+          email: 'desativado@test.com',
+          password: 'password123',
+        }),
+      ).rejects.toThrow(new UnauthorizedException('Conta desativada.'));
+    });
+
+    it('should authenticate active user and return access and refresh tokens', async () => {
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      const activeUser = {
+        id: 'user-1',
+        name: 'João Silva',
+        email: 'joao@test.com',
+        role: 'CLIENT',
+        password: hashedPassword,
+        isActive: true,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(activeUser);
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('access.token.123')
+        .mockResolvedValueOnce('refresh.token.123');
+      mockPrisma.user.update.mockResolvedValue(activeUser);
+
+      const result = await service.login({
+        email: 'joao@test.com',
+        password: 'password123',
+      });
+
+      expect(result.access_token).toBe('access.token.123');
+      expect(result.refresh_token).toBe('refresh.token.123');
+      expect(result.user.email).toBe('joao@test.com');
+    });
+  });
+
+  describe('refreshTokens', () => {
+    it('should throw ForbiddenException if user is deactivated', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        refreshToken: 'hashedRefreshToken',
+        isActive: false,
+      });
+
+      await expect(
+        service.refreshTokens('user-1', 'rawRefreshToken'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });
