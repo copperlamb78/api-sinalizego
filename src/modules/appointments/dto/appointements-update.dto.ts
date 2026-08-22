@@ -10,8 +10,7 @@ export class AppointmentsStatusUpdateDto {
   })
   @IsNotEmpty({ message: 'O status é obrigatório.' })
   @IsEnum(ApptStatus, {
-    message:
-      'Status inválido. Use COMPLETED ou CANCELED.',
+    message: 'Status inválido. Use COMPLETED ou CANCELED.',
   })
   status: ApptStatus;
 }

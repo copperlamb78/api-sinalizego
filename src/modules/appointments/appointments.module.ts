@@ -11,4 +11,3 @@ import { AsaasModule } from 'src/asaas/asaas.module';
   controllers: [AppointmentsController],
 })
 export class AppointmentsModule {}
-

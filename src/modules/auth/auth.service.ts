@@ -190,7 +190,9 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new BadRequestException('Token inválido ou usuário não encontrado.');
+      throw new BadRequestException(
+        'Token inválido ou usuário não encontrado.',
+      );
     }
 
     const secret = `${process.env.JWT_SECRET || 'jwt_secret'}${user.password}`;

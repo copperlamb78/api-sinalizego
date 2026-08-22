@@ -156,7 +156,10 @@ describe('TransactionsService', () => {
         expirationDate: new Date(),
       });
 
-      const result = await service.createPixForAppointment('appointment-1', 'client-1');
+      const result = await service.createPixForAppointment(
+        'appointment-1',
+        'client-1',
+      );
 
       expect(mockAsaas.getPixQrCode).toHaveBeenCalledWith('pay_existing_123');
       expect(mockAsaas.createPixChargeWithSplit).not.toHaveBeenCalled();
@@ -180,9 +183,15 @@ describe('TransactionsService', () => {
       };
 
       mockAsaas.createPixChargeWithSplit.mockResolvedValue(pixResponse);
-      mockPrisma.transaction.create.mockResolvedValue({ id: 'tx-new', ...pixResponse });
+      mockPrisma.transaction.create.mockResolvedValue({
+        id: 'tx-new',
+        ...pixResponse,
+      });
 
-      const result = await service.createPixForAppointment('appointment-1', 'client-1');
+      const result = await service.createPixForAppointment(
+        'appointment-1',
+        'client-1',
+      );
 
       expect(mockAsaas.createPixChargeWithSplit).toHaveBeenCalledWith(
         'cus_12345',

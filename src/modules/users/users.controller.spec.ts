@@ -44,7 +44,14 @@ describe('UsersController', () => {
         phone: '75999998888',
         password: 'password123',
       };
-      const expected = { message: 'Usuário criado com sucesso', user: { id: 'user-1', name: 'Cliente Teste', email: 'cliente@test.com' } };
+      const expected = {
+        message: 'Usuário criado com sucesso',
+        user: {
+          id: 'user-1',
+          name: 'Cliente Teste',
+          email: 'cliente@test.com',
+        },
+      };
       mockUsersService.createUser.mockResolvedValue(expected);
 
       const result = await controller.createUser(dto);
@@ -80,7 +87,10 @@ describe('UsersController', () => {
   describe('changePassword', () => {
     it('should change password for authenticated user', async () => {
       const req = { user: { sub: 'user-1' } } as any;
-      const dto = { currentPassword: 'oldPassword123', newPassword: 'newPassword456' };
+      const dto = {
+        currentPassword: 'oldPassword123',
+        newPassword: 'newPassword456',
+      };
       const expected = { message: 'Senha alterada com sucesso.' };
       mockUsersService.changePassword.mockResolvedValue(expected);
 
@@ -96,12 +106,20 @@ describe('UsersController', () => {
       const dto = { cpfCnpj: '12345678909' };
       const expected = {
         message: 'CPF atualizado e cliente financeiro gerado com sucesso!',
-        user: { id: 'user-1', cpfCnpj: '12345678909', asaasCustomerId: 'cus_123456' },
+        user: {
+          id: 'user-1',
+          cpfCnpj: '12345678909',
+          asaasCustomerId: 'cus_123456',
+        },
       };
-      mockUsersService.updateCpfCnpjAndCreateCustomerId.mockResolvedValue(expected);
+      mockUsersService.updateCpfCnpjAndCreateCustomerId.mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.updateCpfCnpj(req, dto);
-      expect(usersService.updateCpfCnpjAndCreateCustomerId).toHaveBeenCalledWith('user-1', '12345678909');
+      expect(
+        usersService.updateCpfCnpjAndCreateCustomerId,
+      ).toHaveBeenCalledWith('user-1', '12345678909');
       expect(result).toEqual(expected);
     });
   });

@@ -45,10 +45,15 @@ describe('TransactionsController', () => {
         asaasFee: 0.99,
       };
 
-      mockTransactionsService.createPixForAppointment.mockResolvedValue(expected);
+      mockTransactionsService.createPixForAppointment.mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.createPix(appointmentId, req);
-      expect(service.createPixForAppointment).toHaveBeenCalledWith('appointment-123', 'client-1');
+      expect(service.createPixForAppointment).toHaveBeenCalledWith(
+        'appointment-123',
+        'client-1',
+      );
       expect(result).toEqual(expected);
     });
   });

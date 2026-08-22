@@ -43,7 +43,9 @@ export class MailService {
         htmlContent: getPasswordResetEmailTemplate(name, resetLink),
       });
 
-      this.logger.log(`E-mail de recuperação de senha enviado com sucesso para ${to}`);
+      this.logger.log(
+        `E-mail de recuperação de senha enviado com sucesso para ${to}`,
+      );
       return true;
     } catch (error: any) {
       this.logger.error(

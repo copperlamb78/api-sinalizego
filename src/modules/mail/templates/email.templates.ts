@@ -8,7 +8,11 @@ interface BaseEmailProps {
   content: string;
 }
 
-export function baseEmailLayout({ title, previewText, content }: BaseEmailProps): string {
+export function baseEmailLayout({
+  title,
+  previewText,
+  content,
+}: BaseEmailProps): string {
   const currentYear = new Date().getFullYear();
 
   return `
@@ -156,7 +160,10 @@ export function baseEmailLayout({ title, previewText, content }: BaseEmailProps)
 /**
  * Template de Redefinição de Senha
  */
-export function getPasswordResetEmailTemplate(name: string, resetLink: string): string {
+export function getPasswordResetEmailTemplate(
+  name: string,
+  resetLink: string,
+): string {
   const firstName = name ? name.trim().split(' ')[0] : 'Usuário';
 
   const content = `
@@ -181,7 +188,8 @@ export function getPasswordResetEmailTemplate(name: string, resetLink: string): 
 
   return baseEmailLayout({
     title: 'Redefinição de Senha — SinalizeGo',
-    previewText: 'Instruções para redefinir sua senha no SinalizeGo (válido por 15 minutos).',
+    previewText:
+      'Instruções para redefinir sua senha no SinalizeGo (válido por 15 minutos).',
     content,
   });
 }
@@ -189,7 +197,10 @@ export function getPasswordResetEmailTemplate(name: string, resetLink: string): 
 /**
  * Template de Confirmação de E-mail (Para uso futuro / Confirmação de cadastro e alteração)
  */
-export function getEmailConfirmationTemplate(name: string, confirmationLink: string): string {
+export function getEmailConfirmationTemplate(
+  name: string,
+  confirmationLink: string,
+): string {
   const firstName = name ? name.trim().split(' ')[0] : 'Usuário';
 
   const content = `
@@ -213,7 +224,8 @@ export function getEmailConfirmationTemplate(name: string, confirmationLink: str
 
   return baseEmailLayout({
     title: 'Confirmação de E-mail — SinalizeGo',
-    previewText: 'Por favor, confirme seu endereço de e-mail para ativar sua conta no SinalizeGo.',
+    previewText:
+      'Por favor, confirme seu endereço de e-mail para ativar sua conta no SinalizeGo.',
     content,
   });
 }

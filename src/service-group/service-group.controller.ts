@@ -110,8 +110,7 @@ export class ServiceGroupController {
   })
   @ApiResponse({
     status: 200,
-    description:
-      'Lista de grupos de serviços da empresa retornada com sucesso',
+    description: 'Lista de grupos de serviços da empresa retornada com sucesso',
     schema: {
       example: [
         {
@@ -200,7 +199,10 @@ export class ServiceGroupController {
   })
   @ApiResponse({ status: 400, description: 'Dados de requisição inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Acesso negado para este grupo de serviços' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado para este grupo de serviços',
+  })
   @ApiResponse({
     status: 404,
     description: 'Grupo de serviços não encontrado',
@@ -295,9 +297,15 @@ export class ServiceGroupController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Grupo possui serviços ativos vinculados' })
+  @ApiResponse({
+    status: 400,
+    description: 'Grupo possui serviços ativos vinculados',
+  })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Acesso negado para este grupo de serviços' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado para este grupo de serviços',
+  })
   @ApiResponse({
     status: 404,
     description: 'Grupo de serviços não encontrado',

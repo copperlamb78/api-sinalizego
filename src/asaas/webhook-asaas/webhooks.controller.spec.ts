@@ -50,11 +50,18 @@ describe('WebhooksController', () => {
         event: 'PAYMENT_CONFIRMED',
         payment: { id: 'pay_12345' },
       };
-      const expected = { received: true, event: 'PAYMENT_CONFIRMED', paymentId: 'pay_12345' };
+      const expected = {
+        received: true,
+        event: 'PAYMENT_CONFIRMED',
+        paymentId: 'pay_12345',
+      };
       mockWebhooksService.handleAsaasEvent.mockResolvedValue(expected);
 
       const result = await controller.handleAsaasWebhook(payload);
-      expect(service.handleAsaasEvent).toHaveBeenCalledWith('PAYMENT_CONFIRMED', { id: 'pay_12345' });
+      expect(service.handleAsaasEvent).toHaveBeenCalledWith(
+        'PAYMENT_CONFIRMED',
+        { id: 'pay_12345' },
+      );
       expect(result).toEqual(expected);
     });
   });

@@ -45,9 +45,18 @@ describe('ValidateImage Helper', () => {
     it('should return true for valid WEBP buffer', () => {
       // WEBP: RIFF....WEBP
       const webpHeader = Buffer.from([
-        0x52, 0x49, 0x46, 0x46, // RIFF
-        0x00, 0x00, 0x00, 0x00, // file size
-        0x57, 0x45, 0x42, 0x50, // WEBP
+        0x52,
+        0x49,
+        0x46,
+        0x46, // RIFF
+        0x00,
+        0x00,
+        0x00,
+        0x00, // file size
+        0x57,
+        0x45,
+        0x42,
+        0x50, // WEBP
       ]);
       expect(helper.isValidImageMagicBytes(webpHeader)).toBe(true);
     });

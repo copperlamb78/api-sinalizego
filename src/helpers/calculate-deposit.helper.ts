@@ -61,7 +61,10 @@ export class CalculateDeposit {
       };
     }
 
-    const availableBlocks = this.getAvailableBlocks(totalPrice, configuredFloor);
+    const availableBlocks = this.getAvailableBlocks(
+      totalPrice,
+      configuredFloor,
+    );
 
     let appliedPercent: number;
 
@@ -119,4 +122,3 @@ export class CalculateDeposit {
     ).depositAmount;
   }
 }
-

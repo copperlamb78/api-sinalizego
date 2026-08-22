@@ -9,4 +9,3 @@ import { ValidateImage } from 'src/helpers/validate-image.helper';
   providers: [ValidateImage],
 })
 export class UploadModule {}
-

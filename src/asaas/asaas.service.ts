@@ -4,6 +4,8 @@ import {
   BadRequestException,
   NotFoundException,
   HttpException,
+  Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import { CreateFinancialProfileDto } from 'src/modules/financial-profile/dto/create-financial-profile.dto';
 import 'dotenv/config';
@@ -37,15 +39,43 @@ export interface AsaasAccountResponse {
 }
 
 @Injectable()
-export class AsaasService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly calculateTax: CalculateTax,
-  ) {}
-  private readonly asaasPixFee = Number(process.env.ASAAS_PIX_FEE) || 0.99;
+export class AsaasService implements OnModuleInit {
+  private readonly logger = new Logger(AsaasService.name);
+  public readonly asaasPixFee: number;
   private readonly apiUrl =
     process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
   private readonly apiKey = process.env.ASAAS_API_KEY;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly calculateTax: CalculateTax,
+  ) {
+    const rawFee = process.env.ASAAS_PIX_FEE;
+    if (rawFee !== undefined && rawFee !== '') {
+      const parsed = Number(rawFee);
+      this.asaasPixFee =
+        !isNaN(parsed) && parsed >= 0 ? parsed : BARBER_ASAAS_PIX_FEE;
+    } else {
+      this.asaasPixFee = BARBER_ASAAS_PIX_FEE;
+    }
+  }
+
+  onModuleInit() {
+    const rawFee = process.env.ASAAS_PIX_FEE;
+    if (rawFee === undefined || rawFee === '') {
+      this.logger.warn(
+        `[AsaasService] ASAAS_PIX_FEE não definida nas variáveis de ambiente. Utilizando taxa padrão de fallback: R$ ${BARBER_ASAAS_PIX_FEE.toFixed(2)}`,
+      );
+    } else if (isNaN(Number(rawFee)) || Number(rawFee) < 0) {
+      this.logger.error(
+        `[AsaasService] ASAAS_PIX_FEE inválida ("${rawFee}"). Utilizando taxa padrão de fallback: R$ ${BARBER_ASAAS_PIX_FEE.toFixed(2)}`,
+      );
+    } else {
+      this.logger.log(
+        `[AsaasService] ASAAS_PIX_FEE inicializada com sucesso: R$ ${this.asaasPixFee.toFixed(2)}`,
+      );
+    }
+  }
 
   private get headers() {
     if (!this.apiKey) {
@@ -250,17 +280,16 @@ export class AsaasService {
         ? persistedPlatformFee
         : this.calculateTax.calculatePlatformTax(depositValue);
 
-    // O barbeiro sempre paga R$ 0,99 fixo de taxa do gateway Asaas
-    const barberAsaasFee = BARBER_ASAAS_PIX_FEE;
+    // O barbeiro paga a taxa configurada do gateway Asaas (ASAAS_PIX_FEE ou BARBER_ASAAS_PIX_FEE)
+    const barberAsaasFee = this.asaasPixFee;
 
     const totalToCharge = Number((depositValue + platformFee).toFixed(2));
     const barberNetValue = Number(
       Math.max(0, depositValue - barberAsaasFee).toFixed(2),
     );
 
-    // Nota: O Asaas cobra R$ 0,99 nos primeiros meses e R$ 1,99 posteriormente.
-    // O split fixo transferido para a carteira do barbeiro é garantido em (depositValue - 0.99).
-    // Quando o custo do Asaas for R$ 1,99, a plataforma absorve a diferença de R$ 1,00.
+    // Nota: O Asaas cobra a taxa de Pix conforme o plano configurado.
+    // O split fixo transferido para a carteira do barbeiro é garantido em (depositValue - barberAsaasFee).
 
     try {
       const response = await fetch(`${this.apiUrl}/payments`, {
@@ -288,7 +317,8 @@ export class AsaasService {
         throw new BadRequestException(errorData.errors[0].description);
       }
 
-      const { id: paymentId } = await response.json();
+      const paymentData = await response.json();
+      const paymentId = paymentData.id;
 
       const pixResponse = await fetch(
         `${this.apiUrl}/payments/${paymentId}/pixQrCode`,
@@ -314,6 +344,19 @@ export class AsaasService {
         expirationDate: Date;
       } = await pixResponse.json();
 
+      // Ler a taxa real retornada pelo Asaas (fee ou value - netValue), com fallback para a taxa configurada
+      const realAsaasFee =
+        paymentData?.fee !== undefined && paymentData?.fee !== null
+          ? Number(paymentData.fee)
+          : paymentData?.value !== undefined &&
+              paymentData?.netValue !== undefined
+            ? Number(
+                (
+                  Number(paymentData.value) - Number(paymentData.netValue)
+                ).toFixed(2),
+              )
+            : barberAsaasFee;
+
       return {
         paymentId: paymentId,
         totalValue: totalToCharge,
@@ -322,7 +365,7 @@ export class AsaasService {
         expirationDate: expirationDate,
         barberNetValue: barberNetValue,
         platformFee: platformFee,
-        asaasFee: barberAsaasFee,
+        asaasFee: realAsaasFee,
       };
     } catch (error: any) {
       // O error.response?.data ajuda a ver se o Asaas reclamou de algo

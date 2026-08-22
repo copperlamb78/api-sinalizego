@@ -44,7 +44,12 @@ describe('AppointmentsController', () => {
         serviceId: 'service-1',
         appointmentDate: '2026-08-20T10:00:00.000Z',
       };
-      const expected = { id: 'appointment-1', ...dto, clientId: 'client-1', status: 'PENDING_PAYMENT' };
+      const expected = {
+        id: 'appointment-1',
+        ...dto,
+        clientId: 'client-1',
+        status: 'PENDING_PAYMENT',
+      };
       mockAppointmentsService.createAppointment.mockResolvedValue(expected);
 
       const result = await controller.create(dto as any, req);
@@ -70,10 +75,15 @@ describe('AppointmentsController', () => {
       const req = { user: { sub: 'owner-1' } } as any;
       const filters = {} as any;
       const expected = [{ id: 'appointment-1', status: 'CONFIRMED' }];
-      mockAppointmentsService.getAppointmentByCompanyId.mockResolvedValue(expected);
+      mockAppointmentsService.getAppointmentByCompanyId.mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.findByCompany(req, filters);
-      expect(service.getAppointmentByCompanyId).toHaveBeenCalledWith('owner-1', filters);
+      expect(service.getAppointmentByCompanyId).toHaveBeenCalledWith(
+        'owner-1',
+        filters,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -83,10 +93,15 @@ describe('AppointmentsController', () => {
       const req = { user: { sub: 'client-1' } } as any;
       const filters = {} as any;
       const expected = [{ id: 'appointment-1', status: 'CONFIRMED' }];
-      mockAppointmentsService.getAppointmentByUserId.mockResolvedValue(expected);
+      mockAppointmentsService.getAppointmentByUserId.mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.findByUser(req, filters);
-      expect(service.getAppointmentByUserId).toHaveBeenCalledWith('client-1', filters);
+      expect(service.getAppointmentByUserId).toHaveBeenCalledWith(
+        'client-1',
+        filters,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -96,9 +111,15 @@ describe('AppointmentsController', () => {
       const req = { user: { sub: 'owner-1' } } as any;
       const dto = { status: ApptStatus.COMPLETED };
       const expected = { id: 'appointment-1', status: ApptStatus.COMPLETED };
-      mockAppointmentsService.updateAppointmentStatus.mockResolvedValue(expected);
+      mockAppointmentsService.updateAppointmentStatus.mockResolvedValue(
+        expected,
+      );
 
-      const result = await controller.updateStatus('f1e2d3c4-b5a6-0987-6543-210fedcba987', dto, req);
+      const result = await controller.updateStatus(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        dto,
+        req,
+      );
       expect(service.updateAppointmentStatus).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
@@ -111,11 +132,21 @@ describe('AppointmentsController', () => {
   describe('deactivate', () => {
     it('should deactivate / cancel appointment', async () => {
       const req = { user: { sub: 'client-1' } } as any;
-      const expected = { id: 'appointment-1', isActive: false, status: 'CANCELED' };
+      const expected = {
+        id: 'appointment-1',
+        isActive: false,
+        status: 'CANCELED',
+      };
       mockAppointmentsService.deactivateAppointment.mockResolvedValue(expected);
 
-      const result = await controller.deactivate('f1e2d3c4-b5a6-0987-6543-210fedcba987', req);
-      expect(service.deactivateAppointment).toHaveBeenCalledWith('f1e2d3c4-b5a6-0987-6543-210fedcba987', 'client-1');
+      const result = await controller.deactivate(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        req,
+      );
+      expect(service.deactivateAppointment).toHaveBeenCalledWith(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        'client-1',
+      );
       expect(result).toEqual(expected);
     });
   });

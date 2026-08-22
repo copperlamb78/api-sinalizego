@@ -169,7 +169,8 @@ describe('UploadController', () => {
       mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
       mockValidateImage.isValidImageMagicBytes.mockReturnValue(true);
       mockCloudinaryService.uploadImage.mockResolvedValue({
-        secure_url: 'https://res.cloudinary.com/demo/image/upload/v1/banner.jpg',
+        secure_url:
+          'https://res.cloudinary.com/demo/image/upload/v1/banner.jpg',
         public_id: 'sinalizego/company-1/banner/12345',
       });
 

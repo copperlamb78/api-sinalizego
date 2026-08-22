@@ -71,7 +71,8 @@ export class UsersController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de usuários retornada com sucesso (senhas e tokens omitidos)',
+    description:
+      'Lista de usuários retornada com sucesso (senhas e tokens omitidos)',
     schema: {
       example: [
         {
@@ -96,7 +97,9 @@ export class UsersController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Patch('update')
-  @ApiOperation({ summary: 'Atualiza os dados cadastrais (nome, telefone) do usuário logado' })
+  @ApiOperation({
+    summary: 'Atualiza os dados cadastrais (nome, telefone) do usuário logado',
+  })
   @ApiBody({ type: UpdateUserDto, description: 'Atualizar usuário' })
   @ApiResponse({
     status: 200,
@@ -124,7 +127,10 @@ export class UsersController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Patch('change-password')
-  @ApiOperation({ summary: 'Altera a senha do usuário logado mediante confirmação da senha atual' })
+  @ApiOperation({
+    summary:
+      'Altera a senha do usuário logado mediante confirmação da senha atual',
+  })
   @ApiBody({ type: ChangePasswordDto, description: 'Senha atual e nova senha' })
   @ApiResponse({
     status: 200,

@@ -88,11 +88,17 @@ describe('CompanyController', () => {
 
   describe('getCompanyBySlug', () => {
     it('should return public company data by slug', async () => {
-      const expected = { id: 'company-1', businessName: 'Barbearia VIP', slug: 'barbearia-vip' };
+      const expected = {
+        id: 'company-1',
+        businessName: 'Barbearia VIP',
+        slug: 'barbearia-vip',
+      };
       mockCompanyService.getCompanyBySlug.mockResolvedValue(expected);
 
       const result = await controller.getCompanyBySlug('barbearia-vip');
-      expect(companyService.getCompanyBySlug).toHaveBeenCalledWith('barbearia-vip');
+      expect(companyService.getCompanyBySlug).toHaveBeenCalledWith(
+        'barbearia-vip',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -103,7 +109,9 @@ describe('CompanyController', () => {
       mockCompanyService.getCompanyByCompanyId.mockResolvedValue(expected);
 
       const result = await controller.getCompanyById('company-1');
-      expect(companyService.getCompanyByCompanyId).toHaveBeenCalledWith('company-1');
+      expect(companyService.getCompanyByCompanyId).toHaveBeenCalledWith(
+        'company-1',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -115,7 +123,10 @@ describe('CompanyController', () => {
       mockCompanyService.getAllCompaniesByUserId.mockResolvedValue(expected);
 
       const result = await controller.getAllCompaniesByUserId(req);
-      expect(companyService.getAllCompaniesByUserId).toHaveBeenCalledWith('user-1', undefined);
+      expect(companyService.getAllCompaniesByUserId).toHaveBeenCalledWith(
+        'user-1',
+        undefined,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -124,11 +135,22 @@ describe('CompanyController', () => {
     it('should update company data', async () => {
       const req = { user: { sub: 'user-1' } } as any;
       const updateDto = { businessName: 'Barbearia VIP Premium' };
-      const expected = { id: 'company-1', businessName: 'Barbearia VIP Premium' };
+      const expected = {
+        id: 'company-1',
+        businessName: 'Barbearia VIP Premium',
+      };
       mockCompanyService.updateCompany.mockResolvedValue(expected);
 
-      const result = await controller.updateCompany('company-1', updateDto as any, req);
-      expect(companyService.updateCompany).toHaveBeenCalledWith('user-1', 'company-1', updateDto);
+      const result = await controller.updateCompany(
+        'company-1',
+        updateDto as any,
+        req,
+      );
+      expect(companyService.updateCompany).toHaveBeenCalledWith(
+        'user-1',
+        'company-1',
+        updateDto,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -140,7 +162,10 @@ describe('CompanyController', () => {
       mockCompanyService.deactivateCompany.mockResolvedValue(expected);
 
       const result = await controller.deactivateCompany('company-1', req);
-      expect(companyService.deactivateCompany).toHaveBeenCalledWith('user-1', 'company-1');
+      expect(companyService.deactivateCompany).toHaveBeenCalledWith(
+        'user-1',
+        'company-1',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -152,7 +177,10 @@ describe('CompanyController', () => {
       mockCompanyService.activateCompany.mockResolvedValue(expected);
 
       const result = await controller.activateCompany('company-1', req);
-      expect(companyService.activateCompany).toHaveBeenCalledWith('user-1', 'company-1');
+      expect(companyService.activateCompany).toHaveBeenCalledWith(
+        'user-1',
+        'company-1',
+      );
       expect(result).toEqual(expected);
     });
   });

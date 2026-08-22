@@ -41,7 +41,12 @@ describe('AuthController', () => {
       const expectedResult = {
         access_token: 'access_token_jwt',
         refresh_token: 'refresh_token_jwt',
-        user: { id: 'user-1', email: 'user@test.com', name: 'User Test', role: 'USER' },
+        user: {
+          id: 'user-1',
+          email: 'user@test.com',
+          name: 'User Test',
+          role: 'USER',
+        },
       };
 
       mockAuthService.login.mockResolvedValue(expectedResult);
@@ -107,7 +112,9 @@ describe('AuthController', () => {
         },
       } as any;
 
-      mockAuthService.logout.mockResolvedValue({ message: 'Logout realizado com sucesso.' });
+      mockAuthService.logout.mockResolvedValue({
+        message: 'Logout realizado com sucesso.',
+      });
 
       const result = await controller.logout(req);
       expect(authService.logout).toHaveBeenCalledWith('user-1');
@@ -119,7 +126,8 @@ describe('AuthController', () => {
     it('should call authService.forgotPassword', async () => {
       const dto = { email: 'user@test.com' };
       const expected = {
-        message: 'Se o e-mail informado estiver cadastrado, as instruções para redefinição de senha foram enviadas.',
+        message:
+          'Se o e-mail informado estiver cadastrado, as instruções para redefinição de senha foram enviadas.',
       };
       mockAuthService.forgotPassword.mockResolvedValue(expected);
 
@@ -131,7 +139,10 @@ describe('AuthController', () => {
 
   describe('resetPassword', () => {
     it('should call authService.resetPassword', async () => {
-      const dto = { token: 'jwt.token.here', newPassword: 'newSecurePassword123' };
+      const dto = {
+        token: 'jwt.token.here',
+        newPassword: 'newSecurePassword123',
+      };
       const expected = { message: 'Senha redefinida com sucesso.' };
       mockAuthService.resetPassword.mockResolvedValue(expected);
 

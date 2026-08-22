@@ -57,7 +57,12 @@ describe('UsersService', () => {
   describe('getAllUsers', () => {
     it('should query all users using USER_PUBLIC_SELECT to protect passwords and tokens', async () => {
       const usersMock = [
-        { id: 'u1', name: 'User 1', email: 'u1@test.com', phone: '11999999999' },
+        {
+          id: 'u1',
+          name: 'User 1',
+          email: 'u1@test.com',
+          phone: '11999999999',
+        },
       ];
       mockPrisma.user.findMany.mockResolvedValue(usersMock);
 
@@ -80,8 +85,15 @@ describe('UsersService', () => {
     });
 
     it('should only update name and phone, returning public select', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', name: 'Old' });
-      mockPrisma.user.update.mockResolvedValue({ id: 'user-1', name: 'Novo Nome', phone: '11988887777' });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        name: 'Old',
+      });
+      mockPrisma.user.update.mockResolvedValue({
+        id: 'user-1',
+        name: 'Novo Nome',
+        phone: '11988887777',
+      });
 
       const result = await service.updateUser('user-1', {
         name: 'Novo Nome',

@@ -37,4 +37,3 @@ export class CalculateTax {
     return Number(roundedFee.toFixed(2));
   }
 }
-

@@ -26,9 +26,7 @@ import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
 @Controller('company-service')
 export class CompanyServiceController {
-  constructor(
-    private readonly companyServiceService: CompanyServiceService,
-  ) {}
+  constructor(private readonly companyServiceService: CompanyServiceService) {}
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)

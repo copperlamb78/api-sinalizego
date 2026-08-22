@@ -67,7 +67,9 @@ describe('MailService', () => {
     });
 
     it('should return false without throwing when Brevo api fails', async () => {
-      mockSendTransacEmail.mockRejectedValue(new Error('Brevo API network failure'));
+      mockSendTransacEmail.mockRejectedValue(
+        new Error('Brevo API network failure'),
+      );
 
       const result = await service.sendPasswordResetEmail(
         'cliente@test.com',

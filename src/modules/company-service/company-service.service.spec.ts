@@ -62,7 +62,10 @@ describe('CompanyServiceService', () => {
     });
 
     it('should throw NotFoundException if company has no active services', async () => {
-      mockPrisma.company.findUnique.mockResolvedValue({ id: 'comp-1', slug: 'barbearia' });
+      mockPrisma.company.findUnique.mockResolvedValue({
+        id: 'comp-1',
+        slug: 'barbearia',
+      });
       mockPrisma.service.findMany.mockResolvedValue([]);
 
       await expect(service.getServicesBySlug('barbearia')).rejects.toThrow(
@@ -71,7 +74,10 @@ describe('CompanyServiceService', () => {
     });
 
     it('should return services with calculated platformTax in Reais', async () => {
-      mockPrisma.company.findUnique.mockResolvedValue({ id: 'comp-1', slug: 'barbearia' });
+      mockPrisma.company.findUnique.mockResolvedValue({
+        id: 'comp-1',
+        slug: 'barbearia',
+      });
       const mockServices = [
         {
           id: 'svc-1',

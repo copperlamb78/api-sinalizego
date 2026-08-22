@@ -72,7 +72,9 @@ describe('AuthService', () => {
     it('should return generic response without sending email if user is not found (prevents enumeration)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      const result = await service.forgotPassword({ email: 'nonexistent@test.com' });
+      const result = await service.forgotPassword({
+        email: 'nonexistent@test.com',
+      });
 
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: 'nonexistent@test.com' },
@@ -80,7 +82,9 @@ describe('AuthService', () => {
       });
       expect(mockJwtService.signAsync).not.toHaveBeenCalled();
       expect(mockMailService.sendPasswordResetEmail).not.toHaveBeenCalled();
-      expect(result.message).toContain('Se o e-mail informado estiver cadastrado');
+      expect(result.message).toContain(
+        'Se o e-mail informado estiver cadastrado',
+      );
     });
 
     it('should generate JWT with dynamic secret (JWT_SECRET + user.password) and send email when user exists', async () => {
@@ -106,7 +110,9 @@ describe('AuthService', () => {
         'João Silva',
         'http://localhost:3000/reset-password?token=dynamic.jwt.token',
       );
-      expect(result.message).toContain('Se o e-mail informado estiver cadastrado');
+      expect(result.message).toContain(
+        'Se o e-mail informado estiver cadastrado',
+      );
     });
   });
 
@@ -117,7 +123,10 @@ describe('AuthService', () => {
       });
 
       await expect(
-        service.resetPassword({ token: 'invalid.token', newPassword: 'newPassword123' }),
+        service.resetPassword({
+          token: 'invalid.token',
+          newPassword: 'newPassword123',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -125,7 +134,10 @@ describe('AuthService', () => {
       mockJwtService.decode.mockReturnValue({});
 
       await expect(
-        service.resetPassword({ token: 'invalid.token', newPassword: 'newPassword123' }),
+        service.resetPassword({
+          token: 'invalid.token',
+          newPassword: 'newPassword123',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -134,7 +146,10 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.resetPassword({ token: 'valid.token', newPassword: 'newPassword123' }),
+        service.resetPassword({
+          token: 'valid.token',
+          newPassword: 'newPassword123',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -145,10 +160,15 @@ describe('AuthService', () => {
         email: 'joao@test.com',
         password: 'currentHashedPassword',
       });
-      mockJwtService.verifyAsync.mockRejectedValue(new Error('Invalid signature / expired'));
+      mockJwtService.verifyAsync.mockRejectedValue(
+        new Error('Invalid signature / expired'),
+      );
 
       await expect(
-        service.resetPassword({ token: 'token.signed.with.old.password', newPassword: 'newPassword123' }),
+        service.resetPassword({
+          token: 'token.signed.with.old.password',
+          newPassword: 'newPassword123',
+        }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -167,10 +187,9 @@ describe('AuthService', () => {
         newPassword: 'newSecurePassword456',
       });
 
-      expect(mockJwtService.verifyAsync).toHaveBeenCalledWith(
-        'valid.token',
-        { secret: 'test_jwt_secretcurrentHashedPassword' },
-      );
+      expect(mockJwtService.verifyAsync).toHaveBeenCalledWith('valid.token', {
+        secret: 'test_jwt_secretcurrentHashedPassword',
+      });
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: expect.objectContaining({

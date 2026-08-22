@@ -41,9 +41,7 @@ export class TransactionsService {
     }
 
     if (appointment.status !== 'PENDING_PAYMENT') {
-      throw new ConflictException(
-        'Agendamento não está aguardando pagamento.',
-      );
+      throw new ConflictException('Agendamento não está aguardando pagamento.');
     }
 
     if (appointment.expiresAt && appointment.expiresAt < new Date()) {

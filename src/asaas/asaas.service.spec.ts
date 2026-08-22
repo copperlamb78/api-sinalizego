@@ -1,0 +1,358 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { AsaasService } from './asaas.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CalculateTax } from 'src/helpers/calculate-tax.helper';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import { BARBER_ASAAS_PIX_FEE } from 'src/common/constants/billing.constant';
+
+describe('AsaasService', () => {
+  let service: AsaasService;
+  let prisma: PrismaService;
+  let calculateTax: CalculateTax;
+
+  const mockPrisma = {
+    financialProfile: {
+      findUnique: jest.fn(),
+    },
+  };
+
+  const mockCalculateTax = {
+    calculatePlatformTax: jest.fn().mockReturnValue(2.0),
+  };
+
+  const originalEnv = process.env;
+
+  beforeEach(async () => {
+    process.env = {
+      ...originalEnv,
+      ASAAS_API_URL: 'https://sandbox.asaas.com/api/v3',
+      ASAAS_API_KEY: 'test_api_key',
+      ASAAS_PIX_FEE: '0.99',
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AsaasService,
+        {
+          provide: PrismaService,
+          useValue: mockPrisma,
+        },
+        {
+          provide: CalculateTax,
+          useValue: mockCalculateTax,
+        },
+      ],
+    }).compile();
+
+    service = module.get<AsaasService>(AsaasService);
+    prisma = module.get<PrismaService>(PrismaService);
+    calculateTax = module.get<CalculateTax>(CalculateTax);
+
+    jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('Initialization and ASAAS_PIX_FEE validation', () => {
+    it('should initialize with configured ASAAS_PIX_FEE', () => {
+      expect(service.asaasPixFee).toBe(0.99);
+    });
+
+    it('should fallback to default fee when ASAAS_PIX_FEE is not set', () => {
+      const savedEnv = process.env.ASAAS_PIX_FEE;
+      delete process.env.ASAAS_PIX_FEE;
+
+      const instance = new AsaasService(
+        mockPrisma as any,
+        mockCalculateTax as any,
+      );
+      expect(instance.asaasPixFee).toBe(BARBER_ASAAS_PIX_FEE);
+      instance.onModuleInit();
+
+      process.env.ASAAS_PIX_FEE = savedEnv;
+    });
+
+    it('should fallback to default fee when ASAAS_PIX_FEE is invalid', () => {
+      const savedEnv = process.env.ASAAS_PIX_FEE;
+      process.env.ASAAS_PIX_FEE = 'invalid_number';
+
+      const instance = new AsaasService(
+        mockPrisma as any,
+        mockCalculateTax as any,
+      );
+      expect(instance.asaasPixFee).toBe(BARBER_ASAAS_PIX_FEE);
+      instance.onModuleInit();
+
+      process.env.ASAAS_PIX_FEE = savedEnv;
+    });
+
+    it('should run onModuleInit without throwing when configured properly', () => {
+      expect(() => service.onModuleInit()).not.toThrow();
+    });
+  });
+
+  describe('createPixChargeWithSplit', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should create pix charge with split, calculating barber net value and returning real fee from Asaas response', async () => {
+      const mockPaymentResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          id: 'pay_test_123',
+          value: 22.0,
+          netValue: 20.51,
+          fee: 1.49,
+        }),
+      };
+
+      const mockQrCodeResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          encodedImage: 'base64image',
+          payload: 'pix_payload_123',
+          expirationDate: new Date('2026-08-22T12:00:00Z'),
+        }),
+      };
+
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(mockPaymentResponse as any)
+        .mockResolvedValueOnce(mockQrCodeResponse as any);
+
+      const result = await service.createPixChargeWithSplit(
+        'cus_123',
+        'wallet_barber_123',
+        20.0,
+        'appt-1',
+        2.0,
+      );
+
+      expect(result).toEqual({
+        paymentId: 'pay_test_123',
+        totalValue: 22.0,
+        qrCodePayload: 'pix_payload_123',
+        qrCodeImage: 'base64image',
+        expirationDate: new Date('2026-08-22T12:00:00Z'),
+        barberNetValue: 19.01, // 20.00 - 0.99
+        platformFee: 2.0,
+        asaasFee: 1.49, // real fee returned by Asaas
+      });
+    });
+
+    it('should fallback asaasFee to value - netValue when fee field is missing in payment response', async () => {
+      const mockPaymentResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          id: 'pay_test_456',
+          value: 30.0,
+          netValue: 28.01,
+        }),
+      };
+
+      const mockQrCodeResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          encodedImage: 'base64image',
+          payload: 'pix_payload_456',
+          expirationDate: new Date('2026-08-22T12:00:00Z'),
+        }),
+      };
+
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(mockPaymentResponse as any)
+        .mockResolvedValueOnce(mockQrCodeResponse as any);
+
+      const result = await service.createPixChargeWithSplit(
+        'cus_123',
+        'wallet_barber_123',
+        25.0,
+        'appt-2',
+        5.0,
+      );
+
+      expect(result.asaasFee).toBe(1.99); // 30.00 - 28.01
+    });
+
+    it('should throw BadRequestException if Asaas payment creation returns an error', async () => {
+      const mockErrorResponse = {
+        ok: false,
+        json: jest.fn().mockResolvedValue({
+          errors: [{ description: 'Cliente inválido' }],
+        }),
+      };
+
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(mockErrorResponse as any);
+
+      await expect(
+        service.createPixChargeWithSplit(
+          'cus_invalid',
+          'wallet_123',
+          20.0,
+          'appt-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getPixQrCode', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should return QR Code data for valid paymentId', async () => {
+      const mockQrResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          encodedImage: 'img_base64',
+          payload: 'payload_string',
+          expirationDate: new Date('2026-08-22T12:00:00Z'),
+        }),
+      };
+
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce(mockQrResponse as any);
+
+      const result = await service.getPixQrCode('pay_123');
+      expect(result).toEqual({
+        qrCodePayload: 'payload_string',
+        qrCodeImage: 'img_base64',
+        expirationDate: new Date('2026-08-22T12:00:00Z'),
+      });
+    });
+
+    it('should throw BadRequestException if Asaas QR code fetch fails', async () => {
+      const mockErrorResponse = {
+        ok: false,
+        json: jest.fn().mockResolvedValue({
+          errors: [{ description: 'Cobrança não encontrada' }],
+        }),
+      };
+
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(mockErrorResponse as any);
+
+      await expect(service.getPixQrCode('pay_unknown')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('createCustomer', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should create customer and return customerId', async () => {
+      const mockCustomerResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({ id: 'cus_new_123' }),
+      };
+
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(mockCustomerResponse as any);
+
+      const result = await service.createCustomer(
+        '12345678901',
+        'Cliente Teste',
+      );
+      expect(result).toBe('cus_new_123');
+    });
+
+    it('should throw BadRequestException if customer creation fails', async () => {
+      const mockErrorResponse = {
+        ok: false,
+        json: jest.fn().mockResolvedValue({
+          errors: [{ description: 'CPF inválido' }],
+        }),
+      };
+
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(mockErrorResponse as any);
+
+      await expect(
+        service.createCustomer('invalid_cpf', 'Teste'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cancelPayment', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should return true when Asaas deletes payment successfully', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true } as any);
+      const result = await service.cancelPayment('pay_123');
+      expect(result).toBe(true);
+    });
+
+    it('should return false when Asaas deletion fails', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        json: jest.fn().mockResolvedValue({ errors: [] }),
+      } as any);
+      const result = await service.cancelPayment('pay_123');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('refundPayment', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should return true when refund succeeds', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true } as any);
+      const result = await service.refundPayment('pay_123', 20.0, 'Estorno');
+      expect(result).toBe(true);
+    });
+
+    it('should return false when refund request fails', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        json: jest.fn().mockResolvedValue({ errors: [] }),
+      } as any);
+      const result = await service.refundPayment('pay_123');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('getSubacccountBalance', () => {
+    it('should throw NotFoundException if financial profile is not found', async () => {
+      mockPrisma.financialProfile.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getSubacccountBalance('wallet_123', 'user_123'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if asaasApiKey is missing', async () => {
+      mockPrisma.financialProfile.findUnique.mockResolvedValue({
+        walletId: 'wallet_123',
+        userId: 'user_123',
+        asaasApiKey: null,
+      });
+
+      await expect(
+        service.getSubacccountBalance('wallet_123', 'user_123'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+});

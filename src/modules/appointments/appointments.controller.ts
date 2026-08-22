@@ -136,9 +136,15 @@ export class AppointmentsController {
     status: 200,
     description: 'Status do agendamento atualizado com sucesso',
   })
-  @ApiResponse({ status: 400, description: 'Status inválido ou transição não permitida' })
+  @ApiResponse({
+    status: 400,
+    description: 'Status inválido ou transição não permitida',
+  })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Acesso negado para este agendamento' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado para este agendamento',
+  })
   @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
   async updateStatus(
     @Param('id', ParseUUIDPipe) appointmentId: string,

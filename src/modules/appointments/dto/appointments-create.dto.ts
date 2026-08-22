@@ -45,4 +45,3 @@ export class CreateAppointmentsDto {
   @Max(100, { message: 'A porcentagem de sinal máxima é 100%' })
   downPaymentPercent?: number;
 }
-

@@ -102,10 +102,15 @@ describe('CompanyServiceController', () => {
     it('should list services of the company for the logged owner', async () => {
       const req = { user: { sub: 'owner-1' } } as any;
       const expected = [{ id: 'service-1', name: 'Corte Tradicional' }];
-      mockCompanyServiceService.getServicesByCompany.mockResolvedValue(expected);
+      mockCompanyServiceService.getServicesByCompany.mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.getServicesByCompany(req, undefined);
-      expect(service.getServicesByCompany).toHaveBeenCalledWith('owner-1', undefined);
+      expect(service.getServicesByCompany).toHaveBeenCalledWith(
+        'owner-1',
+        undefined,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -128,8 +133,16 @@ describe('CompanyServiceController', () => {
       const expected = { id: 'service-1', name: 'Corte Degradê Premium' };
       mockCompanyServiceService.updateService.mockResolvedValue(expected);
 
-      const result = await controller.update('service-1', updateDto as any, req);
-      expect(service.updateService).toHaveBeenCalledWith('owner-1', 'service-1', updateDto);
+      const result = await controller.update(
+        'service-1',
+        updateDto as any,
+        req,
+      );
+      expect(service.updateService).toHaveBeenCalledWith(
+        'owner-1',
+        'service-1',
+        updateDto,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -141,7 +154,10 @@ describe('CompanyServiceController', () => {
       mockCompanyServiceService.deactivateService.mockResolvedValue(expected);
 
       const result = await controller.deactivateService('service-1', req);
-      expect(service.deactivateService).toHaveBeenCalledWith('owner-1', 'service-1');
+      expect(service.deactivateService).toHaveBeenCalledWith(
+        'owner-1',
+        'service-1',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -153,7 +169,10 @@ describe('CompanyServiceController', () => {
       mockCompanyServiceService.activateService.mockResolvedValue(expected);
 
       const result = await controller.activateService('service-1', req);
-      expect(service.activateService).toHaveBeenCalledWith('owner-1', 'service-1');
+      expect(service.activateService).toHaveBeenCalledWith(
+        'owner-1',
+        'service-1',
+      );
       expect(result).toEqual(expected);
     });
   });

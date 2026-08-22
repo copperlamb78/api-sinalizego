@@ -98,6 +98,7 @@ FRONTEND_URL="http://localhost:3000"
 ASAAS_API_URL="https://sandbox.asaas.com/api/v3"
 ASAAS_API_KEY="$aact_YTU5YTE0M2..."
 ASAAS_WEBHOOK_SECRET="seu-token-webhook"
+ASAAS_PIX_FEE=0.99
 ```
 
 ### 🏃 Scripts Disponíveis
@@ -570,7 +571,7 @@ npm test
 - **Sobreposição Canônica & Prevenção de Race Condition:** Bloqueio de agendamento em horários passados, checagem de sobreposição canônica de intervalos (`appointmentDate < newEndDate` e `appointmentEndDate > newStartDate`) agrupada pelo `serviceGroupId`, e transação atômica (`prisma.$transaction`) impedindo duplo agendamento simultâneo.
 - **Webhooks Asaas, Salvaguarda de Estorno & Conciliação:** Confirmação atômica de agendamento e transação em pagamentos no prazo, **estorno automático imediato (`POST /v3/payments/{id}/refund`)** com status `REFUNDED` para pagamentos recebidos após cancelamento/expiração de reserva, e tratamento de eventos de estorno e chargeback.
 - **Vitrine Pública & Histórico Congelado:** Exibição precisa de taxas em Reais na vitrine pública (`getServicesBySlug`), persistência congelada de `platformFeeAmount` e `downPaymentAmount` no banco de dados e reutilização exata na emissão de Pix no Asaas sem recálculos divergentes.
-- **Integridade Financeira, Blocos Dinâmicos & Split Asaas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com **arredondamento para cima em múltiplos de R$ 0,25** e piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (25% ou 50%), seleção dinâmica de blocos pelo cliente (`[piso, 50, 75, 100]`), **trava de microtransações (Safety Gate de R$ 15,00)** com descarte de blocos inválidos/rejeição de sinais menores que R$ 15,00 e repasse fixo ao barbeiro (desconto de R$ 0,99).
+- **Integridade Financeira, Blocos Dinâmicos & Split Asaas:** Cálculo de taxa da plataforma por faixas cumulativas progressivas (15%, 10%, 5%) com **arredondamento para cima em múltiplos de R$ 0,25** e piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (25% ou 50%), seleção dinâmica de blocos pelo cliente (`[piso, 50, 75, 100]`), **trava de microtransações (Safety Gate de R$ 15,00)** com descarte de blocos inválidos/rejeição de sinais menores que R$ 15,00, taxa Asaas parametrizável (`ASAAS_PIX_FEE`) com validação no boot e atualização automática da taxa real liquidada via webhook (`Transaction.asaasFee`).
 
 ---
 

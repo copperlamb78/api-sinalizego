@@ -3,7 +3,13 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/user-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtRefreshGuard } from './jwt/guard/jwt-refresh.guard';
 import type { Request } from 'express';
 import { JwtAuthGuard } from './jwt/guard/jwt-auth.guard';
@@ -20,10 +26,8 @@ export class AuthController {
     description: 'Login realizado com sucesso',
     schema: {
       example: {
-        access_token:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        refresh_token:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         user: {
           id: 'clsw0s2b0003138mg1wmg1wmg1',
           name: 'João Silva',
@@ -94,7 +98,8 @@ export class AuthController {
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({
     status: 200,
-    description: 'Resposta genérica de segurança (instruções enviadas se e-mail existir)',
+    description:
+      'Resposta genérica de segurança (instruções enviadas se e-mail existir)',
     schema: {
       example: {
         message:
@@ -109,7 +114,8 @@ export class AuthController {
 
   @Post('reset-password')
   @ApiOperation({
-    summary: 'Redefine a senha utilizando o token stateless recebido por e-mail',
+    summary:
+      'Redefine a senha utilizando o token stateless recebido por e-mail',
   })
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({

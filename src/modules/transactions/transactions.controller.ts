@@ -50,11 +50,23 @@ export class TransactionsController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'ID inválido (não UUID) ou cliente sem cadastro financeiro' })
+  @ApiResponse({
+    status: 400,
+    description: 'ID inválido (não UUID) ou cliente sem cadastro financeiro',
+  })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Acesso negado para este agendamento' })
-  @ApiResponse({ status: 404, description: 'Agendamento ou empresa não encontrada' })
-  @ApiResponse({ status: 409, description: 'Agendamento não está aguardando pagamento' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado para este agendamento',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Agendamento ou empresa não encontrada',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Agendamento não está aguardando pagamento',
+  })
   @ApiResponse({ status: 410, description: 'Reserva expirada' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async createPix(

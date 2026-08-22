@@ -288,7 +288,9 @@ describe('AppointmentsService', () => {
           'user-1',
         ),
       ).rejects.toThrow(
-        new BadRequestException('A data do agendamento deve ser uma data futura.'),
+        new BadRequestException(
+          'A data do agendamento deve ser uma data futura.',
+        ),
       );
     });
 
@@ -343,7 +345,10 @@ describe('AppointmentsService', () => {
       });
       // 1 agendamento já sobrepondo o horário
       mockPrisma.appointment.findMany.mockResolvedValue([
-        { id: 'appt-existing-overlap', appointmentDate: new Date('2026-09-01T10:15:00Z') },
+        {
+          id: 'appt-existing-overlap',
+          appointmentDate: new Date('2026-09-01T10:15:00Z'),
+        },
       ]);
 
       await expect(
@@ -378,7 +383,9 @@ describe('AppointmentsService', () => {
     it('should return empty list if user has no companies', async () => {
       mockPrisma.company.findMany.mockResolvedValue([]);
 
-      const result = await service.getAppointmentByCompanyId('owner-without-company');
+      const result = await service.getAppointmentByCompanyId(
+        'owner-without-company',
+      );
 
       expect(mockPrisma.company.findMany).toHaveBeenCalledWith({
         where: { userId: 'owner-without-company' },

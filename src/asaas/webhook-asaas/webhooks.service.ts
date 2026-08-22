@@ -67,11 +67,30 @@ export class WebhooksService {
             break;
           }
 
+          // Extrair a taxa real do Asaas liquidada no webhook (se informada)
+          const realAsaasFee =
+            payment?.fee !== undefined && payment?.fee !== null
+              ? Number(payment.fee)
+              : payment?.value !== undefined && payment?.netValue !== undefined
+                ? Number(
+                    (Number(payment.value) - Number(payment.netValue)).toFixed(
+                      2,
+                    ),
+                  )
+                : undefined;
+
           // Fluxo regular: Confirma agendamento e transação
           await this.prisma.$transaction([
             this.prisma.transaction.update({
               where: { id: transaction.id },
-              data: { status: TransactionStatus.CONFIRMED },
+              data: {
+                status: TransactionStatus.CONFIRMED,
+                ...(realAsaasFee !== undefined &&
+                !isNaN(realAsaasFee) &&
+                realAsaasFee >= 0
+                  ? { asaasFee: realAsaasFee }
+                  : {}),
+              },
             }),
             this.prisma.appointment.update({
               where: { id: transaction.appointmentId },
@@ -80,7 +99,7 @@ export class WebhooksService {
           ]);
 
           this.logger.log(
-            `[Webhook Asaas] Pagamento ${payment.id} CONFIRMADO. Agendamento ${transaction.appointmentId} atualizado para CONFIRMED.`,
+            `[Webhook Asaas] Pagamento ${payment.id} CONFIRMADO. Agendamento ${transaction.appointmentId} atualizado para CONFIRMED.${realAsaasFee !== undefined ? ` Taxa Asaas atualizada para R$ ${realAsaasFee.toFixed(2)}.` : ''}`,
           );
         }
         break;
