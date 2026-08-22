@@ -13,6 +13,7 @@ import {
 import { JwtRefreshGuard } from './jwt/guard/jwt-refresh.guard';
 import type { Request } from 'express';
 import { JwtAuthGuard } from './jwt/guard/jwt-auth.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Autenticação')
 @Controller('auth')
@@ -39,7 +40,12 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Senha inválida' })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  @ApiResponse({
+    status: 429,
+    description: 'Muitas tentativas. Tente novamente mais tarde.',
+  })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   async login(@Body() data: LoginDto) {
     return this.authService.login(data);
@@ -47,6 +53,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @UseGuards(JwtRefreshGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('refresh')
   @ApiOperation({ summary: 'Renova os tokens de acesso e refresh' })
   @ApiResponse({
@@ -91,6 +98,7 @@ export class AuthController {
     return this.authService.logout(userId);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('forgot-password')
   @ApiOperation({
     summary: 'Solicita a recuperação de senha enviando link por e-mail',
@@ -108,10 +116,15 @@ export class AuthController {
     },
   })
   @ApiResponse({ status: 400, description: 'E-mail inválido' })
+  @ApiResponse({
+    status: 429,
+    description: 'Muitas tentativas. Tente novamente mais tarde.',
+  })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('reset-password')
   @ApiOperation({
     summary:
@@ -129,6 +142,10 @@ export class AuthController {
   })
   @ApiResponse({ status: 400, description: 'Token inválido ou malformado' })
   @ApiResponse({ status: 401, description: 'Token expirado ou inválido' })
+  @ApiResponse({
+    status: 429,
+    description: 'Muitas tentativas. Tente novamente mais tarde.',
+  })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
   }

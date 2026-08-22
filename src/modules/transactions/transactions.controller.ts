@@ -16,6 +16,7 @@ import {
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { TransactionsService } from './transactions.service';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Transações')
 @Controller('transactions')
@@ -24,6 +25,7 @@ export class TransactionsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('pix/:appointmentId')
   @ApiOperation({
     summary: 'Cria ou recupera a cobrança PIX para reserva de agendamento',

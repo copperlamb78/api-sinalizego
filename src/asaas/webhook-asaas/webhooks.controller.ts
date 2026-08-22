@@ -10,8 +10,10 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AsaasWebhookGuard } from './guard/asaas-webhook.guard';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WebhooksService } from './webhooks.service';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @ApiTags('Webhooks')
+@SkipThrottle()
 @Controller('webhooks')
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}

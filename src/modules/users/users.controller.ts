@@ -28,17 +28,24 @@ import {
   SYSTEM_MANAGERS,
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Usuários')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('create')
   @ApiOperation({ summary: 'Cria um novo usuário na plataforma' })
   @ApiBody({ type: CreateUserDto, description: 'Criar usuário' })
   @ApiResponse({ status: 400, description: 'Erro ao criar usuário' })
   @ApiResponse({ status: 409, description: 'E-mail já está em uso' })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Muitas contas criadas em curto intervalo. Tente novamente mais tarde.',
+  })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   @ApiResponse({
     status: 201,
