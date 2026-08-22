@@ -12,12 +12,14 @@ import {
 import { SlugHelper } from './helpers/create-slug.helper';
 import { UpdateCompanyDto } from './dto/company-update.dto';
 import { FilterCompanyDto } from './dto/company-filter.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class CompanyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly slugHelper: SlugHelper,
+    private readonly authService: AuthService,
   ) {}
 
   async createCompanyWithUser(data: CreateCompanyDto) {
@@ -58,9 +60,21 @@ export class CompanyService {
 
     const { password, ...companyUserWithoutPassword } = companyUser;
 
+    const tokens = await this.authService.getTokens(
+      companyUser.id,
+      companyUser.email,
+      'COMPANY_OWNER',
+    );
+    await this.authService.updateRefreshTokenHash(
+      companyUser.id,
+      tokens.refreshToken,
+    );
+
     return {
       message: 'Empresa criada com sucesso',
       user: companyUserWithoutPassword,
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
     };
   }
 
@@ -95,9 +109,19 @@ export class CompanyService {
       });
     }
 
+    const tokens = await this.authService.getTokens(
+      user.id,
+      user.email,
+      'COMPANY_OWNER',
+    );
+    await this.authService.updateRefreshTokenHash(user.id, tokens.refreshToken);
+
     return {
       message: 'Empresa criada com sucesso',
       user: company,
+      company: company,
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
     };
   }
 
