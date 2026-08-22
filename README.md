@@ -564,7 +564,7 @@ npm test
 - **Autenticação & Tokens:** Login, geração e renovação de JWT/refresh token, logout.
 - **Recuperação de Senha:** Proteção contra enumeração de e-mail, assinatura dinâmica stateless com `JWT_SECRET + user.password`, rejeição de tokens expirados/usados e redefinição de senha com invalidação de refresh token.
 - **E-mails Brevo:** Disparo correto com dados populados e tratamento silencioso de erros de rede da API Brevo.
-- **Usuários:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF.
+- **Usuários & Gestão de Contas:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF, rota para auto-desativação (`DELETE /users/me`), e rotas administrativas exclusivas para desativação e reativação de contas de terceiros (`DELETE /users/:userId` e `PATCH /users/:userId/activate` restritas a `SYSTEM_MANAGERS`).
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos, grupos de serviços e uploads de empresas concorrentes, validação estrita de posse em criação, edição, exclusão e uploads.
 - **Uploads Seguros & Magic Bytes:** Proteção com `RolesGuard`, limite de 5MB por arquivo, validação de posse da empresa e inspeção binária real de magic bytes para JPEG, PNG e WEBP.
 - **Proteção Anti-DoS de Reservas & Limpeza Automática:** Descarte imediato de reservas `PENDING_PAYMENT` expiradas na contagem de vagas, limite estrito de 3 reservas pendentes simultâneas por cliente e cron job a cada minuto (`@nestjs/schedule`) cancelando agendamentos/cobranças Asaas expiradas.

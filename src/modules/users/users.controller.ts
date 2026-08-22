@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Param,
   Patch,
   Post,
   Req,
@@ -13,6 +14,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -210,13 +212,14 @@ export class UsersController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...INTERNAL_NO_EMPLOYEE)
-  @Delete('deactivate/:userId')
-  @ApiOperation({ summary: 'Desativa o cadastro do usuário (Soft Delete)' })
+  @UseGuards(JwtAuthGuard)
+  @Delete('me')
+  @ApiOperation({
+    summary: 'Desativa a própria conta do usuário logado (Soft Delete)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Usuário desativado com sucesso',
+    description: 'Conta do usuário desativada com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -230,21 +233,57 @@ export class UsersController {
       },
     },
   })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async deactivateUser(@Req() req: Request) {
+  async deactivateMyAccount(@Req() req: Request) {
     const userId = req.user?.['sub'];
     return this.usersService.deactivateUser(userId);
   }
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...INTERNAL_NO_EMPLOYEE)
-  @Patch('activate/:userId')
-  @ApiOperation({ summary: 'Reativa o cadastro do usuário' })
+  @Roles(...SYSTEM_MANAGERS)
+  @Delete(':userId')
+  @ApiOperation({
+    summary:
+      'Desativa o cadastro de um usuário específico (Apenas Administradores)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Usuário ativado com sucesso',
+    description: 'Usuário desativado com sucesso pelo administrador',
+    schema: {
+      example: {
+        id: 'clsw0s98x000013z81z8z8z8z',
+        name: 'João Silva',
+        email: 'joao.silva@example.com',
+        phone: '5561999999999',
+        role: 'USER',
+        createdAt: '2026-07-18T10:33:00.000Z',
+        isActive: false,
+        disabledAt: '2026-07-18T10:33:00.000Z',
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  @ApiResponse({ status: 404, description: 'Usuário não encontrado.' })
+  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async deactivateUserByAdmin(@Param('userId') userId: string) {
+    return this.usersService.deactivateUser(userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SYSTEM_MANAGERS)
+  @Patch(':userId/activate')
+  @ApiOperation({
+    summary:
+      'Reativa o cadastro de um usuário específico (Apenas Administradores)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Usuário reativado com sucesso pelo administrador',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -258,10 +297,11 @@ export class UsersController {
       },
     },
   })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado.' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async activateUser(@Req() req: Request) {
-    const userId = req.user?.['sub'];
+  async activateUserByAdmin(@Param('userId') userId: string) {
     return this.usersService.activateUser(userId);
   }
 }

@@ -124,26 +124,38 @@ describe('UsersController', () => {
     });
   });
 
-  describe('deactivateUser', () => {
-    it('should deactivate user', async () => {
+  describe('deactivateMyAccount', () => {
+    it('should deactivate the authenticated user account', async () => {
       const req = { user: { sub: 'user-1' } } as any;
       const expected = { id: 'user-1', isActive: false };
       mockUsersService.deactivateUser.mockResolvedValue(expected);
 
-      const result = await controller.deactivateUser(req);
+      const result = await controller.deactivateMyAccount(req);
       expect(usersService.deactivateUser).toHaveBeenCalledWith('user-1');
       expect(result).toEqual(expected);
     });
   });
 
-  describe('activateUser', () => {
-    it('should activate user', async () => {
-      const req = { user: { sub: 'user-1' } } as any;
-      const expected = { id: 'user-1', isActive: true };
+  describe('deactivateUserByAdmin', () => {
+    it('should allow admin to deactivate specific user by userId param', async () => {
+      const expected = { id: 'target-user-123', isActive: false };
+      mockUsersService.deactivateUser.mockResolvedValue(expected);
+
+      const result = await controller.deactivateUserByAdmin('target-user-123');
+      expect(usersService.deactivateUser).toHaveBeenCalledWith(
+        'target-user-123',
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('activateUserByAdmin', () => {
+    it('should allow admin to activate specific user by userId param', async () => {
+      const expected = { id: 'target-user-123', isActive: true };
       mockUsersService.activateUser.mockResolvedValue(expected);
 
-      const result = await controller.activateUser(req);
-      expect(usersService.activateUser).toHaveBeenCalledWith('user-1');
+      const result = await controller.activateUserByAdmin('target-user-123');
+      expect(usersService.activateUser).toHaveBeenCalledWith('target-user-123');
       expect(result).toEqual(expected);
     });
   });
