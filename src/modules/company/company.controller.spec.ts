@@ -116,6 +116,18 @@ describe('CompanyController', () => {
     });
   });
 
+  describe('getCompanyByUserId', () => {
+    it('should return company for the authenticated user from req.user.sub', async () => {
+      const req = { user: { sub: 'user-1' } } as any;
+      const expected = { id: 'company-1', businessName: 'Barbearia VIP' };
+      mockCompanyService.getCompanyByUserId.mockResolvedValue(expected);
+
+      const result = await controller.getCompanyByUserId(req);
+      expect(companyService.getCompanyByUserId).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual(expected);
+    });
+  });
+
   describe('getAllCompaniesByUserId', () => {
     it('should return companies for authenticated user', async () => {
       const req = { user: { sub: 'user-1' } } as any;
