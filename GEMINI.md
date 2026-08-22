@@ -40,6 +40,10 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   **Purpose**: Validates real binary file signatures (Magic Bytes) for image uploads (JPEG, PNG, WEBP) to prevent malicious or forged MIME uploads.
     *   **Methods**: `isValidImageMagicBytes(buffer: Buffer): boolean`.
 
+*   **`CryptoHelper` (Helper - `src/helpers/crypto.helper.ts`)**:
+    *   **Purpose**: Symmetric encryption and decryption at rest (AES-256-GCM) with authentication tags for sensitive credentials (e.g. `asaasApiKey`).
+    *   **Methods**: `CryptoHelper.encrypt(plaintext: string): string` and `CryptoHelper.decrypt(ciphertext: string): string`.
+
 *   **`PrismaClientExceptionFilter` (Filter - `src/common/filters/prisma-client-exception.filter.ts`)**:
     *   **Purpose**: This is already registered globally in `main.ts`. It maps Prisma errors (`P2002` Conflict, `P2025` Not Found) to proper HTTP responses. Do not write manual try-catch blocks in controllers just to return 404 or 409 for these Prisma errors. Rely on the global filter.
 

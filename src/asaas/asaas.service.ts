@@ -15,6 +15,7 @@ import {
   BARBER_ASAAS_PIX_FEE,
   DEFAULT_ASAAS_GATEWAY_COST,
 } from 'src/common/constants/billing.constant';
+import { CryptoHelper } from 'src/helpers/crypto.helper';
 
 export interface AsaasAccountResponse {
   id: string;
@@ -224,19 +225,22 @@ export class AsaasService implements OnModuleInit {
   async getSubacccountBalance(walletId: string, userId: string) {
     const financialProfile = await this.prisma.financialProfile.findUnique({
       where: { walletId: walletId, userId: userId },
+      select: { asaasApiKey: true },
     });
 
     if (!financialProfile) {
       throw new NotFoundException('Perfil financeiro não encontrado');
     }
 
-    const accountApiKey = financialProfile.asaasApiKey;
+    const encryptedApiKey = financialProfile.asaasApiKey;
 
-    if (!accountApiKey) {
+    if (!encryptedApiKey) {
       throw new BadRequestException(
         'Asaas API Key não encontrada para este perfil financeiro. Não é possível consultar o saldo.',
       );
     }
+
+    const accountApiKey = CryptoHelper.decrypt(encryptedApiKey);
 
     try {
       const response = await fetch(`${this.apiUrl}/finance/balance`, {

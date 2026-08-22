@@ -40,6 +40,7 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 *   **`CalculateTax` (`src/helpers/calculate-tax.helper.ts`):** Calculates platform fees over deposit amount with cumulative brackets, R$ 2.00 floor (`MIN_PLATFORM_TAX`), and ceiling rounding to multiples of **R$ 0.25**.
 *   **`CalculateDeposit` (`src/helpers/calculate-deposit.helper.ts`):** Handles deposit blocks (`[floor, 50, 75, 100]`) and the R$ 15.00 Micro-Transaction Safety Gate.
 *   **`ValidateImage` (`src/helpers/validate-image.helper.ts`):** Validates real binary magic bytes for uploads (JPEG, PNG, WEBP).
+*   **`CryptoHelper` (`src/helpers/crypto.helper.ts`):** Symmetric encryption and decryption at rest (AES-256-GCM) with authentication tags for sensitive credentials (`asaasApiKey`).
 *   **`PrismaClientExceptionFilter` (`src/common/filters/prisma-client-exception.filter.ts`):** Global filter mapping `P2002` (409) and `P2025` (404). Do not write manual try/catch for standard Prisma errors.
 *   **`RolesGuard` (`src/modules/auth/roles/guard/roles.guard.ts`):** Enforces RBAC with `@Roles()`.
 

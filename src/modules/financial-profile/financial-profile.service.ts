@@ -5,13 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { AsaasAccountResponse, AsaasService } from 'src/asaas/asaas.service';
+import { AsaasService } from 'src/asaas/asaas.service';
 import { CreateFinancialProfileDto } from './dto/create-financial-profile.dto';
-import { UpdateFinancialProfileDto } from './dto/update-financial-profile.dto';
 import {
   AdminFiltersFinancialProfileDto,
   FiltersFinancialProfileDto,
 } from './dto/filters-financial-profile.dto';
+import { FINANCIAL_PROFILE_PUBLIC_SELECT } from './constants/financial-profile-select.constant';
+import { CryptoHelper } from 'src/helpers/crypto.helper';
 
 @Injectable()
 export class FinancialProfileService {
@@ -54,9 +55,9 @@ export class FinancialProfileService {
 
     const existingDoc = await this.prisma.financialProfile.findUnique({
       where: { cpfCnpj: cleanDocument },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
-    // verifica se já existe alguma conta com esse documento, caso exista
-    // verifica se esse documento está vinculado a esse usuário
+
     if (existingDoc) {
       if (existingDoc.userId === userId) {
         return {
@@ -75,6 +76,11 @@ export class FinancialProfileService {
 
     const assasWalletId = await this.asaasService.createSubAccount(data);
 
+    // Criptografa a chave da subconta Asaas em repouso
+    const encryptedApiKey = assasWalletId.apiKey
+      ? CryptoHelper.encrypt(assasWalletId.apiKey)
+      : null;
+
     const newProfile = await this.prisma.financialProfile.create({
       data: {
         name: data.name,
@@ -89,9 +95,10 @@ export class FinancialProfileService {
         province: data.province,
         postalCode: data.postalCode.replace(/\D/g, ''),
         walletId: assasWalletId.walletId,
-        asaasApiKey: assasWalletId.apiKey || null,
+        asaasApiKey: encryptedApiKey,
         userId: userId,
       },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
 
     if (user.role !== 'COMPANY_OWNER') {
@@ -101,21 +108,19 @@ export class FinancialProfileService {
       });
     }
 
-    const { asaasApiKey, walletId, incomeValue, cpfCnpj, ...safeData } =
-      newProfile;
-
     return {
-      ...safeData,
-      birthDate: safeData.birthDate
-        ? safeData.birthDate.toISOString().split('T')[0]
+      ...newProfile,
+      birthDate: newProfile.birthDate
+        ? newProfile.birthDate.toISOString().split('T')[0]
         : undefined,
-      companyType: safeData.companyType || undefined,
+      companyType: newProfile.companyType || undefined,
     };
   }
 
   async getFinancialProfileByUserId(userId: string, id: string) {
     const profile = await this.prisma.financialProfile.findUnique({
       where: { id: id, userId: userId },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
 
     if (!profile) {
@@ -125,7 +130,7 @@ export class FinancialProfileService {
     return profile;
   }
 
-  // essa rota vai ser usada apenas pelo INTERNAL_NO_EMPLOYEE
+  // Rota para o dono da conta (INTERNAL_NO_EMPLOYEE)
   async getAllFinancialProfilesByUserId(
     userId: string,
     filters?: FiltersFinancialProfileDto,
@@ -139,10 +144,11 @@ export class FinancialProfileService {
 
     const profiles = await this.prisma.financialProfile.findMany({
       where: whereClause,
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!profiles) {
+    if (!profiles || profiles.length === 0) {
       throw new NotFoundException('Nenhum perfil encontrado');
     }
 
@@ -152,19 +158,17 @@ export class FinancialProfileService {
   async getFinancialProfileById(id: string) {
     const profile = await this.prisma.financialProfile.findUnique({
       where: { id: id },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
 
     if (!profile) {
       throw new NotFoundException('Perfil não encontrado');
     }
 
-    const { asaasApiKey, walletId, incomeValue, cpfCnpj, ...safeData } =
-      profile;
-
-    return safeData;
+    return profile;
   }
 
-  // Permitido apenas para SYESTEM_MANAGERS
+  // Permitido apenas para SYSTEM_MANAGERS (nunca retorna asaasApiKey)
   async getAllFinancialProfiles(filters?: AdminFiltersFinancialProfileDto) {
     const whereClause: any = {};
 
@@ -177,19 +181,22 @@ export class FinancialProfileService {
 
     const profiles = await this.prisma.financialProfile.findMany({
       where: whereClause,
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!profiles) {
+    if (!profiles || profiles.length === 0) {
       throw new NotFoundException('Nenhum perfil encontrado');
     }
-    // aqui vai retornar com todos os dados, pois é uma rota de administração
+
     return profiles;
   }
+
   // Rota permitida apenas para INTERNAL_NO_EMPLOYEE
   async deactivateFinancialProfile(id: string, userId: string) {
     const profile = await this.prisma.financialProfile.findUnique({
       where: { id: id, userId: userId },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
 
     if (!profile) {
@@ -203,16 +210,17 @@ export class FinancialProfileService {
     const updatedProfile = await this.prisma.financialProfile.update({
       where: { id: id },
       data: { isActive: false, disabledAt: new Date() },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
 
-    const { asaasApiKey, walletId, incomeValue, ...safeData } = updatedProfile;
-
-    return safeData;
+    return updatedProfile;
   }
+
   // Rota permitida apenas para INTERNAL_NO_EMPLOYEE
   async activateFinancialProfile(id: string, userId: string) {
     const profile = await this.prisma.financialProfile.findUnique({
       where: { id: id, userId: userId },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
 
     if (!profile) {
@@ -226,16 +234,16 @@ export class FinancialProfileService {
     const updatedProfile = await this.prisma.financialProfile.update({
       where: { id: id },
       data: { isActive: true, disabledAt: null },
+      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
     });
 
-    const { asaasApiKey, walletId, incomeValue, ...safeData } = updatedProfile;
-
-    return safeData;
+    return updatedProfile;
   }
 
   async getFinancialProfileBalance(id: string, userId: string) {
     const profile = await this.prisma.financialProfile.findUnique({
       where: { id: id, userId: userId },
+      select: { walletId: true },
     });
 
     if (!profile) {

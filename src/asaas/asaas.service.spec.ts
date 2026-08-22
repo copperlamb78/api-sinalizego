@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { BARBER_ASAAS_PIX_FEE } from 'src/common/constants/billing.constant';
+import { CryptoHelper } from 'src/helpers/crypto.helper';
 
 describe('AsaasService', () => {
   let service: AsaasService;
@@ -353,6 +354,35 @@ describe('AsaasService', () => {
       await expect(
         service.getSubacccountBalance('wallet_123', 'user_123'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should decrypt asaasApiKey and fetch balance successfully', async () => {
+      const encryptedKey = CryptoHelper.encrypt('raw_api_key_123');
+      mockPrisma.financialProfile.findUnique.mockResolvedValue({
+        walletId: 'wallet_123',
+        userId: 'user_123',
+        asaasApiKey: encryptedKey,
+      });
+
+      const mockBalance = { balance: 1500.5 };
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockBalance),
+      } as any);
+
+      const result = await service.getSubacccountBalance(
+        'wallet_123',
+        'user_123',
+      );
+      expect(result).toEqual(mockBalance);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/finance/balance'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            access_token: 'raw_api_key_123',
+          }),
+        }),
+      );
     });
   });
 
