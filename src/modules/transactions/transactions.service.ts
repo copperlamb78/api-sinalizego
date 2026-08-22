@@ -76,18 +76,18 @@ export class TransactionsService {
       );
       return {
         paymentId: existingTransaction.asaasPaymentId,
-        totalValue: existingTransaction.totalValue,
+        totalValue: Number(existingTransaction.totalValue),
         qrCodePayload: qrCodeData.qrCodePayload,
         qrCodeImage: qrCodeData.qrCodeImage,
         expirationDate: qrCodeData.expirationDate,
-        barberNetValue: existingTransaction.netValue,
-        platformFee: existingTransaction.platformFee,
-        asaasFee: existingTransaction.asaasFee,
+        barberNetValue: Number(existingTransaction.netValue),
+        platformFee: Number(existingTransaction.platformFee),
+        asaasFee: Number(existingTransaction.asaasFee),
       };
     }
 
-    const deposit = appointment.downPaymentAmount; // do banco, nunca do body
-    const platformFee = appointment.platformFeeAmount; // do banco, nunca do body ou recálculo
+    const deposit = Number(appointment.downPaymentAmount); // do banco, nunca do body
+    const platformFee = Number(appointment.platformFeeAmount); // do banco, nunca do body ou recálculo
 
     const pixData = await this.asaas.createPixChargeWithSplit(
       asaasCustomerId,

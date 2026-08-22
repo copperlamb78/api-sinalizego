@@ -97,7 +97,7 @@ model Service {
   name               String
   description        String?
   durationMinutes    Int
-  totalPrice         Float
+  totalPrice         Decimal   @db.Decimal(10, 2)
   downPaymentPercent Int
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -112,23 +112,23 @@ model Service {
 
 // 4. OS AGENDAMENTOS
 model Appointment {
-  id              String     @id @default(uuid())
-  companyId       String
-  serviceId       String
-  clientId        String
-  appointmentDate DateTime  
+  id                String     @id @default(uuid())
+  companyId         String
+  serviceId         String
+  clientId          String
+  appointmentDate   DateTime  
   appointmentEndDate DateTime 
-  status          ApptStatus @default(PENDING_PAYMENT)
-  expiresAt       DateTime?
-  pixTxId         String?    // transaction id do pix
-  servicePrice    Float
-  downPaymentAmount Float
-  platformFeeAmount Float
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt // Adicionado para rastrear mudanças de status
-  isActive        Boolean    @default(true)
-  disabledAt      DateTime?  // Corrigido de dateTime? para DateTime?
-  disabledBy      String?
+  status            ApptStatus @default(PENDING_PAYMENT)
+  expiresAt         DateTime?
+  pixTxId           String?    // transaction id do pix
+  servicePrice      Decimal    @db.Decimal(10, 2)
+  downPaymentAmount Decimal    @db.Decimal(10, 2)
+  platformFeeAmount Decimal    @db.Decimal(10, 2)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt // Adicionado para rastrear mudanças de status
+  isActive          Boolean    @default(true)
+  disabledAt        DateTime?  // Corrigido de dateTime? para DateTime?
+  disabledBy        String?
 
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   service         Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -190,7 +190,7 @@ model FinancialProfile {
   
   // Contato e Faturamento
   mobilePhone      String
-  incomeValue      Float
+  incomeValue      Decimal   @db.Decimal(10, 2)
   
   // Endereço
   address          String    // Logradouro
@@ -244,10 +244,10 @@ model Transaction {
   asaasPaymentId    String?           @unique 
   
   // Controle de Valores
-  totalValue        Float             // Valor total que o cliente pagou (ex: 12.00)
-  netValue          Float             // O que realmente vai pro barbeiro (ex: 9.01)
-  platformFee       Float             // A sua parte da grana (ex: 2.00)
-  asaasFee          Float             // Parte do asaas (ex: 0,99)
+  totalValue        Decimal           @db.Decimal(10, 2) // Valor total que o cliente pagou (ex: 12.00)
+  netValue          Decimal           @db.Decimal(10, 2) // O que realmente vai pro barbeiro (ex: 9.01)
+  platformFee       Decimal           @db.Decimal(10, 2) // A sua parte da grana (ex: 2.00)
+  asaasFee          Decimal           @db.Decimal(10, 2) // Parte do asaas (ex: 0,99)
   
   // Status e Tipo
   status            TransactionStatus @default(PENDING)

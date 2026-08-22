@@ -92,7 +92,7 @@ export class AppointmentsService {
     );
     const expirationDate = new Date(Date.now() + 15 * 60000);
 
-    const price = service.totalPrice;
+    const price = Number(service.totalPrice);
     const downPayment = this.calculateDeposit.calculateDeposit(
       price,
       service.downPaymentPercent,

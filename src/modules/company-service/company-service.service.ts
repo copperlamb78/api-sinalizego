@@ -70,7 +70,10 @@ export class CompanyServiceService {
 
     return services.map((service) => ({
       ...service,
-      platformTax: this.calculateTax.calculatePlatformTax(service.totalPrice),
+      totalPrice: Number(service.totalPrice),
+      platformTax: this.calculateTax.calculatePlatformTax(
+        Number(service.totalPrice),
+      ),
     }));
   }
 
