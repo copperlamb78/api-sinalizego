@@ -20,6 +20,7 @@ import { WebhooksModule } from './asaas/webhook-asaas/webhooks.module';
 import { ServiceGroupModule } from './service-group/service-group.module';
 import { MailModule } from './modules/mail/mail.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { WorkingHoursModule } from './modules/working-hours/working-hours.module
     ServiceGroupModule,
     MailModule,
     WorkingHoursModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
