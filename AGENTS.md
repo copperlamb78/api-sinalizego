@@ -132,6 +132,11 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Cancellation & Escrow Hold Rules (CDC Art. 51 / CC Arts. 417 a 420):** Funds received via split must remain locked in the ecosystem ledger until the service is successfully rendered or the cancellation window closes. 
     *   If a client requests a cancellation *before* the 24-hour mark prior to the appointment, the system triggers the Asaas refund API for a full 100% refund.
     *   If the cancellation request occurs *within* the 24-hour mark, the cancellation is permitted to free the calendar; the guaranteed minimum deposit (`guaranteedDepositAmount`) is retained for the barber as vacancy compensation, and any excess amount paid upfront by the client is automatically refunded partially via Asaas Pix.
+*   **Weekly Free Payout Floor & Balance Accumulation Rule:**
+    *   The weekly automatic free payout (`@Cron('0 6 * * 1')`) executes strictly for companies with `availableBalance >= R$ 100.00` (`MIN_FREE_WEEKLY_PAYOUT`).
+    *   If `availableBalance < R$ 100.00`, the balance is never lost or canceled; it remains accumulating in the company account until reaching the R$ 100.00 threshold for the next free payout cycle.
+    *   Companies wishing to withdraw balances `< R$ 100.00` immediately can use the On-Demand Instant Withdrawal endpoint (`POST /company/withdraw`) paying the standard Asaas transfer fee (`ASAAS_TRANSFER_FEE = R$ 5.00`).
+
 
 ## 9. Cybersecurity & Data Integrity (MANDATORY)
 

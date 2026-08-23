@@ -25,7 +25,10 @@ import {
 import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
 import { AsaasService } from 'src/asaas/asaas.service';
-import { ASAAS_TRANSFER_FEE } from 'src/common/constants/billing.constant';
+import {
+  ASAAS_TRANSFER_FEE,
+  MIN_FREE_WEEKLY_PAYOUT,
+} from 'src/common/constants/billing.constant';
 import { Cron } from '@nestjs/schedule';
 
 @Injectable()
@@ -749,6 +752,9 @@ export class CompanyService {
       totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
       nextFreeWithdrawalDate: nextMonday.toISOString(),
       instantTransferFee: ASAAS_TRANSFER_FEE,
+      minFreeWeeklyPayoutThreshold: MIN_FREE_WEEKLY_PAYOUT,
+      eligibleForFreeWeeklyPayout:
+        availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
     };
   }
 
@@ -1066,7 +1072,7 @@ export class CompanyService {
           }
 
           const balance = await this.getCompanyBalance(company.userId);
-          if (balance.availableBalance > 0) {
+          if (balance.availableBalance >= MIN_FREE_WEEKLY_PAYOUT) {
             const transferResult =
               await this.asaasService.transferSubaccountBalance(
                 financialProfile.id,
@@ -1093,6 +1099,10 @@ export class CompanyService {
             payoutsExecuted++;
             this.logger.log(
               `[Cron Payouts] Saque gratuito de R$ ${balance.availableBalance.toFixed(2)} executado para a empresa "${company.businessName}".`,
+            );
+          } else if (balance.availableBalance > 0) {
+            this.logger.log(
+              `[Cron Payouts] Empresa "${company.businessName}" possui saldo liberado de R$ ${balance.availableBalance.toFixed(2)}, inferior ao piso de gratuidade (R$ ${MIN_FREE_WEEKLY_PAYOUT.toFixed(2)}). O valor continuará acumulando.`,
             );
           }
         } catch (compError: any) {

@@ -299,6 +299,8 @@ export class CompanyController {
         totalWithdrawn: 500.0,
         nextFreeWithdrawalDate: '2026-08-31T06:00:00.000Z',
         instantTransferFee: 5.0,
+        minFreeWeeklyPayoutThreshold: 100.0,
+        eligibleForFreeWeeklyPayout: true,
       },
     },
   })

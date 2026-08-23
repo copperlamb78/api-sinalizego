@@ -68,6 +68,11 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 *   **Cancellation Policy (CDC Art. 51 / CC Arts. 417 a 420):**
     *   `> 24h` before appointment: Trigger full Asaas refund (`refundPayment`).
     *   `<= 24h`: Cancel appointment to free calendar; retain guaranteed minimum deposit for the barber as vacancy compensation, and automatically trigger partial refund via Asaas for any excess amount paid upfront.
+*   **Weekly Free Payout Floor & Balance Accumulation:**
+    *   Weekly free automatic payout (`@Cron('0 6 * * 1')`) runs strictly for companies with `availableBalance >= R$ 100.00` (`MIN_FREE_WEEKLY_PAYOUT`).
+    *   Balances `< R$ 100.00` remain accumulating indefinitely until reaching the free threshold.
+    *   Barbers wishing to withdraw balances `< R$ 100.00` immediately can use `POST /company/withdraw` paying the R$ 5.00 transfer fee.
+
 
 ---
 
