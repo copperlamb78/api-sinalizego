@@ -13,6 +13,7 @@ describe('CompanyController', () => {
     getCompanyByCompanyId: jest.fn(),
     getAllCompaniesByUserId: jest.fn(),
     getAllCompanies: jest.fn(),
+    findBySlug: jest.fn(),
     getCompanyBySlug: jest.fn(),
     updateCompany: jest.fn(),
     deactivateCompany: jest.fn(),
@@ -86,6 +87,23 @@ describe('CompanyController', () => {
     });
   });
 
+  describe('findBySlug', () => {
+    it('should return public company storefront data by slug', async () => {
+      const expected = {
+        id: 'company-1',
+        businessName: 'Barbearia VIP',
+        slug: 'barbearia-vip',
+        workingHours: [],
+        serviceGroups: [],
+      };
+      mockCompanyService.findBySlug.mockResolvedValue(expected);
+
+      const result = await controller.findBySlug('barbearia-vip');
+      expect(companyService.findBySlug).toHaveBeenCalledWith('barbearia-vip');
+      expect(result).toEqual(expected);
+    });
+  });
+
   describe('getCompanyBySlug', () => {
     it('should return public company data by slug', async () => {
       const expected = {
@@ -93,12 +111,10 @@ describe('CompanyController', () => {
         businessName: 'Barbearia VIP',
         slug: 'barbearia-vip',
       };
-      mockCompanyService.getCompanyBySlug.mockResolvedValue(expected);
+      mockCompanyService.findBySlug.mockResolvedValue(expected);
 
       const result = await controller.getCompanyBySlug('barbearia-vip');
-      expect(companyService.getCompanyBySlug).toHaveBeenCalledWith(
-        'barbearia-vip',
-      );
+      expect(companyService.findBySlug).toHaveBeenCalledWith('barbearia-vip');
       expect(result).toEqual(expected);
     });
   });

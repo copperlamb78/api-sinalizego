@@ -194,36 +194,78 @@ export class CompanyController {
     return this.companyService.getAllCompanies();
   }
 
-  @Get('get-by-slug/:slug')
+  @Get('slug/:slug')
   @ApiResponse({
     status: 200,
-    description: 'Empresa encontrada com sucesso',
+    description: 'Perfil público do estabelecimento retornado com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         businessName: "Barber's Shop",
         slug: 'barbers-shop',
         providerType: 'Barbearia',
+        whatsapp: '75999999999',
+        chairsCount: 2,
         district: 'SIM',
         street: 'Artemia Pires Freitas',
         city: 'Feira de Santana',
         state: 'Bahia',
         zipCode: '44085370',
         number: '123',
-        whatsapp: '75999999999',
+        logoPhoto: 'https://cloudinary.../logo.png',
+        bannerPhoto: 'https://cloudinary.../banner.png',
+        timezone: 'America/Sao_Paulo',
         createdAt: '2026-07-18T10:33:00.000Z',
-        isActive: true,
-        userId: 'clsw0s98x000013z81z8z8z8z',
+        workingHours: [
+          {
+            id: 'wh-1',
+            dayOfWeek: 1,
+            startTime: '09:00',
+            endTime: '18:00',
+            lunchStartTime: '12:00',
+            lunchEndTime: '13:00',
+            isClosed: false,
+          },
+        ],
+        serviceGroups: [
+          {
+            id: 'sg-1',
+            name: 'Cabelo e Barba',
+            capacity: 2,
+            services: [
+              {
+                id: 'srv-1',
+                name: 'Corte Degradê',
+                description: 'Corte moderno na tesoura e máquina',
+                durationMinutes: 30,
+                totalPrice: '35.00',
+                downPaymentPercent: 25,
+              },
+            ],
+          },
+        ],
       },
     },
   })
   @ApiResponse({
     status: 404,
-    description: 'Nenhuma empresa encontrada para este slug.',
+    description: 'Estabelecimento não encontrado.',
   })
-  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
+  async findBySlug(@Param('slug') slug: string) {
+    return this.companyService.findBySlug(slug);
+  }
+
+  @Get('get-by-slug/:slug')
+  @ApiResponse({
+    status: 200,
+    description: 'Empresa encontrada com sucesso',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Estabelecimento não encontrado.',
+  })
   async getCompanyBySlug(@Param('slug') slug: string) {
-    return this.companyService.getCompanyBySlug(slug);
+    return this.companyService.findBySlug(slug);
   }
 
   @ApiBearerAuth()

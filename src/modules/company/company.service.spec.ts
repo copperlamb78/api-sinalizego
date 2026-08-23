@@ -188,4 +188,79 @@ describe('CompanyService', () => {
       expect(result.company).toEqual(createdCompany);
     });
   });
+
+  describe('findBySlug', () => {
+    it('should throw NotFoundException if establishment is not found by slug', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(null);
+
+      await expect(service.findBySlug('invalid-slug')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should return complete storefront data with workingHours and active serviceGroups', async () => {
+      const mockStorefront = {
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        slug: 'barbearia-vip',
+        providerType: 'Barbearia',
+        whatsapp: '75999999999',
+        chairsCount: 2,
+        district: 'Centro',
+        street: 'Rua Principal',
+        city: 'Feira de Santana',
+        state: 'BA',
+        zipCode: '44000000',
+        number: '100',
+        logoPhoto: 'logo.png',
+        bannerPhoto: 'banner.png',
+        timezone: 'America/Sao_Paulo',
+        createdAt: new Date(),
+        workingHours: [
+          {
+            id: 'wh-1',
+            dayOfWeek: 1,
+            startTime: '09:00',
+            endTime: '18:00',
+            lunchStartTime: '12:00',
+            lunchEndTime: '13:00',
+            isClosed: false,
+          },
+        ],
+        serviceGroups: [
+          {
+            id: 'sg-1',
+            name: 'Cabelo',
+            capacity: 2,
+            services: [
+              {
+                id: 'srv-1',
+                name: 'Corte Degradê',
+                description: 'Corte moderno',
+                durationMinutes: 30,
+                totalPrice: 35.0,
+                downPaymentPercent: 25,
+              },
+            ],
+          },
+        ],
+      };
+
+      mockPrisma.company.findUnique.mockResolvedValue(mockStorefront);
+
+      const result = await service.findBySlug('barbearia-vip');
+
+      expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
+        where: { slug: 'barbearia-vip', isActive: true },
+        select: expect.objectContaining({
+          id: true,
+          businessName: true,
+          slug: true,
+          workingHours: expect.any(Object),
+          serviceGroups: expect.any(Object),
+        }),
+      });
+      expect(result).toEqual(mockStorefront);
+    });
+  });
 });

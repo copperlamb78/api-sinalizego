@@ -187,19 +187,20 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ---
 
-### 🏢 Company — Empresas
+### 🏢 Company — Empresas & Vitrine Pública (Storefront)
 
-> Cadastro de empresas com slug automático, busca por ID, filtros, ordenação e ativação/desativação.
+> Cadastro de empresas com slug automático, consulta pública de storefront consolidado (`GET /company/slug/:slug`) trazendo dados do negócio, grade de horários (`workingHours`) e catálogo de serviços agrupados (`serviceGroups` e `services`), busca por ID, filtros, ordenação e ativação/desativação.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
+| `GET` | `/company/slug/:slug` | Consultar perfil público do estabelecimento (Storefront consolidado) | ❌ | — |
+| `GET` | `/company/get-by-slug/:slug` | Buscar empresa por slug (vitrine pública) | ❌ | — |
 | `POST` | `/company/create` | Criar empresa (com novo usuário) | ❌ | — |
 | `POST` | `/company/create-company-to-user` | Criar empresa para usuário existente | 🔑 JWT | — |
 | `GET` | `/company/get-by-user-id` | Buscar empresa por userId | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `GET` | `/company/get-by-id/:companyId` | Buscar empresa por ID | 🔑 JWT | `INTERNAL_USERS` |
 | `GET` | `/company/list` | Listar empresas do usuário (com filtros) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `GET` | `/company/get-all` | Listar todas as empresas | 🔑 JWT | `SYSTEM_MANAGERS` |
-| `GET` | `/company/get-by-slug/:slug` | Buscar empresa por slug (público) | ❌ | — |
 | `PATCH` | `/company/update/:companyId` | Atualizar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `DELETE` | `/company/deactivate/:companyId` | Desativar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/company/activate/:companyId` | Reativar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
@@ -603,7 +604,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **31 suítes de teste e 282 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **31 suítes de teste e 285 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -617,6 +618,7 @@ npm test
 - **E-mails Brevo:** Disparo correto com dados populados e tratamento silencioso de erros de rede da API Brevo.
 - **Usuários & Gestão de Contas:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF, rota para auto-desativação (`DELETE /users/me`), e rotas administrativas exclusivas para desativação e reativação de contas de terceiros (`DELETE /users/:userId` e `PATCH /users/:userId/activate` restritas a `SYSTEM_MANAGERS`).
 - **Empresas & Promoção de Roles:** Criação com validação de unicidade de e-mail e slug, criação vinculada a usuário existente com promoção automática para `COMPANY_OWNER` e emissão/retorno imediato do novo par de tokens (`access_token`, `refresh_token`) refletindo os privilégios atualizados sem necessidade de novo login.
+- **Storefront & Vitrine Pública Consolidada (`CompanyService.findBySlug`):** Endpoint público de alta performance (`GET /company/slug/:slug`) retornando dados cadastrais, grade completa de expediente (`workingHours`) e catálogo de serviços agrupados por capacidade (`serviceGroups` e `services`) em uma única query otimizada (`select`), com validação de status ativo e tratamento de erro 404.
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos, grupos de serviços e uploads de empresas concorrentes, validação estrita de posse em criação, edição, exclusão e uploads, validação de UUID (`@IsUUID('4')`) e checagem de pertencimento de `serviceGroupId` à empresa do usuário logado na criação e edição de serviços (`createService` / `updateService`).
 - **Uploads Seguros & Magic Bytes:** Proteção com `RolesGuard`, limite de 5MB por arquivo, validação de posse da empresa e inspeção binária real de magic bytes para JPEG, PNG e WEBP.
 - **Proteção Anti-DoS de Reservas & Limpeza Automática:** Descarte imediato de reservas `PENDING_PAYMENT` expiradas na contagem de vagas, limite estrito de 3 reservas pendentes simultâneas por cliente e cron job a cada minuto (`@nestjs/schedule`) cancelando agendamentos/cobranças Asaas expiradas.

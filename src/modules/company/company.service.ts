@@ -183,16 +183,81 @@ export class CompanyService {
     return companies;
   }
 
-  async getCompanyBySlug(slug: string) {
+  async findBySlug(slug: string) {
     const company = await this.prisma.company.findUnique({
-      where: { slug: slug },
+      where: { slug: slug, isActive: true },
+      select: {
+        id: true,
+        businessName: true,
+        slug: true,
+        providerType: true,
+        whatsapp: true,
+        chairsCount: true,
+        district: true,
+        street: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        number: true,
+        logoPhoto: true,
+        bannerPhoto: true,
+        timezone: true,
+        createdAt: true,
+        workingHours: {
+          select: {
+            id: true,
+            dayOfWeek: true,
+            startTime: true,
+            endTime: true,
+            lunchStartTime: true,
+            lunchEndTime: true,
+            isClosed: true,
+          },
+          orderBy: {
+            dayOfWeek: 'asc',
+          },
+        },
+        serviceGroups: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            capacity: true,
+            services: {
+              where: {
+                isActive: true,
+              },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                durationMinutes: true,
+                totalPrice: true,
+                downPaymentPercent: true,
+              },
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
     });
 
     if (!company) {
-      throw new NotFoundException('Nenhuma empresa encontrada para este slug.');
+      throw new NotFoundException('Estabelecimento não encontrado.');
     }
 
     return company;
+  }
+
+  async getCompanyBySlug(slug: string) {
+    return this.findBySlug(slug);
   }
 
   async updateCompany(
