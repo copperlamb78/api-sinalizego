@@ -4,10 +4,13 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from '../asaas.service';
 import { ApptStatus, TransactionStatus } from '@prisma/client';
 
+import { MailService } from 'src/modules/mail/mail.service';
+
 describe('WebhooksService', () => {
   let service: WebhooksService;
   let prisma: PrismaService;
   let asaasService: AsaasService;
+  let mailService: MailService;
 
   const mockPrisma = {
     transaction: {
@@ -32,6 +35,11 @@ describe('WebhooksService', () => {
     getPaymentById: jest.fn(),
   };
 
+  const mockMailService = {
+    sendAppointmentConfirmationEmail: jest.fn().mockResolvedValue(true),
+    sendAppointmentCancellationEmail: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -44,12 +52,17 @@ describe('WebhooksService', () => {
           provide: AsaasService,
           useValue: mockAsaasService,
         },
+        {
+          provide: MailService,
+          useValue: mockMailService,
+        },
       ],
     }).compile();
 
     service = module.get<WebhooksService>(WebhooksService);
     prisma = module.get<PrismaService>(PrismaService);
     asaasService = module.get<AsaasService>(AsaasService);
+    mailService = module.get<MailService>(MailService);
     jest.clearAllMocks();
   });
 

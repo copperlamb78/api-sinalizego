@@ -4,6 +4,8 @@ import { AsaasService } from '../asaas.service';
 import { ApptStatus, TransactionStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+import { MailService } from 'src/modules/mail/mail.service';
+
 @Injectable()
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
@@ -11,6 +13,7 @@ export class WebhooksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly asaasService: AsaasService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -81,6 +84,17 @@ export class WebhooksService {
     // 3. Busca do Agendamento associado
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: transaction.appointmentId },
+      include: {
+        client: {
+          select: { id: true, name: true, email: true },
+        },
+        company: {
+          select: { id: true, businessName: true, timezone: true },
+        },
+        service: {
+          select: { id: true, name: true },
+        },
+      },
     });
 
     if (!appointment) {
@@ -235,6 +249,26 @@ export class WebhooksService {
         this.logger.log(
           `[Webhook Asaas][${correlationId}] Pagamento ${payment.id} CONFIRMADO. Agendamento #${transaction.appointmentId} atualizado para CONFIRMED.${realAsaasFee !== undefined ? ` Taxa Asaas liquidada: R$ ${realAsaasFee.toFixed(2)}.` : ''}`,
         );
+
+        // Disparo resiliente de e-mail de confirmação de agendamento
+        if (appointment.client?.email) {
+          this.mailService
+            .sendAppointmentConfirmationEmail(appointment.client.email, {
+              customerName: appointment.client.name,
+              companyName:
+                appointment.company?.businessName || 'Estabelecimento',
+              serviceName: appointment.service?.name || 'Serviço',
+              appointmentDate: appointment.appointmentDate,
+              amountPaid: transaction.totalValue,
+              timezone: appointment.company?.timezone,
+            })
+            .catch((err) => {
+              this.logger.error(
+                `[Webhook Asaas] Falha ao enviar e-mail de confirmação para ${appointment.client.email}: ${err?.message || err}`,
+              );
+            });
+        }
+
         break;
       }
 
@@ -318,6 +352,26 @@ export class WebhooksService {
         this.logger.log(
           `[Webhook Asaas][${correlationId}] Pagamento ${payment.id} REEMBOLSADO. Transação marcada como REFUNDED.`,
         );
+
+        // Disparo resiliente de e-mail de cancelamento com estorno
+        if (appointment.client?.email) {
+          this.mailService
+            .sendAppointmentCancellationEmail(appointment.client.email, {
+              customerName: appointment.client.name,
+              companyName:
+                appointment.company?.businessName || 'Estabelecimento',
+              serviceName: appointment.service?.name || 'Serviço',
+              appointmentDate: appointment.appointmentDate,
+              isRefunded: true,
+              timezone: appointment.company?.timezone,
+            })
+            .catch((err) => {
+              this.logger.error(
+                `[Webhook Asaas] Falha ao enviar e-mail de cancelamento/estorno para ${appointment.client.email}: ${err?.message || err}`,
+              );
+            });
+        }
+
         break;
       }
 

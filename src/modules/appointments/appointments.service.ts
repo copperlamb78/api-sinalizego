@@ -20,6 +20,8 @@ import { AppointmentsStatusUpdateDto } from './dto/appointements-update.dto';
 import { ApptStatus, Role } from '@prisma/client';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { AvailabilityService } from './availability.service';
+import { MailService } from '../mail/mail.service';
+import { TransactionStatus } from '@prisma/client';
 
 @Injectable()
 export class AppointmentsService {
@@ -31,6 +33,7 @@ export class AppointmentsService {
     private readonly calculateDeposit: CalculateDeposit,
     private readonly asaasService: AsaasService,
     private readonly availabilityService: AvailabilityService,
+    private readonly mailService: MailService,
   ) {}
 
   async createAppointment(data: CreateAppointmentsDto, userId: string) {
@@ -163,63 +166,70 @@ export class AppointmentsService {
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async handleExpiredAppointments(): Promise<number> {
-    const now = new Date();
-    const expiredAppointments = await this.prisma.appointment.findMany({
-      where: {
-        status: ApptStatus.PENDING_PAYMENT,
-        isActive: true,
-        expiresAt: { lt: now },
-      },
-      include: {
-        transactions: true,
-      },
-    });
+    try {
+      const now = new Date();
+      const expiredAppointments = await this.prisma.appointment.findMany({
+        where: {
+          status: ApptStatus.PENDING_PAYMENT,
+          isActive: true,
+          expiresAt: { lt: now },
+        },
+        include: {
+          transactions: true,
+        },
+      });
 
-    if (expiredAppointments.length === 0) {
-      return 0;
-    }
+      if (expiredAppointments.length === 0) {
+        return 0;
+      }
 
-    this.logger.log(
-      `Processando ${expiredAppointments.length} agendamento(s) expirado(s)...`,
-    );
+      this.logger.log(
+        `Processando ${expiredAppointments.length} agendamento(s) expirado(s)...`,
+      );
 
-    let canceledCount = 0;
+      let canceledCount = 0;
 
-    for (const appt of expiredAppointments) {
-      try {
-        await this.prisma.appointment.update({
-          where: { id: appt.id },
-          data: {
-            status: ApptStatus.CANCELED,
-            isActive: false,
-          },
-        });
+      for (const appt of expiredAppointments) {
+        try {
+          await this.prisma.appointment.update({
+            where: { id: appt.id },
+            data: {
+              status: ApptStatus.CANCELED,
+              isActive: false,
+            },
+          });
 
-        if (appt.transactions && appt.transactions.length > 0) {
-          for (const tx of appt.transactions) {
-            if (tx.asaasPaymentId && tx.status === 'PENDING') {
-              await this.asaasService.cancelPayment(tx.asaasPaymentId);
-              await this.prisma.transaction.update({
-                where: { id: tx.id },
-                data: { status: 'CANCELED' },
-              });
+          if (appt.transactions && appt.transactions.length > 0) {
+            for (const tx of appt.transactions) {
+              if (tx.asaasPaymentId && tx.status === 'PENDING') {
+                await this.asaasService.cancelPayment(tx.asaasPaymentId);
+                await this.prisma.transaction.update({
+                  where: { id: tx.id },
+                  data: { status: 'CANCELED' },
+                });
+              }
             }
           }
+
+          canceledCount++;
+        } catch (error: any) {
+          this.logger.error(
+            `Erro ao processar expiração do agendamento #${appt.id}: ${error.message}`,
+          );
         }
-
-        canceledCount++;
-      } catch (error: any) {
-        this.logger.error(
-          `Erro ao processar expiração do agendamento #${appt.id}: ${error.message}`,
-        );
       }
+
+      this.logger.log(
+        `${canceledCount} agendamento(s) expirado(s) cancelado(s) com sucesso.`,
+      );
+
+      return canceledCount;
+    } catch (dbError: any) {
+      this.logger.warn(
+        `[Cron ExpiredAppointments] Banco de dados temporariamente inacessível: ${dbError?.message || dbError}`,
+      );
+      return 0;
     }
-
-    this.logger.log(
-      `${canceledCount} agendamento(s) expirado(s) cancelado(s) com sucesso.`,
-    );
-
-    return canceledCount;
   }
 
   async getAppointments(filters?: AppointmentsSuperFiltersDto) {
@@ -432,6 +442,12 @@ export class AppointmentsService {
       where: { id: appointmentId },
       include: {
         company: true,
+        client: {
+          select: { id: true, name: true, email: true },
+        },
+        service: {
+          select: { id: true, name: true },
+        },
       },
     });
 
@@ -462,6 +478,40 @@ export class AppointmentsService {
       throw new BadRequestException('Agendamento já está inativo.');
     }
 
+    // Regra de Cancelamento & Estorno (> 24h reembolsa; <= 24h retém sinal para o prestador)
+    const hoursDifference =
+      (new Date(appointment.appointmentDate).getTime() - Date.now()) /
+      (1000 * 60 * 60);
+
+    let isRefunded = false;
+    if (appointment.status === ApptStatus.CONFIRMED && hoursDifference > 24) {
+      const transaction = await this.prisma.transaction.findFirst({
+        where: {
+          appointmentId: appointment.id,
+          status: TransactionStatus.CONFIRMED,
+        },
+      });
+
+      if (transaction?.asaasPaymentId) {
+        try {
+          await this.asaasService.refundPayment(
+            transaction.asaasPaymentId,
+            undefined,
+            'Cancelamento com antecedência superior a 24 horas.',
+          );
+          await this.prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: TransactionStatus.REFUNDED },
+          });
+          isRefunded = true;
+        } catch (err: any) {
+          this.logger.error(
+            `Falha ao processar estorno Asaas no cancelamento do agendamento #${appointment.id}: ${err?.message || err}`,
+          );
+        }
+      }
+    }
+
     const canceledAppointment = await this.prisma.appointment.update({
       where: { id: appointmentId },
       data: {
@@ -471,6 +521,20 @@ export class AppointmentsService {
         disabledBy: user.id,
       },
     });
+
+    // Disparo resiliente de e-mail de cancelamento
+    if (appointment.client?.email) {
+      this.mailService
+        .sendAppointmentCancellationEmail(appointment.client.email, {
+          customerName: appointment.client.name,
+          companyName: appointment.company?.businessName || 'Estabelecimento',
+          serviceName: appointment.service?.name || 'Serviço',
+          appointmentDate: appointment.appointmentDate,
+          isRefunded,
+          timezone: appointment.company?.timezone,
+        })
+        .catch(() => {});
+    }
 
     return canceledAppointment;
   }
@@ -558,5 +622,102 @@ export class AppointmentsService {
         },
       },
     });
+  }
+
+  /**
+   * Cron Job diário às 19:00 para envio de lembretes aos clientes com agendamento no dia seguinte (D-1).
+   */
+  @Cron('0 19 * * *')
+  async sendDailyAppointmentReminders(): Promise<number> {
+    try {
+      const now = new Date();
+      const tomorrowStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        0,
+        0,
+        0,
+        0,
+      );
+      const tomorrowEnd = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        23,
+        59,
+        59,
+        999,
+      );
+
+      const appointments = await this.prisma.appointment.findMany({
+        where: {
+          status: ApptStatus.CONFIRMED,
+          isActive: true,
+          appointmentDate: {
+            gte: tomorrowStart,
+            lte: tomorrowEnd,
+          },
+        },
+        include: {
+          client: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+          company: {
+            select: {
+              businessName: true,
+              street: true,
+              number: true,
+              district: true,
+              city: true,
+              state: true,
+              timezone: true,
+            },
+          },
+          service: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      let sentCount = 0;
+      for (const appt of appointments) {
+        if (!appt.client?.email) continue;
+        try {
+          const address = `${appt.company.street}, ${appt.company.number} - ${appt.company.district}, ${appt.company.city}/${appt.company.state}`;
+          const sent = await this.mailService.sendAppointmentReminderEmail(
+            appt.client.email,
+            {
+              customerName: appt.client.name,
+              companyName: appt.company.businessName,
+              serviceName: appt.service.name,
+              appointmentDate: appt.appointmentDate,
+              address,
+              timezone: appt.company.timezone,
+            },
+          );
+          if (sent) sentCount++;
+        } catch (err: any) {
+          this.logger.error(
+            `Falha ao enviar lembrete D-1 para agendamento #${appt.id}: ${err?.message || err}`,
+          );
+        }
+      }
+
+      this.logger.log(
+        `[Cron Lembrete D-1] ${sentCount} lembretes de agendamento enviados com sucesso.`,
+      );
+      return sentCount;
+    } catch (dbError: any) {
+      this.logger.warn(
+        `[Cron Lembrete D-1] Banco de dados temporariamente inacessível: ${dbError?.message || dbError}`,
+      );
+      return 0;
+    }
   }
 }

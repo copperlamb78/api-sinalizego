@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from 'src/asaas/asaas.service';
+import { MailService } from '../mail/mail.service';
 import {
   ConflictException,
   NotFoundException,
@@ -14,6 +15,7 @@ describe('UsersService', () => {
   let service: UsersService;
   let prisma: PrismaService;
   let asaas: AsaasService;
+  let mailService: MailService;
 
   const mockPrisma = {
     user: {
@@ -29,6 +31,10 @@ describe('UsersService', () => {
     createCustomer: jest.fn(),
   };
 
+  const mockMailService = {
+    sendWelcomeEmail: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -41,17 +47,62 @@ describe('UsersService', () => {
           provide: AsaasService,
           useValue: mockAsaas,
         },
+        {
+          provide: MailService,
+          useValue: mockMailService,
+        },
       ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
     prisma = module.get<PrismaService>(PrismaService);
     asaas = module.get<AsaasService>(AsaasService);
+    mailService = module.get<MailService>(MailService);
     jest.clearAllMocks();
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('createUser', () => {
+    const dto = {
+      name: 'Carlos Silva',
+      email: 'carlos@test.com',
+      password: 'password123',
+      phone: '11999999999',
+    };
+
+    it('should throw ConflictException if email already exists', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'existing-id' });
+
+      await expect(service.createUser(dto as any)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should create user and trigger welcome email asynchronously', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      const createdUser = {
+        id: 'u-1',
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        role: 'CLIENT',
+        isActive: true,
+      };
+      mockPrisma.user.create.mockResolvedValue(createdUser);
+
+      const result = await service.createUser(dto as any);
+
+      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockMailService.sendWelcomeEmail).toHaveBeenCalledWith(
+        'carlos@test.com',
+        'Carlos Silva',
+        'CLIENT',
+      );
+      expect(result.user).toEqual(createdUser);
+    });
   });
 
   describe('getAllUsers', () => {

@@ -42,7 +42,7 @@ export interface AsaasAccountResponse {
 @Injectable()
 export class AsaasService implements OnModuleInit {
   private readonly logger = new Logger(AsaasService.name);
-  public readonly asaasPixFee: number;
+  public asaasPixFee: number;
   private readonly apiUrl =
     process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
   private readonly apiKey = process.env.ASAAS_API_KEY;
@@ -61,21 +61,72 @@ export class AsaasService implements OnModuleInit {
     }
   }
 
-  onModuleInit() {
-    const rawFee = process.env.ASAAS_PIX_FEE;
-    if (rawFee === undefined || rawFee === '') {
-      this.logger.warn(
-        `[AsaasService] ASAAS_PIX_FEE não definida nas variáveis de ambiente. Utilizando taxa padrão de fallback: R$ ${BARBER_ASAAS_PIX_FEE.toFixed(2)}`,
+  async fetchAccountFees(): Promise<any> {
+    try {
+      if (!this.apiKey) return null;
+      const response = await fetch(`${this.apiUrl}/myAccount/fees`, {
+        method: 'GET',
+        headers: this.headers,
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+      return null;
+    } catch (err: any) {
+      this.logger.debug(
+        `Falha ao consultar taxas no Asaas: ${err?.message || err}`,
       );
-    } else if (isNaN(Number(rawFee)) || Number(rawFee) < 0) {
-      this.logger.error(
-        `[AsaasService] ASAAS_PIX_FEE inválida ("${rawFee}"). Utilizando taxa padrão de fallback: R$ ${BARBER_ASAAS_PIX_FEE.toFixed(2)}`,
-      );
-    } else {
-      this.logger.log(
-        `[AsaasService] ASAAS_PIX_FEE inicializada com sucesso: R$ ${this.asaasPixFee.toFixed(2)}`,
-      );
+      return null;
     }
+  }
+
+  async onModuleInit() {
+    const rawFee = process.env.ASAAS_PIX_FEE;
+    if (
+      rawFee !== undefined &&
+      rawFee !== '' &&
+      !isNaN(Number(rawFee)) &&
+      Number(rawFee) >= 0
+    ) {
+      this.asaasPixFee = Number(rawFee);
+      this.logger.log(
+        `[AsaasService] ASAAS_PIX_FEE configurada via ENV: R$ ${this.asaasPixFee.toFixed(2)}`,
+      );
+      return;
+    }
+
+    if (this.apiKey) {
+      try {
+        const fees = await this.fetchAccountFees();
+        const pixFee = fees?.payment?.pix;
+        const dynamicFee =
+          pixFee?.fixedFeeValueWithDiscount ??
+          pixFee?.fixedFeeValue ??
+          pixFee?.minimumFeeValue;
+
+        if (
+          dynamicFee !== undefined &&
+          dynamicFee !== null &&
+          !isNaN(Number(dynamicFee)) &&
+          Number(dynamicFee) >= 0
+        ) {
+          this.asaasPixFee = Number(dynamicFee);
+          this.logger.log(
+            `[AsaasService] Taxa Pix sincronizada diretamente da conta Asaas: R$ ${this.asaasPixFee.toFixed(2)}`,
+          );
+          return;
+        }
+      } catch (err: any) {
+        this.logger.debug(
+          `Não foi possível obter taxa dinâmica do Asaas: ${err?.message || err}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `[AsaasService] Utilizando taxa padrão de fallback para Pix: R$ ${this.asaasPixFee.toFixed(2)}`,
+    );
   }
 
   private get headers() {

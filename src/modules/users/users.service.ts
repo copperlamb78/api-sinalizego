@@ -12,11 +12,14 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { USER_PUBLIC_SELECT } from './constants/user-select.constant';
 
+import { MailService } from '../mail/mail.service';
+
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly asaas: AsaasService,
+    private readonly mailService: MailService,
   ) {}
 
   async createUser(data: CreateUserDto) {
@@ -32,6 +35,11 @@ export class UsersService {
       },
       select: USER_PUBLIC_SELECT,
     });
+
+    // Disparo assíncrono e resiliente do e-mail de boas-vindas
+    this.mailService
+      .sendWelcomeEmail(user.email, user.name, user.role)
+      .catch(() => {});
 
     return { message: 'Usuário criado com sucesso', user: user };
   }

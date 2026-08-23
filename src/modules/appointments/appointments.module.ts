@@ -5,9 +5,10 @@ import { AvailabilityService } from './availability.service';
 import { CalculateTax } from 'src/helpers/calculate-tax.helper';
 import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
 import { AsaasModule } from 'src/asaas/asaas.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
-  imports: [AsaasModule],
+  imports: [AsaasModule, MailModule],
   providers: [
     AppointmentsService,
     AvailabilityService,

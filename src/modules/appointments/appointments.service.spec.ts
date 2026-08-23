@@ -8,16 +8,18 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ApptStatus, Role } from '@prisma/client';
+import { ApptStatus, Role, TransactionStatus } from '@prisma/client';
 
 import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { AvailabilityService } from './availability.service';
+import { MailService } from '../mail/mail.service';
 
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
   let prisma: PrismaService;
   let asaasService: AsaasService;
+  let mailService: MailService;
 
   const mockPrisma = {
     appointment: {
@@ -29,6 +31,7 @@ describe('AppointmentsService', () => {
       update: jest.fn(),
     },
     transaction: {
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
     user: {
@@ -57,11 +60,18 @@ describe('AppointmentsService', () => {
 
   const mockAsaasService = {
     cancelPayment: jest.fn().mockResolvedValue(true),
+    refundPayment: jest.fn().mockResolvedValue(true),
   };
 
   const mockAvailabilityService = {
     validateSlotWithinWorkingHours: jest.fn().mockResolvedValue(undefined),
     getAvailableSlots: jest.fn(),
+  };
+
+  const mockMailService = {
+    sendAppointmentConfirmationEmail: jest.fn().mockResolvedValue(true),
+    sendAppointmentCancellationEmail: jest.fn().mockResolvedValue(true),
+    sendAppointmentReminderEmail: jest.fn().mockResolvedValue(true),
   };
 
   beforeEach(async () => {
@@ -85,12 +95,17 @@ describe('AppointmentsService', () => {
           provide: AvailabilityService,
           useValue: mockAvailabilityService,
         },
+        {
+          provide: MailService,
+          useValue: mockMailService,
+        },
       ],
     }).compile();
 
     service = module.get<AppointmentsService>(AppointmentsService);
     prisma = module.get<PrismaService>(PrismaService);
     asaasService = module.get<AsaasService>(AsaasService);
+    mailService = module.get<MailService>(MailService);
     jest.clearAllMocks();
   });
 
@@ -791,6 +806,203 @@ describe('AppointmentsService', () => {
         include: expect.any(Object),
       });
       expect(result).toEqual(expectedCompleted);
+    });
+  });
+
+  describe('deactivateAppointment (Cancellation & Email)', () => {
+    it('should trigger Asaas refund and send cancellation email when canceled > 24h before', async () => {
+      const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48h no futuro
+      const apptMock = {
+        id: 'appt-1',
+        appointmentDate: futureDate,
+        status: ApptStatus.CONFIRMED,
+        isActive: true,
+        company: {
+          userId: 'owner-1',
+          businessName: 'Barbearia VIP',
+          timezone: 'America/Sao_Paulo',
+        },
+        client: {
+          id: 'client-1',
+          name: 'Cliente Teste',
+          email: 'cliente@test.com',
+        },
+        service: { id: 'srv-1', name: 'Corte Degradê' },
+      };
+
+      mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+      mockPrisma.transaction.findFirst.mockResolvedValue({
+        id: 'tx-1',
+        appointmentId: 'appt-1',
+        asaasPaymentId: 'pay_123',
+        status: TransactionStatus.CONFIRMED,
+      });
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...apptMock,
+        status: ApptStatus.CANCELED,
+        isActive: false,
+      });
+
+      const result = await service.deactivateAppointment('appt-1', 'owner-1');
+
+      expect(mockAsaasService.refundPayment).toHaveBeenCalledWith(
+        'pay_123',
+        undefined,
+        'Cancelamento com antecedência superior a 24 horas.',
+      );
+      expect(
+        mockMailService.sendAppointmentCancellationEmail,
+      ).toHaveBeenCalledWith(
+        'cliente@test.com',
+        expect.objectContaining({
+          customerName: 'Cliente Teste',
+          companyName: 'Barbearia VIP',
+          isRefunded: true,
+        }),
+      );
+      expect(result.status).toBe(ApptStatus.CANCELED);
+    });
+
+    it('should NOT trigger Asaas refund when canceled <= 24h before appointment', async () => {
+      const nearFutureDate = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h no futuro
+      const apptMock = {
+        id: 'appt-1',
+        appointmentDate: nearFutureDate,
+        status: ApptStatus.CONFIRMED,
+        isActive: true,
+        company: {
+          userId: 'owner-1',
+          businessName: 'Barbearia VIP',
+          timezone: 'America/Sao_Paulo',
+        },
+        client: {
+          id: 'client-1',
+          name: 'Cliente Teste',
+          email: 'cliente@test.com',
+        },
+        service: { id: 'srv-1', name: 'Corte Degradê' },
+      };
+
+      mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...apptMock,
+        status: ApptStatus.CANCELED,
+        isActive: false,
+      });
+
+      await service.deactivateAppointment('appt-1', 'owner-1');
+
+      expect(mockAsaasService.refundPayment).not.toHaveBeenCalled();
+      expect(
+        mockMailService.sendAppointmentCancellationEmail,
+      ).toHaveBeenCalledWith(
+        'cliente@test.com',
+        expect.objectContaining({
+          isRefunded: false,
+        }),
+      );
+    });
+  });
+
+  describe('sendDailyAppointmentReminders (Cron D-1)', () => {
+    it('should send reminder emails for all confirmed appointments scheduled for tomorrow', async () => {
+      const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const apptsMock = [
+        {
+          id: 'appt-1',
+          appointmentDate: tomorrowDate,
+          status: ApptStatus.CONFIRMED,
+          isActive: true,
+          client: { name: 'Cliente 1', email: 'c1@test.com' },
+          company: {
+            businessName: 'Barbearia VIP',
+            street: 'Rua Principal',
+            number: '100',
+            district: 'Centro',
+            city: 'Feira de Santana',
+            state: 'BA',
+            timezone: 'America/Sao_Paulo',
+          },
+          service: { name: 'Corte' },
+        },
+        {
+          id: 'appt-2',
+          appointmentDate: tomorrowDate,
+          status: ApptStatus.CONFIRMED,
+          isActive: true,
+          client: { name: 'Cliente 2', email: 'c2@test.com' },
+          company: {
+            businessName: 'Barbearia VIP',
+            street: 'Rua Principal',
+            number: '100',
+            district: 'Centro',
+            city: 'Feira de Santana',
+            state: 'BA',
+            timezone: 'America/Sao_Paulo',
+          },
+          service: { name: 'Barba' },
+        },
+      ];
+
+      mockPrisma.appointment.findMany.mockResolvedValue(apptsMock);
+
+      const count = await service.sendDailyAppointmentReminders();
+
+      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
+        where: {
+          status: ApptStatus.CONFIRMED,
+          isActive: true,
+          appointmentDate: {
+            gte: expect.any(Date),
+            lte: expect.any(Date),
+          },
+        },
+        include: expect.any(Object),
+      });
+      expect(
+        mockMailService.sendAppointmentReminderEmail,
+      ).toHaveBeenCalledTimes(2);
+      expect(count).toBe(2);
+    });
+
+    it('should handle individual email errors gracefully without interrupting the batch', async () => {
+      const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const apptsMock = [
+        {
+          id: 'appt-1',
+          appointmentDate: tomorrowDate,
+          status: ApptStatus.CONFIRMED,
+          isActive: true,
+          client: { name: 'Cliente 1', email: 'c1@test.com' },
+          company: {
+            businessName: 'Barbearia VIP',
+            street: 'Rua Principal',
+            number: '100',
+            district: 'Centro',
+            city: 'Feira de Santana',
+            state: 'BA',
+            timezone: 'America/Sao_Paulo',
+          },
+          service: { name: 'Corte' },
+        },
+      ];
+
+      mockPrisma.appointment.findMany.mockResolvedValue(apptsMock);
+      mockMailService.sendAppointmentReminderEmail.mockRejectedValueOnce(
+        new Error('Brevo down'),
+      );
+
+      const count = await service.sendDailyAppointmentReminders();
+
+      expect(count).toBe(0);
     });
   });
 });
