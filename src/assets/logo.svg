@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+  <defs>
+    <linearGradient id="sinalizego-teal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#2DD4BF" />
+    </linearGradient>
+  </defs>
+  <text x="20" y="70" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="56" font-weight="600" letter-spacing="-1">
+    <tspan fill="#FFFFFF">Sinalize</tspan><tspan fill="url(#sinalizego-teal)">GO</tspan>
+  </text>
+</svg>

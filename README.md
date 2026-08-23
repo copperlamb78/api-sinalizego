@@ -499,6 +499,9 @@ src/
 │       ├── filters-service-group.dto.ts
 │       └── update-service-group.dto.ts
 │
+├── 🎨 assets/
+│   └── logo.svg                       # Logotipo oficial em formato vetorial SVG
+│
 ├── 🗄️ prisma/
 │   ├── prisma.module.ts                # Módulo global do Prisma
 │   └── prisma.service.ts              # Conexão via Driver Adapter (pg)
@@ -622,11 +625,12 @@ npm test
 ### O que é coberto pelos testes:
 - **Autenticação & Tokens:** Login, geração e renovação de JWT/refresh token, validação estrita de status ativo (`isActive === true`) no login, no refresh e em cada requisição autenticada no `JwtStrategy`, e logout com invalidação de token.
 - **Recuperação de Senha:** Proteção contra enumeração de e-mail, assinatura dinâmica stateless com `JWT_SECRET + user.password`, rejeição de tokens expirados/usados e redefinição de senha com invalidação de refresh token.
-- **E-mails Transacionais & Lembretes D-1 (`MailModule`):** Disparo assíncrono e resiliente via Brevo API com layout HTML responsivo e templates dedicados:
-  - **Boas-Vindas (`sendWelcomeEmail`):** Disparado no cadastro de novos usuários em `UsersService.createUser`.
-  - **Confirmação de Agendamento (`sendAppointmentConfirmationEmail`):** Disparado via Webhook Asaas (`PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`) com resumo de valores e fuso horário.
-  - **Cancelamento & Estorno (`sendAppointmentCancellationEmail`):** Disparado no cancelamento com aviso explícito sobre devolução do Pix (> 24h) ou retenção do sinal (<= 24h).
+- **E-mails Transacionais & Lembretes D-1 (`MailModule`):** Disparo assíncrono e resiliente via Brevo API com novo layout Dark Mode institucional (`#0B1120`, `#0F172A`, `#1E293B`, `#14B8A6`, `#EF4444`) e templates dedicados:
+  - **Boas-Vindas (`sendWelcomeEmail`):** Disparado no cadastro de novos usuários em `UsersService.createUser` com mensagem personalizada por perfil (`CLIENT` / `COMPANY_OWNER`) e card de vantagens.
+  - **Confirmação de Agendamento (`sendAppointmentConfirmationEmail`):** Disparado via Webhook Asaas (`PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`) com card detalhado do serviço, data/hora formatada no fuso da empresa e sinal pago Pix em destaque.
+  - **Cancelamento & Estorno (`sendAppointmentCancellationEmail`):** Disparado no cancelamento com aviso explícito e estilizado sobre devolução integral do Pix (> 24h) ou retenção do sinal (<= 24h).
   - **Lembrete de Véspera D-1 (`sendDailyAppointmentReminders`):** Cron job diário às 19:00 (`@Cron('0 19 * * *')`) notificando clientes sobre agendamentos do dia seguinte com isolamento de falhas por lote.
+  - **Recuperação de Senha (`sendPasswordResetEmail`):** Instruções seguras com botão CTA estilizado e link de contingência válido por 15 minutos.
 - **Usuários & Gestão de Contas:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF, rota para auto-desativação (`DELETE /users/me`), e rotas administrativas exclusivas para desativação e reativação de contas de terceiros (`DELETE /users/:userId` e `PATCH /users/:userId/activate` restritas a `SYSTEM_MANAGERS`).
 - **Empresas & Promoção de Roles:** Criação com validação de unicidade de e-mail e slug, criação vinculada a usuário existente com promoção automática para `COMPANY_OWNER` e emissão/retorno imediato do novo par de tokens (`access_token`, `refresh_token`) refletindo os privilégios atualizados sem necessidade de novo login.
 - **Storefront & Vitrine Pública Consolidada (`CompanyService.findBySlug`):** Endpoint público de alta performance (`GET /company/slug/:slug`) retornando dados cadastrais, grade completa de expediente (`workingHours`) e catálogo de serviços agrupados por capacidade (`serviceGroups` e `services`) em uma única query otimizada (`select`), com validação de status ativo e tratamento de erro 404.

@@ -1,190 +1,148 @@
 /**
- * Template base reutilizável para todos os e-mails transacionais do SinalizeGo.
- * Garante design consistente, responsivo e compatível com os principais clientes de e-mail (Gmail, Outlook, Apple Mail, etc.).
+ * Template Base e Geradores de E-mail Transacional do SinalizeGO
+ * Identidade Visual Oficial Dark Mode (Paleta: #0B1120, #0F172A, #1E293B, #14B8A6, #EF4444, #F8FAFC)
  */
-interface BaseEmailProps {
+
+interface BaseEmailLayoutProps {
   title: string;
   previewText?: string;
-  content: string;
-}
-
-export function baseEmailLayout({
-  title,
-  previewText,
-  content,
-}: BaseEmailProps): string {
-  const currentYear = new Date().getFullYear();
-
-  return `
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>${title}</title>
-  ${previewText ? `<div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f1f5f9;
-      margin: 0;
-      padding: 0;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-    table {
-      border-collapse: collapse;
-    }
-    .wrapper {
-      width: 100%;
-      background-color: #f1f5f9;
-      padding: 40px 16px;
-    }
-    .container {
-      max-width: 580px;
-      margin: 0 auto;
-      background: #ffffff;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-      border: 1px solid #e2e8f0;
-    }
-    .header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      padding: 32px 24px;
-      text-align: center;
-    }
-    .header-logo {
-      color: #ffffff;
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      margin: 0;
-      text-decoration: none;
-    }
-    .header-logo span {
-      color: #38bdf8;
-    }
-    .body-content {
-      padding: 36px 32px;
-      color: #334155;
-      font-size: 16px;
-      line-height: 1.6;
-    }
-    .body-content h2 {
-      color: #0f172a;
-      font-size: 20px;
-      font-weight: 700;
-      margin: 0 0 16px 0;
-    }
-    .body-content p {
-      margin: 0 0 16px 0;
-    }
-    .summary-card {
-      background-color: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 20px;
-      margin: 24px 0;
-    }
-    .summary-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px dashed #e2e8f0;
-      font-size: 14px;
-    }
-    .summary-item:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-    .summary-label {
-      color: #64748b;
-      font-weight: 600;
-    }
-    .summary-value {
-      color: #0f172a;
-      font-weight: 700;
-      text-align: right;
-    }
-    .btn-container {
-      text-align: center;
-      margin: 32px 0;
-    }
-    .btn-primary {
-      display: inline-block;
-      background: #0284c7;
-      color: #ffffff !important;
-      text-decoration: none;
-      padding: 14px 32px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 16px;
-      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
-    }
-    .callout-warning {
-      background-color: #fffbeb;
-      border-left: 4px solid #f59e0b;
-      padding: 16px;
-      margin: 24px 0;
-      border-radius: 4px;
-      font-size: 14px;
-      color: #92400e;
-    }
-    .callout-info {
-      background-color: #f0fdf4;
-      border-left: 4px solid #22c55e;
-      padding: 16px;
-      margin: 24px 0;
-      border-radius: 4px;
-      font-size: 14px;
-      color: #166534;
-    }
-    .link-fallback {
-      word-break: break-all;
-      color: #0284c7;
-      font-size: 13px;
-      text-decoration: underline;
-    }
-    .footer {
-      background-color: #f8fafc;
-      padding: 24px 32px;
-      text-align: center;
-      font-size: 13px;
-      color: #94a3b8;
-      border-top: 1px solid #e2e8f0;
-    }
-    .footer p {
-      margin: 0 0 8px 0;
-    }
-    .footer p:last-child {
-      margin: 0;
-    }
-  </style>
-</head>
-<body>
-  <div class="wrapper">
-    <div class="container">
-      <div class="header">
-        <div class="header-logo">Sinalize<span>Go</span></div>
-      </div>
-      <div class="body-content">
-        ${content}
-      </div>
-      <div class="footer">
-        <p>Você recebeu este e-mail porque possui uma conta ou agendamento na plataforma <strong>SinalizeGo</strong>.</p>
-        <p>&copy; ${currentYear} SinalizeGo — Plataforma de Gestão e Agendamentos. Todos os direitos reservados.</p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
-  `;
+  actionTitle: string;
+  actionTitleColor?: string;
+  introHtml: string;
+  infoCardHtml?: string;
+  cta?: {
+    text: string;
+    url: string;
+    bgColor?: string;
+  };
+  additionalContentHtml?: string;
 }
 
 /**
- * Formata uma data para exibição amigável com fuso horário.
+ * Casca HTML institucional canônica Dark Mode para todos os e-mails da plataforma.
+ */
+export function baseEmailLayout({
+  title,
+  previewText,
+  actionTitle,
+  actionTitleColor = '#F8FAFC',
+  introHtml,
+  infoCardHtml,
+  cta,
+  additionalContentHtml,
+}: BaseEmailLayoutProps): string {
+  const currentYear = new Date().getFullYear();
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    ${previewText ? `<div style="display:none;font-size:1px;color:#0B1120;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
+    <style>
+        /* Reset e compatibilidade para clientes de email (Gmail, Outlook, Apple Mail) */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        body { margin: 0; padding: 0; width: 100% !important; background-color: #0B1120; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    </style>
+</head>
+<body style="background-color: #0B1120; margin: 0; padding: 40px 20px;">
+    
+    <!-- Wrapper Central do Email (Max 600px) -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #0F172A; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+        
+        <!-- HEADER (Logo Institucional SinalizeGO) -->
+        <tr>
+            <td align="center" style="padding: 40px 20px 25px 20px;">
+                <img 
+                    src="${process.env.APP_LOGO_URL || 'https://res.cloudinary.com/dsg7aisg9/image/upload/v1787494139/Blue_and_Black_Minimalist_Professional_Business_Brand_Logo_khpcbp.png'}" 
+                    alt="SinalizeGO" 
+                    width="180" 
+                    style="display: block; border: 0; outline: none; text-decoration: none; max-width: 180px; height: auto; margin: 0 auto;" 
+                />
+            </td>
+        </tr>
+        
+        <!-- TÍTULO DA AÇÃO -->
+        <tr>
+            <td align="center" style="padding: 0px 40px 20px 40px;">
+                <h1 style="color: ${actionTitleColor}; font-size: 26px; margin: 0; font-weight: bold; line-height: 1.3;">${actionTitle}</h1>
+            </td>
+        </tr>
+
+        <!-- CORPO DO TEXTO (Introdução) -->
+        <tr>
+            <td style="padding: 10px 40px 25px 40px;">
+                <p style="color: #E8E8E8; font-size: 16px; line-height: 1.6; margin: 0;">
+                    ${introHtml}
+                </p>
+            </td>
+        </tr>
+
+        <!-- CARD DE INFORMAÇÕES INTERNO (#1E293B) -->
+        ${
+          infoCardHtml
+            ? `<tr>
+            <td style="padding: 0px 40px 30px 40px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1E293B; border-radius: 8px; padding: 25px;">
+                    ${infoCardHtml}
+                </table>
+            </td>
+        </tr>`
+            : ''
+        }
+
+        <!-- CONTEÚDO ADICIONAL (Ex: Fallbacks, Notas de Segurança) -->
+        ${
+          additionalContentHtml
+            ? `<tr>
+            <td style="padding: 0px 40px 25px 40px;">
+                ${additionalContentHtml}
+            </td>
+        </tr>`
+            : ''
+        }
+
+        <!-- CALL TO ACTION (Botão Principal #14B8A6) -->
+        ${
+          cta
+            ? `<tr>
+            <td align="center" style="padding: 10px 40px 40px 40px;">
+                <table border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td align="center" bgcolor="${cta.bgColor || '#14B8A6'}" style="border-radius: 25px;">
+                            <a href="${cta.url}" target="_blank" style="display: inline-block; padding: 14px 32px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 16px; color: #FFFFFF; text-decoration: none; font-weight: bold; border-radius: 25px;">
+                                ${cta.text}
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>`
+            : ''
+        }
+
+        <!-- FOOTER INSTITUCIONAL -->
+        <tr>
+            <td align="center" style="padding: 30px 40px; background-color: #0B1120;">
+                <p style="color: #64748B; font-size: 13px; line-height: 1.6; margin: 0;">
+                    Você está recebendo este e-mail porque possui uma conta ou agendamento na <strong>SinalizeGO</strong>.<br>
+                    Por favor, não responda diretamente a esta mensagem.<br><br>
+                    Precisa de suporte? <a href="mailto:suporte@sinalizego.com" style="color: #14B8A6; text-decoration: none; font-weight: 500;">suporte@sinalizego.com</a><br><br>
+                    &copy; ${currentYear} SinalizeGO. Todos os direitos reservados.
+                </p>
+            </td>
+        </tr>
+    </table>
+    
+</body>
+</html>`;
+}
+
+/**
+ * Formata uma data para exibição amigável em Português com fuso horário.
  */
 export function formatAppointmentDateTime(
   date: Date | string,
@@ -207,39 +165,60 @@ export function formatAppointmentDateTime(
 }
 
 /**
- * Template de Boas-Vindas
+ * 1. Template de Boas-Vindas (Welcome Email)
  */
 export function getWelcomeEmailTemplate(name: string, role?: string): string {
   const firstName = name ? name.trim().split(' ')[0] : 'Usuário';
   const isOwner = role === 'COMPANY_OWNER';
 
-  const content = `
-    <h2>Boas-vindas ao SinalizeGo! 🚀</h2>
-    <p>Olá, <strong>${firstName}</strong>!</p>
-    <p>Seu cadastro foi realizado com sucesso. Estamos muito felizes em ter você conosco na plataforma mais inteligente de agendamentos e gestão de serviços.</p>
-    
+  const introHtml = `
+    Olá, <strong>${firstName}</strong>!<br><br>
     ${
       isOwner
-        ? `<div class="callout-info">
-            <strong>🏢 Comece seu negócio:</strong> Configure sua grade de horários, cadastre seus serviços e vincule sua chave Asaas para receber pagamentos via Pix com split automatizado!
-          </div>`
-        : `<div class="callout-info">
-            <strong>✂️ Agende seu horário:</strong> Explore os melhores estabelecimentos, escolha seus serviços favoritos e garanta seu horário com praticidade.
-          </div>`
+        ? 'Seu cadastro como <strong>estabelecimento parceiro</strong> no SinalizeGO foi concluído com sucesso. Agora você pode configurar sua grade de expediente, gerenciar sua equipe e receber pagamentos de agendamentos com split automatizado via Pix!'
+        : 'Seu cadastro no <strong>SinalizeGO</strong> foi concluído com sucesso. Estamos prontos para conectar você aos melhores profissionais, com agendamentos rápidos e pagamento seguro do sinal via Pix!'
     }
+  `;
 
-    <p>Se tiver qualquer dúvida ou precisar de suporte, nossa equipe está sempre pronta para ajudar.</p>
+  const infoCardHtml = `
+    <tr>
+        <td style="padding-bottom: 15px;">
+            <span style="color: #14B8A6; font-size: 13px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Vantagens da sua conta</span>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding-bottom: 10px;">
+            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">⚡ Agendamentos 100% Online e Sem Filas</span>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding-bottom: 10px;">
+            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">🔒 Garantia e Segurança em Pagamentos Pix</span>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">⏰ Lembretes Automáticos na Véspera do Atendimento</span>
+        </td>
+    </tr>
   `;
 
   return baseEmailLayout({
-    title: 'Boas-vindas ao SinalizeGo!',
-    previewText: `Olá ${firstName}, seja muito bem-vindo(a) ao SinalizeGo!`,
-    content,
+    title: 'Boas-vindas ao SinalizeGO! 🚀',
+    previewText: `Olá ${firstName}, seja muito bem-vindo(a) ao SinalizeGO!`,
+    actionTitle: 'Seja muito bem-vindo! 🚀',
+    introHtml,
+    infoCardHtml,
+    cta: {
+      text: isOwner ? 'Completar Meu Perfil' : 'Acessar Plataforma',
+      url: 'https://app.sinalizego.com',
+      bgColor: '#14B8A6',
+    },
   });
 }
 
 /**
- * Template de Confirmação de Agendamento
+ * 2. Template de Confirmação de Agendamento (Payment Confirmed)
  */
 export function getAppointmentConfirmationEmailTemplate(data: {
   customerName: string;
@@ -247,101 +226,80 @@ export function getAppointmentConfirmationEmailTemplate(data: {
   serviceName: string;
   formattedDate: string;
   amountPaid: string;
+  servicePrice?: string;
+  address?: string;
 }): string {
   const firstName = data.customerName
     ? data.customerName.trim().split(' ')[0]
     : 'Cliente';
 
-  const content = `
-    <h2>Agendamento Confirmado! 🎉</h2>
-    <p>Olá, <strong>${firstName}</strong>!</p>
-    <p>Seu pagamento foi aprovado e o agendamento no estabelecimento <strong>${data.companyName}</strong> está 100% confirmado.</p>
+  const introHtml = `
+    Olá, <strong>${firstName}</strong>!<br><br>
+    Seu pagamento via Pix para o serviço no estabelecimento <strong>${data.companyName}</strong> foi confirmado com sucesso. Abaixo estão os detalhes completos do seu agendamento:
+  `;
 
-    <div class="summary-card">
-      <div class="summary-item">
-        <span class="summary-label">Estabelecimento:</span>
-        <span class="summary-value">${data.companyName}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Serviço:</span>
-        <span class="summary-value">${data.serviceName}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Data & Horário:</span>
-        <span class="summary-value">${data.formattedDate}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Sinal Pago Online:</span>
-        <span class="summary-value">R$ ${data.amountPaid}</span>
-      </div>
-    </div>
-
-    <div class="callout-info">
-      <strong>💡 Dica:</strong> Recomendamos chegar com 5 a 10 minutos de antecedência ao estabelecimento.
-    </div>
+  const infoCardHtml = `
+    <!-- Linha 1: Serviço -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <span style="color: #14B8A6; font-size: 13px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Serviço</span><br>
+            <span style="color: #F8FAFC; font-size: 18px; font-weight: bold; margin-top: 5px; display: inline-block;">${data.serviceName}</span>
+        </td>
+    </tr>
+    <!-- Linha 2: Estabelecimento & Endereço -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <span style="color: #94A3B8; font-size: 13px;">Estabelecimento</span><br>
+            <span style="color: #F8FAFC; font-size: 16px; font-weight: 500;">${data.companyName}</span>
+            ${
+              data.address
+                ? `<br><span style="color: #94A3B8; font-size: 13px; display: inline-block; margin-top: 4px;">📍 ${data.address}</span>`
+                : ''
+            }
+        </td>
+    </tr>
+    <!-- Linha 3: Data & Horário -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <span style="color: #94A3B8; font-size: 13px;">Data e Horário</span><br>
+            <span style="color: #F8FAFC; font-size: 16px; font-weight: 500;">${data.formattedDate}</span>
+        </td>
+    </tr>
+    <!-- Linha 4: Valores e Status (Com separador) -->
+    <tr>
+        <td style="padding-top: 20px; border-top: 1px solid rgba(248, 250, 252, 0.1);">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                    <td width="50%">
+                        <span style="color: #94A3B8; font-size: 13px;">Status</span><br>
+                        <span style="color: #F8FAFC; font-size: 16px; font-weight: bold;">Confirmado ✅</span>
+                    </td>
+                    <td width="50%">
+                        <span style="color: #14B8A6; font-size: 13px; font-weight: bold;">Sinal Pago (Pix)</span><br>
+                        <span style="color: #14B8A6; font-size: 20px; font-weight: bold;">R$ ${data.amountPaid}</span>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
   `;
 
   return baseEmailLayout({
-    title: 'Agendamento Confirmado — SinalizeGo',
+    title: `Agendamento Confirmado — ${data.companyName} 🎉`,
     previewText: `Seu agendamento em ${data.companyName} para ${data.formattedDate} foi confirmado com sucesso!`,
-    content,
+    actionTitle: 'Pagamento Confirmado! 🎉',
+    introHtml,
+    infoCardHtml,
+    cta: {
+      text: 'Ver Meu Agendamento',
+      url: 'https://app.sinalizego.com/agendamentos',
+      bgColor: '#14B8A6',
+    },
   });
 }
 
 /**
- * Template de Cancelamento de Agendamento
- */
-export function getAppointmentCancellationEmailTemplate(data: {
-  customerName: string;
-  companyName: string;
-  serviceName: string;
-  formattedDate: string;
-  isRefunded: boolean;
-}): string {
-  const firstName = data.customerName
-    ? data.customerName.trim().split(' ')[0]
-    : 'Cliente';
-
-  const content = `
-    <h2>Agendamento Cancelado 🗓️</h2>
-    <p>Olá, <strong>${firstName}</strong>!</p>
-    <p>Informamos que o seu agendamento no estabelecimento <strong>${data.companyName}</strong> foi cancelado.</p>
-
-    <div class="summary-card">
-      <div class="summary-item">
-        <span class="summary-label">Estabelecimento:</span>
-        <span class="summary-value">${data.companyName}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Serviço:</span>
-        <span class="summary-value">${data.serviceName}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Data & Horário:</span>
-        <span class="summary-value">${data.formattedDate}</span>
-      </div>
-    </div>
-
-    ${
-      data.isRefunded
-        ? `<div class="callout-info">
-            <strong>💰 Estorno Processado:</strong> Como o cancelamento ocorreu com mais de 24 horas de antecedência, o valor pago via Pix foi estornado integralmente para sua conta.
-          </div>`
-        : `<div class="callout-warning">
-            <strong>⚠️ Atenção:</strong> Conforme nossa política de cancelamento, cancelamentos com menos de 24 horas de antecedência não geram estorno do sinal pago.
-          </div>`
-    }
-  `;
-
-  return baseEmailLayout({
-    title: 'Agendamento Cancelado — SinalizeGo',
-    previewText: `Seu agendamento em ${data.companyName} foi cancelado.`,
-    content,
-  });
-}
-
-/**
- * Template de Lembrete de Agendamento (D-1)
+ * 3. Template de Lembrete de Agendamento (D-1 Reminder)
  */
 export function getAppointmentReminderEmailTemplate(data: {
   customerName: string;
@@ -354,48 +312,139 @@ export function getAppointmentReminderEmailTemplate(data: {
     ? data.customerName.trim().split(' ')[0]
     : 'Cliente';
 
-  const content = `
-    <h2>Lembrete: Seu agendamento é amanhã! ⏰</h2>
-    <p>Olá, <strong>${firstName}</strong>!</p>
-    <p>Passando para lembrar do seu horário agendado para amanhã no <strong>${data.companyName}</strong>.</p>
+  const introHtml = `
+    Olá, <strong>${firstName}</strong>!<br><br>
+    Passando para lembrar que o seu atendimento no estabelecimento <strong>${data.companyName}</strong> é <strong>amanhã</strong>. Organize seu dia e chegue com alguns minutos de antecedência:
+  `;
 
-    <div class="summary-card">
-      <div class="summary-item">
-        <span class="summary-label">Estabelecimento:</span>
-        <span class="summary-value">${data.companyName}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Serviço:</span>
-        <span class="summary-value">${data.serviceName}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Data & Horário:</span>
-        <span class="summary-value">${data.formattedDate}</span>
-      </div>
-      ${
-        data.address
-          ? `<div class="summary-item">
-              <span class="summary-label">Endereço:</span>
-              <span class="summary-value">${data.address}</span>
-            </div>`
-          : ''
-      }
-    </div>
-
-    <div class="callout-info">
-      <strong>✨ Nos vemos amanhã!</strong> Não se esqueça de comparecer no horário marcado.
-    </div>
+  const infoCardHtml = `
+    <!-- Linha 1: Serviço -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <span style="color: #14B8A6; font-size: 13px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Serviço</span><br>
+            <span style="color: #F8FAFC; font-size: 18px; font-weight: bold; margin-top: 5px; display: inline-block;">${data.serviceName}</span>
+        </td>
+    </tr>
+    <!-- Linha 2: Estabelecimento & Endereço -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <span style="color: #94A3B8; font-size: 13px;">Estabelecimento</span><br>
+            <span style="color: #F8FAFC; font-size: 16px; font-weight: 500;">${data.companyName}</span>
+            ${
+              data.address
+                ? `<br><span style="color: #94A3B8; font-size: 13px; display: inline-block; margin-top: 4px;">📍 ${data.address}</span>`
+                : ''
+            }
+        </td>
+    </tr>
+    <!-- Linha 3: Data & Horário -->
+    <tr>
+        <td>
+            <span style="color: #94A3B8; font-size: 13px;">Data e Horário</span><br>
+            <span style="color: #F8FAFC; font-size: 16px; font-weight: 500;">${data.formattedDate}</span>
+        </td>
+    </tr>
   `;
 
   return baseEmailLayout({
-    title: 'Lembrete de Agendamento — SinalizeGo',
+    title: `Lembrete: Seu agendamento é amanhã! ⏰ — ${data.companyName}`,
     previewText: `Lembrete: seu agendamento em ${data.companyName} é amanhã às ${data.formattedDate}!`,
-    content,
+    actionTitle: 'Seu serviço é amanhã! ⏰',
+    introHtml,
+    infoCardHtml,
+    cta: {
+      text: 'Ver Detalhes do Agendamento',
+      url: 'https://app.sinalizego.com/agendamentos',
+      bgColor: '#14B8A6',
+    },
   });
 }
 
 /**
- * Template de Redefinição de Senha
+ * 4. Template de Cancelamento de Agendamento (Cancellation & Refund Notice)
+ */
+export function getAppointmentCancellationEmailTemplate(data: {
+  customerName: string;
+  companyName: string;
+  serviceName: string;
+  formattedDate: string;
+  isRefunded: boolean;
+}): string {
+  const firstName = data.customerName
+    ? data.customerName.trim().split(' ')[0]
+    : 'Cliente';
+
+  const introHtml = `
+    Olá, <strong>${firstName}</strong>!<br><br>
+    Informamos que o seu agendamento no estabelecimento <strong>${data.companyName}</strong> foi cancelado. Confira abaixo os detalhes e a situação do seu sinal:
+  `;
+
+  const infoCardHtml = `
+    <!-- Linha 1: Serviço -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <span style="color: #94A3B8; font-size: 13px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Serviço Cancelado</span><br>
+            <span style="color: #F8FAFC; font-size: 18px; font-weight: bold; margin-top: 5px; display: inline-block;">${data.serviceName}</span>
+        </td>
+    </tr>
+    <!-- Linha 2: Estabelecimento & Data -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                    <td width="50%">
+                        <span style="color: #94A3B8; font-size: 13px;">Estabelecimento</span><br>
+                        <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">${data.companyName}</span>
+                    </td>
+                    <td width="50%">
+                        <span style="color: #94A3B8; font-size: 13px;">Data/Horário</span><br>
+                        <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">${data.formattedDate}</span>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    <!-- Linha 3: Status do Reembolso Pix -->
+    <tr>
+        <td style="padding-top: 20px; border-top: 1px solid rgba(248, 250, 252, 0.1);">
+            ${
+              data.isRefunded
+                ? `<div>
+                    <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
+                    <span style="color: #14B8A6; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Estorno Realizado com Sucesso 💰</span>
+                    <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
+                        Como o cancelamento foi realizado com mais de 24h de antecedência, o valor integral do sinal pago via Pix foi devolvido para a sua conta.
+                    </p>
+                </div>`
+                : `<div>
+                    <span style="color: #EF4444; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
+                    <span style="color: #EF4444; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Retido ⚠️</span>
+                    <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
+                        Conforme a política de cancelamento, cancelamentos com menos de 24h de antecedência não geram estorno do sinal para compensar a reserva do profissional.
+                    </p>
+                </div>`
+            }
+        </td>
+    </tr>
+  `;
+
+  return baseEmailLayout({
+    title: `Agendamento Cancelado — ${data.companyName}`,
+    previewText: `Seu agendamento em ${data.companyName} foi cancelado.`,
+    actionTitle: 'Agendamento Cancelado',
+    actionTitleColor: '#EF4444',
+    introHtml,
+    infoCardHtml,
+    cta: {
+      text: 'Fazer Novo Agendamento',
+      url: 'https://app.sinalizego.com',
+      bgColor: '#14B8A6',
+    },
+  });
+}
+
+/**
+ * 5. Template de Redefinição de Senha (Password Reset)
  */
 export function getPasswordResetEmailTemplate(
   name: string,
@@ -403,30 +452,42 @@ export function getPasswordResetEmailTemplate(
 ): string {
   const firstName = name ? name.trim().split(' ')[0] : 'Usuário';
 
-  const content = `
-    <h2>Recuperação de Senha</h2>
-    <p>Olá, <strong>${firstName}</strong>!</p>
-    <p>Recebemos uma solicitação para redefinir a senha de acesso à sua conta no <strong>SinalizeGo</strong>.</p>
-    <p>Para criar uma nova senha, clique no botão abaixo:</p>
-    
-    <div class="btn-container">
-      <a href="${resetLink}" target="_blank" class="btn-primary">Redefinir Minha Senha</a>
-    </div>
+  const introHtml = `
+    Olá, <strong>${firstName}</strong>!<br><br>
+    Recebemos uma solicitação para redefinir a senha de acesso à sua conta no <strong>SinalizeGO</strong>. Para criar uma nova senha com segurança, clique no botão abaixo:
+  `;
 
-    <div class="callout-warning">
-      <strong>⚠️ Importante:</strong> Este link é válido por <strong>15 minutos</strong> e expira automaticamente após a conclusão da alteração. Se você não solicitou este procedimento, nenhuma ação é necessária e sua senha continuará segura.
-    </div>
+  const infoCardHtml = `
+    <tr>
+        <td>
+            <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Segurança & Validade</span><br>
+            <p style="color: #F8FAFC; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;">
+                ⏱️ Este link é válido por <strong>15 minutos</strong> e expira automaticamente após o primeiro uso.<br>
+                🛡️ Se você não solicitou esta redefinição, nenhuma ação é necessária e sua senha continuará segura.
+            </p>
+        </td>
+    </tr>
+  `;
 
-    <p style="font-size: 13px; color: #64748b; margin-top: 24px;">
-      Se o botão acima não funcionar, copie e cole o link a seguir no seu navegador:<br>
-      <a href="${resetLink}" class="link-fallback">${resetLink}</a>
+  const additionalContentHtml = `
+    <p style="color: #64748B; font-size: 12px; line-height: 1.5; margin: 0; word-break: break-all;">
+        Se o botão acima não funcionar, copie e cole o link a seguir no seu navegador:<br>
+        <a href="${resetLink}" style="color: #14B8A6; text-decoration: underline;">${resetLink}</a>
     </p>
   `;
 
   return baseEmailLayout({
     title: 'Redefinição de Senha — SinalizeGo',
     previewText:
-      'Instruções para redefinir sua senha no SinalizeGo (válido por 15 minutos).',
-    content,
+      'Instruções para redefinir sua senha no SinalizeGO (válido por 15 minutos).',
+    actionTitle: 'Recuperação de Senha 🔒',
+    introHtml,
+    infoCardHtml,
+    additionalContentHtml,
+    cta: {
+      text: 'Redefinir Minha Senha',
+      url: resetLink,
+      bgColor: '#14B8A6',
+    },
   });
 }
