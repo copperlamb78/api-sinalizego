@@ -1,0 +1,315 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { AvailabilityService } from './availability.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ApptStatus } from '@prisma/client';
+
+describe('AvailabilityService', () => {
+  let service: AvailabilityService;
+  let prisma: PrismaService;
+
+  const mockPrisma = {
+    company: {
+      findUnique: jest.fn(),
+    },
+    service: {
+      findUnique: jest.fn(),
+    },
+    scheduleException: {
+      findFirst: jest.fn(),
+    },
+    workingHour: {
+      findUnique: jest.fn(),
+    },
+    appointment: {
+      findMany: jest.fn(),
+    },
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AvailabilityService,
+        {
+          provide: PrismaService,
+          useValue: mockPrisma,
+        },
+      ],
+    }).compile();
+
+    service = module.get<AvailabilityService>(AvailabilityService);
+    prisma = module.get<PrismaService>(PrismaService);
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('getAvailableSlots', () => {
+    const mockCompany = {
+      id: 'comp-1',
+      isActive: true,
+      timezone: 'America/Sao_Paulo',
+    };
+
+    const mockService = {
+      id: 'serv-1',
+      companyId: 'comp-1',
+      isActive: true,
+      durationMinutes: 30,
+      serviceGroupId: 'grp-1',
+      serviceGroup: {
+        id: 'grp-1',
+        capacity: 1,
+      },
+    };
+
+    it('should throw NotFoundException if company is not found', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getAvailableSlots('comp-invalid', 'serv-1', '2026-08-25'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if service is not found', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getAvailableSlots('comp-1', 'serv-invalid', '2026-08-25'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if service does not belong to company', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue({
+        ...mockService,
+        companyId: 'other-comp',
+      });
+
+      await expect(
+        service.getAvailableSlots('comp-1', 'serv-1', '2026-08-25'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should return empty array if day has closed schedule exception (holiday)', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue(mockService);
+      mockPrisma.scheduleException.findFirst.mockResolvedValue({
+        isClosed: true,
+      });
+
+      const result = await service.getAvailableSlots(
+        'comp-1',
+        'serv-1',
+        '2026-12-25',
+      );
+      expect(result).toEqual({
+        date: '2026-12-25',
+        totalAvailable: 0,
+        slots: [],
+      });
+    });
+
+    it('should return empty array if working hour for the day is closed', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue(mockService);
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        isClosed: true,
+      });
+
+      const result = await service.getAvailableSlots(
+        'comp-1',
+        'serv-1',
+        '2026-08-23', // Sunday
+      );
+      expect(result.slots).toEqual([]);
+      expect(result.totalAvailable).toBe(0);
+    });
+
+    it('should correctly calculate slots and exclude lunch intervals (09:00 - 18:00, lunch 12:00 - 13:00)', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue(mockService);
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 2,
+        startTime: '09:00',
+        endTime: '18:00',
+        lunchStartTime: '12:00',
+        lunchEndTime: '13:00',
+        isClosed: false,
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+
+      const futureDate = '2029-08-28'; // A future Tuesday
+      const result = await service.getAvailableSlots(
+        'comp-1',
+        'serv-1',
+        futureDate,
+      );
+
+      expect(result.date).toBe(futureDate);
+      expect(result.slots).toContain('09:00');
+      expect(result.slots).toContain('11:30');
+      // Slots during lunch must be excluded
+      expect(result.slots).not.toContain('12:00');
+      expect(result.slots).not.toContain('12:30');
+      // Slots after lunch must be present
+      expect(result.slots).toContain('13:00');
+      expect(result.slots).toContain('17:30');
+      // Slot at 18:00 with 30m duration exceeds closing time (ends 18:30 > 18:00)
+      expect(result.slots).not.toContain('18:00');
+    });
+
+    it('should exclude slots that exceed capacity (single chair vs multi chair)', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue(mockService); // capacity = 1
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 2,
+        startTime: '09:00',
+        endTime: '12:00',
+        lunchStartTime: null,
+        lunchEndTime: null,
+        isClosed: false,
+      });
+
+      const futureDate = '2029-08-28';
+      // Existing appointment at 10:00 - 10:30
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        {
+          appointmentDate: new Date('2029-08-28T10:00:00'),
+          appointmentEndDate: new Date('2029-08-28T10:30:00'),
+        },
+      ]);
+
+      const result = await service.getAvailableSlots(
+        'comp-1',
+        'serv-1',
+        futureDate,
+      );
+
+      expect(result.slots).toContain('09:00');
+      expect(result.slots).toContain('09:30');
+      expect(result.slots).not.toContain('10:00'); // Occupied
+      expect(result.slots).toContain('10:30');
+      expect(result.slots).toContain('11:00');
+      expect(result.slots).toContain('11:30');
+    });
+
+    it('should keep slot available when overlapping count is less than capacity (multi-chair)', async () => {
+      const multiChairService = {
+        ...mockService,
+        serviceGroup: {
+          id: 'grp-1',
+          capacity: 2, // 2 chairs
+        },
+      };
+
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue(multiChairService);
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 2,
+        startTime: '09:00',
+        endTime: '12:00',
+        lunchStartTime: null,
+        lunchEndTime: null,
+        isClosed: false,
+      });
+
+      const futureDate = '2029-08-28';
+      // 1 appointment at 10:00 - 10:30 with capacity = 2
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        {
+          appointmentDate: new Date('2029-08-28T10:00:00'),
+          appointmentEndDate: new Date('2029-08-28T10:30:00'),
+        },
+      ]);
+
+      const result = await service.getAvailableSlots(
+        'comp-1',
+        'serv-1',
+        futureDate,
+      );
+
+      // Since capacity is 2 and only 1 appointment exists, 10:00 is still available
+      expect(result.slots).toContain('10:00');
+    });
+  });
+
+  describe('validateSlotWithinWorkingHours', () => {
+    it('should throw BadRequestException if company is closed on the date', async () => {
+      mockPrisma.scheduleException.findFirst.mockResolvedValue({
+        isClosed: true,
+      });
+
+      const startDate = new Date('2026-12-25T10:00:00');
+      const endDate = new Date('2026-12-25T10:30:00');
+
+      await expect(
+        service.validateSlotWithinWorkingHours('comp-1', startDate, endDate),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if appointment is outside working hours', async () => {
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '18:00',
+        lunchStartTime: null,
+        lunchEndTime: null,
+        isClosed: false,
+      });
+
+      const earlyStart = new Date('2026-08-24T08:00:00');
+      const earlyEnd = new Date('2026-08-24T08:30:00');
+
+      await expect(
+        service.validateSlotWithinWorkingHours('comp-1', earlyStart, earlyEnd),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if appointment intercepts lunch break', async () => {
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '18:00',
+        lunchStartTime: '12:00',
+        lunchEndTime: '13:00',
+        isClosed: false,
+      });
+
+      const lunchStart = new Date('2026-08-24T12:15:00');
+      const lunchEnd = new Date('2026-08-24T12:45:00');
+
+      await expect(
+        service.validateSlotWithinWorkingHours('comp-1', lunchStart, lunchEnd),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should pass validation when slot is within working hours and outside lunch', async () => {
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '18:00',
+        lunchStartTime: '12:00',
+        lunchEndTime: '13:00',
+        isClosed: false,
+      });
+
+      const validStart = new Date('2026-08-24T14:00:00');
+      const validEnd = new Date('2026-08-24T14:30:00');
+
+      await expect(
+        service.validateSlotWithinWorkingHours('comp-1', validStart, validEnd),
+      ).resolves.not.toThrow();
+    });
+  });
+});

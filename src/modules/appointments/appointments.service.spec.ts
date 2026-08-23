@@ -12,6 +12,7 @@ import { ApptStatus, Role } from '@prisma/client';
 
 import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
 import { AsaasService } from 'src/asaas/asaas.service';
+import { AvailabilityService } from './availability.service';
 
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
@@ -58,6 +59,11 @@ describe('AppointmentsService', () => {
     cancelPayment: jest.fn().mockResolvedValue(true),
   };
 
+  const mockAvailabilityService = {
+    validateSlotWithinWorkingHours: jest.fn().mockResolvedValue(undefined),
+    getAvailableSlots: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -74,6 +80,10 @@ describe('AppointmentsService', () => {
         {
           provide: AsaasService,
           useValue: mockAsaasService,
+        },
+        {
+          provide: AvailabilityService,
+          useValue: mockAvailabilityService,
         },
       ],
     }).compile();

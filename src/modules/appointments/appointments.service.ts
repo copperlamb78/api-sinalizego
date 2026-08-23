@@ -19,6 +19,7 @@ import {
 import { AppointmentsStatusUpdateDto } from './dto/appointements-update.dto';
 import { ApptStatus, Role } from '@prisma/client';
 import { AsaasService } from 'src/asaas/asaas.service';
+import { AvailabilityService } from './availability.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -29,6 +30,7 @@ export class AppointmentsService {
     private readonly calculateTax: CalculateTax,
     private readonly calculateDeposit: CalculateDeposit,
     private readonly asaasService: AsaasService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   async createAppointment(data: CreateAppointmentsDto, userId: string) {
@@ -91,6 +93,13 @@ export class AppointmentsService {
       startDate.getTime() + service.durationMinutes * 60000,
     );
     const expirationDate = new Date(Date.now() + 15 * 60000);
+
+    // Validação de Expediente: garante que o agendamento está dentro do horário de funcionamento e fora do almoço
+    await this.availabilityService.validateSlotWithinWorkingHours(
+      company.id,
+      startDate,
+      endDate,
+    );
 
     const price = Number(service.totalPrice);
     const downPayment = this.calculateDeposit.calculateDeposit(

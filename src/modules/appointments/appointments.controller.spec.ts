@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsService } from './appointments.service';
+import { AvailabilityService } from './availability.service';
 import { ApptStatus } from '@prisma/client';
 
 describe('AppointmentsController', () => {
   let controller: AppointmentsController;
-  let service: AppointmentsService;
+  let appointmentsService: AppointmentsService;
+  let availabilityService: AvailabilityService;
 
   const mockAppointmentsService = {
     createAppointment: jest.fn(),
@@ -16,6 +18,10 @@ describe('AppointmentsController', () => {
     deactivateAppointment: jest.fn(),
   };
 
+  const mockAvailabilityService = {
+    getAvailableSlots: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AppointmentsController],
@@ -24,16 +30,45 @@ describe('AppointmentsController', () => {
           provide: AppointmentsService,
           useValue: mockAppointmentsService,
         },
+        {
+          provide: AvailabilityService,
+          useValue: mockAvailabilityService,
+        },
       ],
     }).compile();
 
     controller = module.get<AppointmentsController>(AppointmentsController);
-    service = module.get<AppointmentsService>(AppointmentsService);
+    appointmentsService = module.get<AppointmentsService>(AppointmentsService);
+    availabilityService = module.get<AvailabilityService>(AvailabilityService);
     jest.clearAllMocks();
   });
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  describe('getAvailableSlots', () => {
+    it('should return available slots calling availabilityService', async () => {
+      const query = {
+        companyId: 'company-1',
+        serviceId: 'service-1',
+        date: '2026-08-25',
+      };
+      const expected = {
+        date: '2026-08-25',
+        totalAvailable: 2,
+        slots: ['09:00', '09:30'],
+      };
+      mockAvailabilityService.getAvailableSlots.mockResolvedValue(expected);
+
+      const result = await controller.getAvailableSlots(query);
+      expect(availabilityService.getAvailableSlots).toHaveBeenCalledWith(
+        'company-1',
+        'service-1',
+        '2026-08-25',
+      );
+      expect(result).toEqual(expected);
+    });
   });
 
   describe('create', () => {
@@ -53,7 +88,10 @@ describe('AppointmentsController', () => {
       mockAppointmentsService.createAppointment.mockResolvedValue(expected);
 
       const result = await controller.create(dto as any, req);
-      expect(service.createAppointment).toHaveBeenCalledWith(dto, 'client-1');
+      expect(appointmentsService.createAppointment).toHaveBeenCalledWith(
+        dto,
+        'client-1',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -65,7 +103,7 @@ describe('AppointmentsController', () => {
       mockAppointmentsService.getAppointments.mockResolvedValue(expected);
 
       const result = await controller.findAll(filters);
-      expect(service.getAppointments).toHaveBeenCalledWith(filters);
+      expect(appointmentsService.getAppointments).toHaveBeenCalledWith(filters);
       expect(result).toEqual(expected);
     });
   });
@@ -80,10 +118,9 @@ describe('AppointmentsController', () => {
       );
 
       const result = await controller.findByCompany(req, filters);
-      expect(service.getAppointmentByCompanyId).toHaveBeenCalledWith(
-        'owner-1',
-        filters,
-      );
+      expect(
+        appointmentsService.getAppointmentByCompanyId,
+      ).toHaveBeenCalledWith('owner-1', filters);
       expect(result).toEqual(expected);
     });
   });
@@ -98,7 +135,7 @@ describe('AppointmentsController', () => {
       );
 
       const result = await controller.findByUser(req, filters);
-      expect(service.getAppointmentByUserId).toHaveBeenCalledWith(
+      expect(appointmentsService.getAppointmentByUserId).toHaveBeenCalledWith(
         'client-1',
         filters,
       );
@@ -120,7 +157,7 @@ describe('AppointmentsController', () => {
         dto,
         req,
       );
-      expect(service.updateAppointmentStatus).toHaveBeenCalledWith(
+      expect(appointmentsService.updateAppointmentStatus).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
         dto,
@@ -143,7 +180,7 @@ describe('AppointmentsController', () => {
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         req,
       );
-      expect(service.deactivateAppointment).toHaveBeenCalledWith(
+      expect(appointmentsService.deactivateAppointment).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'client-1',
       );

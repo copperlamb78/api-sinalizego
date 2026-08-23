@@ -36,11 +36,54 @@ import {
   INTERNAL_USERS,
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
+import { AvailableSlotsQueryDto } from './dto/available-slots-query.dto';
+import { AvailabilityService } from './availability.service';
 
 @ApiTags('Agendamentos')
 @Controller('appointments')
 export class AppointmentsController {
-  constructor(private readonly appointmentsService: AppointmentsService) {}
+  constructor(
+    private readonly appointmentsService: AppointmentsService,
+    private readonly availabilityService: AvailabilityService,
+  ) {}
+
+  @Get('available-slots')
+  @ApiOperation({
+    summary:
+      'Consulta pública de horários (slots) disponíveis para um serviço em uma data',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de horários livres retornada com sucesso',
+    schema: {
+      example: {
+        date: '2026-08-25',
+        totalAvailable: 8,
+        slots: [
+          '09:00',
+          '09:30',
+          '10:00',
+          '11:00',
+          '14:00',
+          '14:30',
+          '15:00',
+          '15:30',
+        ],
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Parâmetros inválidos' })
+  @ApiResponse({
+    status: 404,
+    description: 'Empresa ou serviço não encontrado',
+  })
+  async getAvailableSlots(@Query() query: AvailableSlotsQueryDto) {
+    return this.availabilityService.getAvailableSlots(
+      query.companyId,
+      query.serviceId,
+      query.date,
+    );
+  }
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
