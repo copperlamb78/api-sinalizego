@@ -8,25 +8,25 @@ datasource db {
 
 // 1. A IDENTIDADE (Quem faz o login)
 model User {
-  id         String    @id @default(uuid())
-  name       String
-  email      String    @unique
-  password   String
-  phone      String
-  role       Role      @default(CLIENT)
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
+  phone    String
+  role     Role   @default(CLIENT)
 
   refreshToken String?
 
   asaasCustomerId String? @unique
-  cpfCnpj String? @unique
+  cpfCnpj         String? @unique
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   isActive   Boolean   @default(true)
   disabledAt DateTime? // Corrigido de dateTime? para DateTime?
 
-  companies         Company[] 
-  appointments      Appointment[] 
+  companies         Company[]
+  appointments      Appointment[]
   financialProfiles FinancialProfile[]
   transactions      Transaction[]
 }
@@ -43,10 +43,10 @@ enum Role {
 // 2. O NEGÓCIO (A Barbearia/Estúdio/Empresa)
 model Company {
   id           String    @id @default(uuid())
-  userId       String   
+  userId       String
   businessName String
   slug         String    @unique
-  whatsapp     String?   // Adicionado de volta o número público
+  whatsapp     String? // Adicionado de volta o número público
   chairsCount  Int       @default(1)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -54,15 +54,17 @@ model Company {
   disabledAt   DateTime? // Corrigido de dateTime? para DateTime?
 
   providerType String
-  district     String      
+  district     String
   street       String
   city         String
   state        String
   zipCode      String
   number       String
 
-  logoPhoto    String?
-  bannerPhoto  String?
+  logoPhoto   String?
+  bannerPhoto String?
+
+  timezone String @default("America/Sao_Paulo")
 
   financialProfileId String?
   financialProfile   FinancialProfile? @relation(fields: [financialProfileId], references: [id])
@@ -80,14 +82,14 @@ model ServiceGroup {
   id         String    @id @default(uuid())
   name       String
   capacity   Int       @default(1)
-  companyId  String 
+  companyId  String
   isActive   Boolean   @default(true)
   disabledAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  services   Service[]
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  services Service[]
 }
 
 // 3. OS SERVIÇOS
@@ -102,115 +104,123 @@ model Service {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   isActive           Boolean   @default(true)
-  disabledAt         DateTime? 
+  disabledAt         DateTime?
   serviceGroupId     String
 
-  serviceGroup       ServiceGroup @relation(fields: [serviceGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade) 
-  company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  appointments       Appointment[]
+  serviceGroup ServiceGroup  @relation(fields: [serviceGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  appointments Appointment[]
 }
 
 // 4. OS AGENDAMENTOS
 model Appointment {
-  id                String     @id @default(uuid())
-  companyId         String
-  serviceId         String
-  clientId          String
-  appointmentDate   DateTime  
-  appointmentEndDate DateTime 
-  status            ApptStatus @default(PENDING_PAYMENT)
-  expiresAt         DateTime?
-  pixTxId           String?    // transaction id do pix
-  servicePrice      Decimal    @db.Decimal(10, 2)
-  downPaymentAmount Decimal    @db.Decimal(10, 2)
-  platformFeeAmount Decimal    @db.Decimal(10, 2)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt // Adicionado para rastrear mudanças de status
-  isActive          Boolean    @default(true)
-  disabledAt        DateTime?  // Corrigido de dateTime? para DateTime?
-  disabledBy        String?
+  id                 String     @id @default(uuid())
+  companyId          String
+  serviceId          String
+  clientId           String
+  appointmentDate    DateTime
+  appointmentEndDate DateTime
+  status             ApptStatus @default(PENDING_PAYMENT)
+  expiresAt          DateTime?
+  pixTxId            String? // transaction id do pix
+  servicePrice       Decimal    @db.Decimal(10, 2)
+  downPaymentAmount  Decimal    @db.Decimal(10, 2)
+  platformFeeAmount  Decimal    @db.Decimal(10, 2)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt // Adicionado para rastrear mudanças de status
+  isActive           Boolean    @default(true)
+  disabledAt         DateTime? // Corrigido de dateTime? para DateTime?
+  disabledBy         String?
 
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  transactions    Transaction[]
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service      Service       @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  client       User          @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  transactions Transaction[]
+
+  @@index([companyId])
+  @@index([clientId])
+  @@index([appointmentDate, appointmentEndDate])
+  @@index([status])
+  @@index([expiresAt])
 }
 
 enum ApptStatus {
-  PENDING_PAYMENT 
-  CONFIRMED       
-  COMPLETED       
-  CANCELED        
+  PENDING_PAYMENT
+  CONFIRMED
+  COMPLETED
+  CANCELED
 }
 
 // 5. AGENDA SEMANAL
 model WorkingHour {
-  id         String   @id @default(uuid())
-  companyId  String
-  dayOfWeek  Int      // 0 = Domingo, 1 = Segunda, 2 = Terça...
-  startTime  String   // "09:00"
-  endTime    String   // "18:00"
-  isClosed   Boolean  @default(false) 
+  id             String  @id @default(uuid())
+  companyId      String
+  dayOfWeek      Int // 0 = Domingo, 1 = Segunda, 2 = Terça...
+  startTime      String // "09:00"
+  endTime        String // "18:00"
+  lunchStartTime String?
+  lunchEndTime   String?
+  isClosed       Boolean @default(false)
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
   @@unique([companyId, dayOfWeek])
 }
 
 // 6. EXCEÇÕES E FERIADOS
 model ScheduleException {
-  id         String    @id @default(uuid())
-  companyId  String
-  date       DateTime
-  isClosed   Boolean   @default(true) 
-  
-  startTime  String?  
-  endTime    String?  
+  id        String   @id @default(uuid())
+  companyId String
+  date      DateTime
+  isClosed  Boolean  @default(true)
+
+  startTime String?
+  endTime   String?
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   isActive   Boolean   @default(true)
   disabledAt DateTime?
 
-  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model FinancialProfile {
-  id               String    @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Dados Básicos da Subconta
-  name             String
-  email            String
-  cpfCnpj          String    @unique
-  birthDate        DateTime? // Obrigatório apenas para PF (Pessoa Física)
-  companyType      String?   // MEI, LIMITED, INDIVIDUAL, ASSOCIATION (Apenas para PJ)
-  
+  name        String
+  email       String
+  cpfCnpj     String    @unique
+  birthDate   DateTime? // Obrigatório apenas para PF (Pessoa Física)
+  companyType String? // MEI, LIMITED, INDIVIDUAL, ASSOCIATION (Apenas para PJ)
+
   // Contato e Faturamento
-  mobilePhone      String
-  incomeValue      Decimal   @db.Decimal(10, 2)
-  
+  mobilePhone String
+  incomeValue Decimal @db.Decimal(10, 2)
+
   // Endereço
-  address          String    // Logradouro
-  addressNumber    String
-  province         String    // Bairro
-  postalCode       String
-  
+  address       String // Logradouro
+  addressNumber String
+  province      String // Bairro
+  postalCode    String
+
   // Retorno do Asaas
-  walletId         String    @unique // ID da carteira gerada no Asaas
-  asaasApiKey      String?   // Chave de API da subconta (útil para operações futuras)
+  walletId    String  @unique // ID da carteira gerada no Asaas
+  asaasApiKey String? // Chave de API da subconta (útil para operações futuras)
 
   // Relacionamentos da sua Arquitetura
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  companies        Company[]
-  transactions     Transaction[] 
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  companies    Company[]
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   isActive   Boolean   @default(true)
   disabledAt DateTime?
@@ -226,7 +236,7 @@ enum TransactionStatus {
 }
 
 enum TransactionType {
-  DEPOSIT    // Quando o cliente paga o Pix do sinal
+  DEPOSIT // Quando o cliente paga o Pix do sinal
   WITHDRAWAL // Quando o barbeiro sacar o dinheiro
 }
 
@@ -238,36 +248,39 @@ enum BillingType {
 }
 
 model Transaction {
-  id                String            @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // A ponte de ligação com o Asaas (Fundamental para o Webhook achar depois)
-  asaasPaymentId    String?           @unique 
-  
+  asaasPaymentId String? @unique
+
   // Controle de Valores
-  totalValue        Decimal           @db.Decimal(10, 2) // Valor total que o cliente pagou (ex: 12.00)
-  netValue          Decimal           @db.Decimal(10, 2) // O que realmente vai pro barbeiro (ex: 9.01)
-  platformFee       Decimal           @db.Decimal(10, 2) // A sua parte da grana (ex: 2.00)
-  asaasFee          Decimal           @db.Decimal(10, 2) // Parte do asaas (ex: 0,99)
-  
+  totalValue  Decimal @db.Decimal(10, 2) // Valor total que o cliente pagou (ex: 12.00)
+  netValue    Decimal @db.Decimal(10, 2) // O que realmente vai pro barbeiro (ex: 9.01)
+  platformFee Decimal @db.Decimal(10, 2) // A sua parte da grana (ex: 2.00)
+  asaasFee    Decimal @db.Decimal(10, 2) // Parte do asaas (ex: 0,99)
+
   // Status e Tipo
-  status            TransactionStatus @default(PENDING)
-  type              TransactionType   @default(DEPOSIT)
-  billingType       BillingType       @default(PIX)
+  status      TransactionStatus @default(PENDING)
+  type        TransactionType   @default(DEPOSIT)
+  billingType BillingType       @default(PIX)
 
   // Relacionamentos (Quem pagou e quem recebeu)
-  customerId        String?            // ID do cliente que agendou/pagou se DEPOSIT
-  customer       User?             @relation(fields: [customerId], references: [id])
+  customerId String? // ID do cliente que agendou/pagou se DEPOSIT
+  customer   User?   @relation(fields: [customerId], references: [id])
 
-  barberWalletId    String            // A carteira do Asaas que recebeu o split
+  barberWalletId   String // A carteira do Asaas que recebeu o split
   financialProfile FinancialProfile @relation(fields: [barberWalletId], references: [walletId])
-  
+
   // Relacionamento com o Agendamento
-  appointmentId  String?           @unique
-  appointment    Appointment?      @relation(fields: [appointmentId], references: [id])
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
 
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@index([asaasPaymentId])
+  @@index([appointmentId])
+  @@index([status])
   @@map("transactions")
 }
 
@@ -279,5 +292,6 @@ model WebhookEvent {
   payload     Json?
   processedAt DateTime @default(now())
 
+  @@index([eventId])
   @@map("webhook_events")
 }
