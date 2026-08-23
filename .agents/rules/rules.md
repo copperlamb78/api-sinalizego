@@ -18,7 +18,13 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 *   **Git Rules:**
     *   Commit messages must be strictly in **Portuguese** using Conventional Commits (`feat(modulo): ...`, `fix(seguranca): ...`).
     *   Never run `git push` without explicit user consent.
-*   **Documentation Sync:** Keep `README.md` updated in the same PR whenever domain contracts or flows change.
+*   **Comprehensive Documentation Synchronization (MANDATORY & STRICT):**
+    *   Whenever any code, endpoint, DTO, entity, helper, test suite, or business rule is created, updated, or modified, you **MUST** simultaneously review and update all corresponding sections of `README.md` within the exact same PR:
+        1. **Tabelas de Endpoints por Módulo:** Incluir novos endpoints, atualizar parâmetros, roles e autenticação.
+        2. **Árvore Estrutural de Arquivos (`src/`):** Adicionar novos módulos, arquivos, DTOs e helpers criados.
+        3. **Diagrama do Banco de Dados (Mermaid):** Refletir novos campos, tipos (`Decimal`) ou relações.
+        4. **Métricas de Testes Unitários:** Atualizar a contagem exata de suítes e testes unitários automatizados em todas as seções (Destaques e Seção de Testes).
+        5. **Descrições de Regras e Cobertura:** Documentar o comportamento e as garantias de segurança recém-implementadas.
 *   **Vulnerability Disclosure:** If a security flaw is detected: analyze it, plan the fix, report in chat, and wait for approval before patching.
 *   **Zero Real External Calls:** Mock all third-party APIs (Asaas, Cloudinary, SMTP) in `.spec.ts` unit/integration tests.
 

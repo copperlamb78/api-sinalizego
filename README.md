@@ -36,7 +36,7 @@
 | 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga e auditoria de cancelamento |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
-| 🧪 **Suíte de Testes Completa** | Mais de 125 testes unitários cobrindo todos os módulos, helpers, regras de negócio e permissões |
+| 🧪 **Suíte de Testes Completa** | Mais de 280 testes unitários cobrindo todos os módulos, controllers, services, helpers, regras financeiras e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -249,18 +249,35 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ---
 
-### 📅 Appointments — Agendamentos
+### 📅 Appointments — Agendamentos & Motor de Disponibilidade
 
-> Criação com verificação de vagas pela capacidade do grupo de serviços, cancelamento auditado, proteção contra IDOR e bloqueio de confirmação manual fraudulenta.
+> Criação com verificação de vagas pela capacidade do grupo de serviços, validação em tempo real de expediente e almoço, motor de cálculo matemático de slots livres (`AvailabilityService`), conclusão autenticada com proteção Anti-IDOR, cancelamento auditado e bloqueio de confirmação manual fraudulenta.
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `POST` | `/appointments` | Criar agendamento (requer CPF cadastrado) | 🔑 JWT | — |
+| `GET` | `/appointments/available-slots` | Consulta pública de horários (slots) livres por serviço e data | ❌ | — |
+| `POST` | `/appointments` | Criar agendamento (requer CPF cadastrado e expediente aberto) | 🔑 JWT | — |
 | `GET` | `/appointments` | Listar todos os agendamentos | 🔑 JWT | `SUPER_ADMIN` |
 | `GET` | `/appointments/company` | Listar agendamentos da empresa do usuário (blindado contra IDOR) | 🔑 JWT | `INTERNAL_USERS` |
 | `GET` | `/appointments/user` | Listar agendamentos do cliente autenticado (blindado contra IDOR) | 🔑 JWT | — |
+| `PATCH` | `/appointments/:id/complete` | Concluir agendamento confirmado (transição para `COMPLETED`) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento (apenas transições válidas) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento com log de auditoria | 🔑 JWT | — |
+
+---
+
+### ⏰ Working Hours & Schedule Exceptions — Expediente e Exceções
+
+> Gestão completa da grade semanal de funcionamento da barbearia (dias da semana 0 a 6, início/fim de expediente, intervalo de almoço e fechamentos) e exceções pontuais/feriados na agenda.
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `PUT` | `/working-hours` | Atualizar grade semanal de horários da empresa (em lote ou unitário) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/working-hours` | Listar grade semanal de funcionamento da empresa autenticada | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/working-hours/company/:companyId` | Consultar grade de funcionamento de uma empresa (vitrine pública) | ❌ | — |
+| `POST` | `/working-hours/exceptions` | Cadastrar exceção pontual/feriado na agenda da empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/working-hours/exceptions` | Listar exceções e feriados cadastrados pela empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/working-hours/exceptions/:id` | Remover exceção da agenda (validação de posse Anti-IDOR) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
 ---
 
@@ -363,7 +380,7 @@ erDiagram
         string name
         string description
         int durationMinutes
-        float totalPrice
+        decimal totalPrice
         int downPaymentPercent
         boolean isActive
         datetime createdAt
@@ -381,9 +398,12 @@ erDiagram
         enum status "PENDING_PAYMENT | CONFIRMED | COMPLETED | CANCELED"
         datetime expiresAt
         string pixTxId
-        float servicePrice
-        float downPaymentAmount
-        float platformFeeAmount
+        decimal servicePrice
+        decimal downPaymentAmount
+        decimal platformFeeAmount
+        decimal amountPaidOnline
+        decimal amountToPayInSalon
+        decimal platformTaxCharged
         string disabledBy
         boolean isActive
         datetime createdAt
@@ -397,6 +417,8 @@ erDiagram
         int dayOfWeek
         string startTime
         string endTime
+        string lunchStartTime
+        string lunchEndTime
         boolean isClosed
     }
 
@@ -404,6 +426,7 @@ erDiagram
         string id PK
         string companyId FK
         datetime date
+        string description
         boolean isClosed
         string startTime
         string endTime
@@ -428,6 +451,8 @@ src/
 │   ├── calculate-tax.helper.spec.ts   # Testes unitários do helper de taxas
 │   ├── calculate-deposit.helper.ts    # Cálculo de sinal com trava de microtransações (R$ 15,00)
 │   ├── calculate-deposit.helper.spec.ts # Testes unitários da trava de microtransações
+│   ├── crypto.helper.ts               # Criptografia simétrica AES-256-GCM em repouso
+│   ├── crypto.helper.spec.ts          # Testes unitários do helper de criptografia
 │   ├── validate-image.helper.ts       # Validador de assinaturas binárias (Magic Bytes)
 │   └── validate-image.helper.spec.ts  # Testes unitários do validador de imagens
 │
@@ -531,17 +556,31 @@ src/
     │       ├── list-service.dto.ts
     │       └── update-service.dto.ts
     │
+    ├── ⏰ working-hours/
+    │   ├── working-hours.module.ts
+    │   ├── working-hours.controller.ts
+    │   ├── working-hours.controller.spec.ts
+    │   ├── working-hours.service.ts
+    │   ├── working-hours.service.spec.ts
+    │   └── dto/
+    │       ├── create-schedule-exception.dto.ts
+    │       ├── update-working-hours.dto.ts
+    │       └── working-hour-item.dto.ts
+    │
     ├── 📅 appointments/
     │   ├── appointments.module.ts
     │   ├── appointments.controller.ts
     │   ├── appointments.controller.spec.ts
     │   ├── appointments.service.ts
     │   ├── appointments.service.spec.ts
+    │   ├── availability.service.ts
+    │   ├── availability.service.spec.ts
     │   └── dto/
     │       ├── appointements-update.dto.ts
     │       ├── appointments-create.dto.ts
     │       ├── appointments-deactivate.dto.ts
-    │       └── appointments-filters.dto.ts
+    │       ├── appointments-filters.dto.ts
+    │       └── available-slots-query.dto.ts
     │
     ├── 💳 financial-profile/
     │   ├── financial-profile.module.ts
@@ -564,7 +603,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **22 suítes de teste e 175 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **31 suítes de teste e 282 testes unitários automatizados**.
 
 Para rodar todos os testes:
 

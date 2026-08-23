@@ -78,8 +78,12 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Pull Request (PR) Simulation:** Whenever you modify or write new code, do not commit it immediately. You **must** present the changes in the chat formatted as a Pull Request (including description and code diff/blocks). You are only allowed to execute a `git commit` **after** the user explicitly reviews and accepts the PR.
 *   **PR Simulation Output Format:**
     *   Always present Pull Request summaries and diffs directly in the chat as standard Markdown text.
-    *   DO NOT use or create Artifacts for PR descriptions or diffs.
-*   **Documentation Synchronization:** Every time code modifications are made, you must simultaneously review and update the project's `README.md` (or relevant documentation files) to ensure information never falls out of date.
+*   **Comprehensive Documentation Synchronization (MANDATORY & STRICT):** Whenever any code, endpoint, DTO, entity, helper, test suite, or business rule is created, updated, or modified, you **MUST** simultaneously review and update all corresponding sections of `README.md` within the exact same PR:
+    1. **Tabelas de Endpoints por Módulo:** Incluir novos endpoints, atualizar parâmetros, roles e autenticação.
+    2. **Árvore Estrutural de Arquivos (`src/`):** Adicionar novos módulos, arquivos, DTOs e helpers criados.
+    3. **Diagrama do Banco de Dados (Mermaid):** Refletir novos campos, tipos (`Decimal`) ou relações.
+    4. **Métricas de Testes Unitários:** Atualizar a contagem exata de suítes e testes unitários automatizados em todas as seções (Destaques e Seção de Testes).
+    5. **Descrições de Regras e Cobertura:** Documentar o comportamento e as garantias de segurança recém-implementadas.
 *   **Refactoring & Divergence Check:** If you have doubts, want to diverge from the original request, or notice an opportunity for refactoring while executing a task, stop immediately. Ask the user in a simple, direct manner what you intend to do, and **only** proceed if the user grants explicit approval.
 *   **Security Vulnerability Protocol:** If you encounter a potential security flaw while reading or exploring the codebase, you must:
     1. Analyze and understand why it exists.
