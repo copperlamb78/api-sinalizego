@@ -30,19 +30,9 @@ import { AdminModule } from './modules/admin/admin.module';
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
-        name: 'short',
-        ttl: 1000,
-        limit: 10,
-      },
-      {
-        name: 'medium',
-        ttl: 10000,
-        limit: 40,
-      },
-      {
-        name: 'long',
+        name: 'default',
         ttl: 60000,
-        limit: 100,
+        limit: 120,
       },
     ]),
     PrismaModule,

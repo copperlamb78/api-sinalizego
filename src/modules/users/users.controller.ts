@@ -37,7 +37,7 @@ import { Throttle } from '@nestjs/throttler';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @Post('create')
   @ApiOperation({ summary: 'Cria um novo usuário na plataforma' })
   @ApiBody({ type: CreateUserDto, description: 'Criar usuário' })

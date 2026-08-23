@@ -14,7 +14,7 @@ import { CompanyServiceService } from './company-service.service';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { CreateServiceDto } from './dto/create-service.dto';
 import type { Request } from 'express';
-import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { FilterServiceDto } from './dto/filter-service.dto';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
@@ -24,6 +24,7 @@ import {
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 
+@ApiTags('Serviços')
 @Controller('company-service')
 export class CompanyServiceController {
   constructor(private readonly companyServiceService: CompanyServiceService) {}

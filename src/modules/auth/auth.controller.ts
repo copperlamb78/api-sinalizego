@@ -45,7 +45,7 @@ export class AuthController {
     description: 'Muitas tentativas. Tente novamente mais tarde.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @Post('login')
   async login(@Body() data: LoginDto) {
     return this.authService.login(data);
@@ -98,7 +98,7 @@ export class AuthController {
     return this.authService.logout(userId);
   }
 
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('forgot-password')
   @ApiOperation({
     summary: 'Solicita a recuperação de senha enviando link por e-mail',

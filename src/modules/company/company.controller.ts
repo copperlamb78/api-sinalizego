@@ -15,7 +15,7 @@ import {
   CreateCompanyDto,
   CreateCompanyWithoutUserDto,
 } from './dto/company-create.dto';
-import { ApiBearerAuth, ApiBody, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { UpdateCompanyDto } from './dto/company-update.dto';
 import type { Request } from 'express';
@@ -30,6 +30,7 @@ import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
 import { Role } from '@prisma/client';
 
+@ApiTags('Empresas')
 @Controller('company')
 export class CompanyController {
   constructor(private readonly companyService: CompanyService) {}

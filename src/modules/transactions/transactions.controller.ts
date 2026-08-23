@@ -25,7 +25,7 @@ export class TransactionsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('pix/:appointmentId')
   @ApiOperation({
     summary: 'Cria ou recupera a cobrança PIX para reserva de agendamento',
@@ -51,6 +51,11 @@ export class TransactionsController {
         asaasFee: 0.99,
       },
     },
+  })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Muitas tentativas de geração de Pix. Tente novamente mais tarde.',
   })
   @ApiResponse({
     status: 400,

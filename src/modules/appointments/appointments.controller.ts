@@ -38,6 +38,7 @@ import {
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { AvailableSlotsQueryDto } from './dto/available-slots-query.dto';
 import { AvailabilityService } from './availability.service';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Agendamentos')
 @Controller('appointments')
@@ -47,6 +48,7 @@ export class AppointmentsController {
     private readonly availabilityService: AvailabilityService,
   ) {}
 
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Get('available-slots')
   @ApiOperation({
     summary:
@@ -63,7 +65,7 @@ export class AppointmentsController {
           '09:00',
           '09:30',
           '10:00',
-          '11:00',
+          '10:30',
           '14:00',
           '14:30',
           '15:00',
@@ -71,6 +73,11 @@ export class AppointmentsController {
         ],
       },
     },
+  })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Muitas consultas de disponibilidade em curto intervalo. Tente novamente mais tarde.',
   })
   @ApiResponse({ status: 400, description: 'Parâmetros inválidos' })
   @ApiResponse({

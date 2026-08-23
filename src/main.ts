@@ -76,12 +76,63 @@ async function bootstrap() {
   if (!isProduction || enableSwaggerInProd) {
     const config = new DocumentBuilder()
       .setTitle('SinalizeGO API')
-      .setDescription('API para o ecossistema SinalizeGO')
+      .setDescription(
+        'API RESTful do ecossistema SinalizeGO — Plataforma para gestão de agendamentos, vitrine pública, subcontas e split de pagamentos Pix via Asaas Sandbox.',
+      )
       .setVersion('1.0')
       .addBearerAuth()
+      .addTag(
+        'Autenticação',
+        'Endpoints de login, renovação de tokens e recuperação de senha',
+      )
+      .addTag(
+        'Usuários',
+        'Gerenciamento de contas de clientes, prestadores e administradores',
+      )
+      .addTag(
+        'Admin — Super Admin & Gestão Global',
+        'Platform Intelligence, receita SaaS, GMV e moderação de empresas',
+      )
+      .addTag(
+        'Empresas',
+        'Cadastro, vitrine pública consolidada e dashboard financeiro do dono',
+      )
+      .addTag(
+        'Serviços',
+        'Catálogo de serviços por empresa com faixas progressivas e split',
+      )
+      .addTag(
+        'Grupo de Serviços',
+        'Organização de serviços com controle de capacidade concorrente',
+      )
+      .addTag(
+        'Horários de Funcionamento',
+        'Grade semanal de atendimento, intervalos e feriados/exceções',
+      )
+      .addTag(
+        'Agendamentos',
+        'Criação de reservas, motor de disponibilidade e conclusão de atendimentos',
+      )
+      .addTag(
+        'Perfil Financeiro',
+        'Subcontas Asaas Sandbox com credenciais criptografadas em repouso',
+      )
+      .addTag(
+        'Transações',
+        'Geração de cobranças Pix com split e conciliação financeira',
+      )
+      .addTag(
+        'Uploads',
+        'Upload seguro de imagens com validação binária de magic bytes',
+      )
+      .addTag(
+        'Webhooks',
+        'Processamento assíncrono e idempotente de notificações do Asaas',
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
     SwaggerModule.setup('api', app, document);
   }
 
