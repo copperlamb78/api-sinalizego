@@ -18,24 +18,36 @@ async function bootstrap() {
 
   // 2. Configuração Estrita de CORS
   const rawCorsOrigins = process.env.CORS_ORIGINS || process.env.FRONTEND_URL;
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:4200',
+    'https://sinalizego.com',
+    'https://app.sinalizego.com',
+    'https://admin.sinalizego.com',
+    'https://sinalizego.vercel.app',
+  ];
+
   const allowedOrigins = rawCorsOrigins
-    ? rawCorsOrigins.split(',').map((origin) => origin.trim())
-    : [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://localhost:4200',
-        'https://sinalizego.com',
-        'https://app.sinalizego.com',
-        'https://admin.sinalizego.com',
-      ];
+    ? rawCorsOrigins.split(',').map((origin) => {
+        const trimmed = origin.trim();
+        try {
+          const parsed = new URL(trimmed);
+          return `${parsed.protocol}//${parsed.host}`;
+        } catch {
+          return trimmed.replace(/\/+$/, '');
+        }
+      })
+    : defaultOrigins;
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Permite requisições sem origin (mobile apps, Postman, webhooks do Asaas) ou origens na lista
+      // Permite requisições sem origin (mobile apps, Postman, webhooks do Asaas), origens permitidas ou subdomínios da Vercel
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
-        allowedOrigins.includes('*')
+        allowedOrigins.includes('*') ||
+        /^https:\/\/.*\.vercel\.app$/.test(origin)
       ) {
         callback(null, true);
       } else {
