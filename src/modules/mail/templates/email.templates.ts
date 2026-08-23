@@ -369,6 +369,7 @@ export function getAppointmentCancellationEmailTemplate(data: {
   serviceName: string;
   formattedDate: string;
   isRefunded: boolean;
+  refundAmount?: number;
 }): string {
   const firstName = data.customerName
     ? data.customerName.trim().split(' ')[0]
@@ -413,14 +414,18 @@ export function getAppointmentCancellationEmailTemplate(data: {
                     <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
                     <span style="color: #14B8A6; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Estorno Realizado com Sucesso 💰</span>
                     <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
-                        Como o cancelamento foi realizado com mais de 24h de antecedência, o valor integral do sinal pago via Pix foi devolvido para a sua conta.
+                        ${
+                          data.refundAmount
+                            ? `O valor de <strong>R$ ${Number(data.refundAmount).toFixed(2)}</strong> pago via Pix foi estornado para a sua conta.`
+                            : 'O valor do estorno via Pix foi devolvido para a sua conta.'
+                        }
                     </p>
                 </div>`
                 : `<div>
                     <span style="color: #EF4444; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
                     <span style="color: #EF4444; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Retido ⚠️</span>
                     <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
-                        Conforme a política de cancelamento, cancelamentos com menos de 24h de antecedência não geram estorno do sinal para compensar a reserva do profissional.
+                        Conforme a política de cancelamento, o sinal mínimo foi retido pelo estabelecimento como indenização pela reserva da vaga (Arts. 417 a 420 do Código Civil).
                     </p>
                 </div>`
             }

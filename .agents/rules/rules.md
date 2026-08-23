@@ -65,9 +65,9 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
     *   Fee must round UP (`Math.ceil(fee * 4) / 4`) to the nearest **R$ 0.25** increment.
 *   **Immutable Historical Pricing:** Freeze `servicePrice`, `downPaymentAmount`, and `platformFeeAmount` in `Appointment` at creation. Never recalculate fees for existing bookings from live service tables.
 *   **Onboarding Gate:** Block bookings and service creation if the company's Asaas subaccount lacks a valid `walletId` or approved status.
-*   **Cancellation Policy:**
+*   **Cancellation Policy (CDC Art. 51 / CC Arts. 417 a 420):**
     *   `> 24h` before appointment: Trigger full Asaas refund (`refundPayment`).
-    *   `<= 24h`: Cancel appointment to free calendar, but retain deposit for the barber as vacancy compensation.
+    *   `<= 24h`: Cancel appointment to free calendar; retain guaranteed minimum deposit for the barber as vacancy compensation, and automatically trigger partial refund via Asaas for any excess amount paid upfront.
 
 ---
 

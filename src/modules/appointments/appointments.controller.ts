@@ -246,6 +246,35 @@ export class AppointmentsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Delete(':id/client')
+  @ApiOperation({
+    summary:
+      'Cancela um agendamento solicitado pelo cliente (com estorno integral se > 24h ou estorno do excedente se <= 24h)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Agendamento cancelado com sucesso',
+  })
+  @ApiResponse({ status: 400, description: 'Agendamento já está inativo' })
+  @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
+  async cancelByClient(
+    @Param('id', ParseUUIDPipe) appointmentId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.appointmentsService.deactivateAppointment(
+      appointmentId,
+      userId,
+    );
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id/deactivate')
   @ApiOperation({ summary: 'Desativa um agendamento' })
   @ApiParam({

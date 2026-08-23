@@ -185,6 +185,28 @@ describe('AppointmentsController', () => {
     });
   });
 
+  describe('cancelByClient', () => {
+    it('should cancel appointment requested by client', async () => {
+      const req = { user: { sub: 'client-1' } } as any;
+      const expected = {
+        id: 'appointment-1',
+        isActive: false,
+        status: 'CANCELED',
+      };
+      mockAppointmentsService.deactivateAppointment.mockResolvedValue(expected);
+
+      const result = await controller.cancelByClient(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        req,
+      );
+      expect(appointmentsService.deactivateAppointment).toHaveBeenCalledWith(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        'client-1',
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
   describe('deactivate', () => {
     it('should deactivate / cancel appointment', async () => {
       const req = { user: { sub: 'client-1' } } as any;

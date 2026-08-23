@@ -36,7 +36,7 @@
 | 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga e auditoria de cancelamento |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
-| 🧪 **Suíte de Testes Completa** | 317 testes unitários automatizados (33 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, dashboards executivos e permissões |
+| 🧪 **Suíte de Testes Completa** | 319 testes unitários automatizados (33 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, dashboards executivos e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -264,6 +264,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `GET` | `/appointments/user` | Listar agendamentos do cliente autenticado (blindado contra IDOR) | 🔑 JWT | — |
 | `PATCH` | `/appointments/:id/complete` | Concluir agendamento confirmado (transição para `COMPLETED`) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento (apenas transições válidas) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `DELETE` | `/appointments/:id/client` | Cancelar agendamento pelo cliente (estorno integral se > 24h ou estorno do excedente ao sinal mínimo se <= 24h) | 🔑 JWT | — |
 | `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento com log de auditoria | 🔑 JWT | — |
 
 ---
@@ -653,7 +654,7 @@ npm test
 - **E-mails Transacionais & Lembretes D-1 (`MailModule`):** Disparo assíncrono e resiliente via Brevo API com novo layout Dark Mode institucional (`#0B1120`, `#0F172A`, `#1E293B`, `#14B8A6`, `#EF4444`) e templates dedicados:
   - **Boas-Vindas (`sendWelcomeEmail`):** Disparado no cadastro de novos usuários em `UsersService.createUser` com mensagem personalizada por perfil (`CLIENT` / `COMPANY_OWNER`) e card de vantagens.
   - **Confirmação de Agendamento (`sendAppointmentConfirmationEmail`):** Disparado via Webhook Asaas (`PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`) com card detalhado do serviço, data/hora formatada no fuso da empresa e sinal pago Pix em destaque.
-  - **Cancelamento & Estorno (`sendAppointmentCancellationEmail`):** Disparado no cancelamento com aviso explícito e estilizado sobre devolução integral do Pix (> 24h) ou retenção do sinal (<= 24h).
+  - **Cancelamento, Estorno & Blindagem Jurídica (CDC Art. 51 / CC Arts. 417 a 420):** Disparado no cancelamento com aviso explícito e estilizado no e-mail: estorno integral do Pix via Asaas para cancelamentos com mais de 24h (`> 24h`); para cancelamentos tardios (`<= 24h`), retenção estrita do sinal mínimo de garantia do serviço (`guaranteedDepositAmount` baseado no piso de 25%/50% e Safety Gate de R$ 15,00) como indenização por vacância, com **estorno parcial automático via Asaas** de qualquer quantia excedente paga antecipadamente pelo cliente (ex: 50%, 75% ou 100%).
   - **Lembrete de Véspera D-1 (`sendDailyAppointmentReminders`):** Cron job diário às 19:00 (`@Cron('0 19 * * *')`) notificando clientes sobre agendamentos do dia seguinte com isolamento de falhas por lote.
   - **Recuperação de Senha (`sendPasswordResetEmail`):** Instruções seguras com botão CTA estilizado e link de contingência válido por 15 minutos.
 - **Usuários & Gestão de Contas:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF, rota para auto-desativação (`DELETE /users/me`), e rotas administrativas exclusivas para desativação e reativação de contas de terceiros (`DELETE /users/:userId` e `PATCH /users/:userId/activate` restritas a `SYSTEM_MANAGERS`).

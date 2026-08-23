@@ -446,7 +446,12 @@ export class AppointmentsService {
           select: { id: true, name: true, email: true },
         },
         service: {
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+            totalPrice: true,
+            downPaymentPercent: true,
+          },
         },
       },
     });
@@ -478,13 +483,15 @@ export class AppointmentsService {
       throw new BadRequestException('Agendamento já está inativo.');
     }
 
-    // Regra de Cancelamento & Estorno (> 24h reembolsa; <= 24h retém sinal para o prestador)
+    // Regra de Cancelamento & Estorno (Conformidade CDC Art. 51 / Código Civil Arts. 417 a 420)
     const hoursDifference =
       (new Date(appointment.appointmentDate).getTime() - Date.now()) /
       (1000 * 60 * 60);
 
     let isRefunded = false;
-    if (appointment.status === ApptStatus.CONFIRMED && hoursDifference > 24) {
+    let refundAmount: number | undefined = undefined;
+
+    if (appointment.status === ApptStatus.CONFIRMED) {
       const transaction = await this.prisma.transaction.findFirst({
         where: {
           appointmentId: appointment.id,
@@ -493,21 +500,62 @@ export class AppointmentsService {
       });
 
       if (transaction?.asaasPaymentId) {
-        try {
-          await this.asaasService.refundPayment(
-            transaction.asaasPaymentId,
-            undefined,
-            'Cancelamento com antecedência superior a 24 horas.',
-          );
-          await this.prisma.transaction.update({
-            where: { id: transaction.id },
-            data: { status: TransactionStatus.REFUNDED },
-          });
-          isRefunded = true;
-        } catch (err: any) {
-          this.logger.error(
-            `Falha ao processar estorno Asaas no cancelamento do agendamento #${appointment.id}: ${err?.message || err}`,
-          );
+        const paidAmount = Number(appointment.downPaymentAmount);
+        const totalPrice = Number(
+          appointment.servicePrice || appointment.service?.totalPrice || 0,
+        );
+        const configuredFloor =
+          appointment.service?.downPaymentPercent ?? 25;
+        const guaranteedDepositAmount =
+          this.calculateDeposit.calculateDeposit(totalPrice, configuredFloor);
+
+        if (hoursDifference > 24) {
+          // 1. Cancelamento com antecedência (> 24h): Estorno integral (100% do valor pago online)
+          try {
+            await this.asaasService.refundPayment(
+              transaction.asaasPaymentId,
+              undefined,
+              'Cancelamento com antecedência superior a 24 horas (estorno integral).',
+            );
+            await this.prisma.transaction.update({
+              where: { id: transaction.id },
+              data: { status: TransactionStatus.REFUNDED },
+            });
+            isRefunded = true;
+            refundAmount = paidAmount;
+          } catch (err: any) {
+            this.logger.error(
+              `Falha ao processar estorno integral Asaas no cancelamento do agendamento #${appointment.id}: ${err?.message || err}`,
+            );
+          }
+        } else {
+          // 2. Cancelamento tardio (<= 24h):
+          // O sinal mínimo de garantia é retido para compensação de vacância.
+          // Se o cliente adiantou valor superior ao sinal mínimo (ex: 50%, 75% ou 100%), o excedente é estornado.
+          if (paidAmount > guaranteedDepositAmount) {
+            const excessToRefund = Number(
+              (paidAmount - guaranteedDepositAmount).toFixed(2),
+            );
+            if (excessToRefund > 0) {
+              try {
+                await this.asaasService.refundPayment(
+                  transaction.asaasPaymentId,
+                  excessToRefund,
+                  'Cancelamento tardio (<= 24h): estorno parcial do valor excedente ao sinal mínimo de garantia.',
+                );
+                await this.prisma.transaction.update({
+                  where: { id: transaction.id },
+                  data: { status: TransactionStatus.REFUNDED },
+                });
+                isRefunded = true;
+                refundAmount = excessToRefund;
+              } catch (err: any) {
+                this.logger.error(
+                  `Falha ao processar estorno parcial Asaas no cancelamento tardio do agendamento #${appointment.id}: ${err?.message || err}`,
+                );
+              }
+            }
+          }
         }
       }
     }
@@ -531,6 +579,7 @@ export class AppointmentsService {
           serviceName: appointment.service?.name || 'Serviço',
           appointmentDate: appointment.appointmentDate,
           isRefunded,
+          refundAmount,
           timezone: appointment.company?.timezone,
         })
         .catch(() => {});

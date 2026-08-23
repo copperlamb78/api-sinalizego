@@ -125,6 +125,7 @@ export class MailService {
       serviceName: string;
       appointmentDate: Date | string;
       isRefunded: boolean;
+      refundAmount?: number;
       timezone?: string;
     },
   ): Promise<boolean> {
@@ -147,6 +148,7 @@ export class MailService {
           serviceName: data.serviceName,
           formattedDate,
           isRefunded: data.isRefunded,
+          refundAmount: data.refundAmount,
         }),
       });
 

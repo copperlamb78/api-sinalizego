@@ -129,9 +129,9 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   A scheduled task (Cron Job `@nestjs/schedule`) executes every minute to cancel expired pending bookings and release gateway charges.
 *   **Immutable Historical Pricing:** Once an `Appointment` is created, all financial fields (`totalAmount`, `amountPaidOnline`, `amountToPayInSalon`, `platformTaxCharged`) must be permanently frozen in that record. Never calculate real-time values based on the `Service` or `Company` tables for existing appointments, ensuring price changes do not retroactively affect past bookings.
 *   **Onboarding Strict Requirements:** A company/barber is strictly prohibited from activating booking capabilities or creating services if their Asaas subaccount integration is incomplete. The system must validate that the `walletId` exists and the account status is fully active/approved before opening the schedule.
-*   **Cancellation & Escrow Hold Rules:** Funds received via split must remain locked in the ecosystem ledger until the service is successfully rendered or the cancellation window closes. 
-    *   If a client requests a cancellation *before* the 24-hour mark prior to the appointment, the system triggers the Asaas refund API.
-    *   If the cancellation request occurs *within* the 24-hour mark, the cancellation is permitted to free the calendar, but the refund is blocked, and the deposit is released to the barber as a vacancy loss compensation.
+*   **Cancellation & Escrow Hold Rules (CDC Art. 51 / CC Arts. 417 a 420):** Funds received via split must remain locked in the ecosystem ledger until the service is successfully rendered or the cancellation window closes. 
+    *   If a client requests a cancellation *before* the 24-hour mark prior to the appointment, the system triggers the Asaas refund API for a full 100% refund.
+    *   If the cancellation request occurs *within* the 24-hour mark, the cancellation is permitted to free the calendar; the guaranteed minimum deposit (`guaranteedDepositAmount`) is retained for the barber as vacancy compensation, and any excess amount paid upfront by the client is automatically refunded partially via Asaas Pix.
 
 ## 9. Cybersecurity & Data Integrity (MANDATORY)
 
