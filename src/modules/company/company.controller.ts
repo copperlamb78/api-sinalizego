@@ -15,7 +15,13 @@ import {
   CreateCompanyDto,
   CreateCompanyWithoutUserDto,
 } from './dto/company-create.dto';
-import { ApiBearerAuth, ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { UpdateCompanyDto } from './dto/company-update.dto';
 import type { Request } from 'express';
@@ -28,7 +34,9 @@ import {
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
+import { WithdrawDto } from './dto/withdraw.dto';
 import { Role } from '@prisma/client';
+
 
 @ApiTags('Empresas')
 @Controller('company')
@@ -267,6 +275,115 @@ export class CompanyController {
     const userId = req.user?.['sub'];
     const userRole = req.user?.['role'] as Role;
     return this.companyService.getDashboardMetrics(userId, userRole, dto);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Get('balance')
+  @ApiOperation({
+    summary:
+      'Consulta o saldo disponível para saque, retido em custódia (Escrow Hold) e data do próximo saque gratuito',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Saldos do estabelecimento retornados com sucesso',
+    schema: {
+      example: {
+        companyId: 'clsw0s98x000013z81z8z8z8z',
+        businessName: "Barber's Shop",
+        walletId: 'wal_1234567890',
+        availableBalance: 245.0,
+        escrowLockedBalance: 120.0,
+        completedNetRevenue: 745.0,
+        totalWithdrawn: 500.0,
+        nextFreeWithdrawalDate: '2026-08-31T06:00:00.000Z',
+        instantTransferFee: 5.0,
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Estabelecimento não encontrado para este usuário.',
+  })
+  async getBalance(@Req() req: Request) {
+    const userId = req.user?.['sub'];
+    return this.companyService.getCompanyBalance(userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Post('withdraw')
+  @ApiOperation({
+    summary:
+      'Solicita saque avulso sob demanda fora do ciclo semanal gratuito (aplica taxa de transferência Asaas de R$ 5,00)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Saque avulso solicitado com sucesso',
+    schema: {
+      example: {
+        message: 'Saque avulso solicitado com sucesso.',
+        withdrawal: {
+          id: 'uuid-transaction',
+          requestedAmount: 100.0,
+          transferFee: 5.0,
+          netAmountTransferred: 95.0,
+          status: 'CONFIRMED',
+          transferredAt: '2026-08-23T15:30:00.000Z',
+          remainingAvailableBalance: 145.0,
+          escrowLockedBalance: 120.0,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Saldo insuficiente, valor menor que a tarifa ou erro no gateway.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Já existe uma solicitação de saque em processamento.',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  async requestWithdrawal(@Req() req: Request, @Body() dto?: WithdrawDto) {
+    const userId = req.user?.['sub'];
+    return this.companyService.requestInstantWithdrawal(userId, dto);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Get('withdrawals')
+  @ApiOperation({
+    summary:
+      'Consulta o histórico completo de saques e transferências da empresa (auditoria de payouts)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Histórico de saques retornado com sucesso',
+    schema: {
+      example: [
+        {
+          id: 'uuid-transaction',
+          requestedAmount: 100.0,
+          transferFee: 5.0,
+          netAmountTransferred: 95.0,
+          status: 'CONFIRMED',
+          isFreeWeekly: false,
+          asaasTransferId: 'tra_123456',
+          transferredAt: '2026-08-23T15:30:00.000Z',
+        },
+      ],
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  async getWithdrawals(@Req() req: Request) {
+    const userId = req.user?.['sub'];
+    return this.companyService.getCompanyWithdrawalHistory(userId);
   }
 
   @Get('slug/:slug')

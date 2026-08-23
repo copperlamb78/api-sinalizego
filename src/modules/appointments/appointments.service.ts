@@ -769,4 +769,50 @@ export class AppointmentsService {
       return 0;
     }
   }
+
+  /**
+   * Cron Job horário para auto-concluir agendamentos confirmados cujo término ocorreu há mais de 24h.
+   * Libera automaticamente o saldo retido em custódia (Escrow Hold) caso o estabelecimento não tenha clicado manualmente.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async autoCompletePastConfirmedAppointments(): Promise<number> {
+    try {
+      const pastThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const pastConfirmedAppointments =
+        await this.prisma.appointment.findMany({
+          where: {
+            status: ApptStatus.CONFIRMED,
+            isActive: true,
+            appointmentEndDate: { lte: pastThreshold },
+          },
+          select: { id: true },
+        });
+
+      if (pastConfirmedAppointments.length === 0) {
+        return 0;
+      }
+
+      const updateResult = await this.prisma.appointment.updateMany({
+        where: {
+          id: { in: pastConfirmedAppointments.map((a) => a.id) },
+        },
+        data: {
+          status: ApptStatus.COMPLETED,
+          disabledBy: 'SYSTEM_AUTO_COMPLETE',
+        },
+      });
+
+      this.logger.log(
+        `[Cron AutoComplete] ${updateResult.count} agendamentos passados concluídos automaticamente (custódia liberada).`,
+      );
+
+      return updateResult.count;
+    } catch (err: any) {
+      this.logger.warn(
+        `[Cron AutoComplete] Erro ao auto-concluir agendamentos passados: ${err?.message || err}`,
+      );
+      return 0;
+    }
+  }
 }

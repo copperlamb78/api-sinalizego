@@ -36,7 +36,7 @@
 | 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga e auditoria de cancelamento |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
-| 🧪 **Suíte de Testes Completa** | 319 testes unitários automatizados (33 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, dashboards executivos e permissões |
+| 🧪 **Suíte de Testes Completa** | 335 testes unitários automatizados (33 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -196,6 +196,9 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `GET` | `/company/slug/:slug` | Consultar perfil público do estabelecimento (Storefront consolidado) | ❌ | — |
 | `GET` | `/company/get-by-slug/:slug` | Buscar empresa por slug (vitrine pública) | ❌ | — |
 | `GET` | `/company/dashboard/metrics` | Métricas & relatórios operacionais/financeiros do estabelecimento (Dashboard do Dono) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company/balance` | Consultar saldo liberado, retido em custódia (Escrow Hold) e data do próximo saque gratuito | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `POST` | `/company/withdraw` | Solicitar saque avulso sob demanda fora do ciclo semanal (tarifa Asaas de R$ 5,00) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company/withdrawals` | Consultar histórico completo e extrato auditado de saques da empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `POST` | `/company/create` | Criar empresa (com novo usuário) | ❌ | — |
 | `POST` | `/company/create-company-to-user` | Criar empresa para usuário existente | 🔑 JWT | — |
 | `GET` | `/company/get-by-user-id` | Buscar empresa por userId | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
@@ -205,6 +208,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `PATCH` | `/company/update/:companyId` | Atualizar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `DELETE` | `/company/deactivate/:companyId` | Desativar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/company/activate/:companyId` | Reativar empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+
 
 ---
 
@@ -676,7 +680,12 @@ npm test
 - **Expediente Semanal & Exceções de Agenda (`WorkingHoursModule`):** Configuração completa da grade semanal (`PUT /working-hours` e `GET /working-hours`) com validação estrita de horários (`startTime < endTime`, intervalo de almoço contido no expediente e formato `HH:mm`), consulta pública de horários da empresa (`GET /working-hours/company/:companyId`), e gestão de exceções/feriados (`POST`, `GET`, `DELETE /working-hours/exceptions`) protegidos contra IDOR.
 - **Motor de Disponibilidade & Slot Engine (`AvailabilityService`):** Algoritmo canônico de cálculo de horários livres (`GET /appointments/available-slots`) cruzando expediente do dia (`WorkingHour`/`ScheduleException`), fatiamento em blocos com descarte automático de colisões com intervalo de almoço, filtragem por capacidade concorrente do grupo de serviços (`ServiceGroup.capacity`), descarte de horários passados no dia atual, e validação mandatória de expediente na criação de agendamentos (`AppointmentsService.createAppointment`).
 - **Conclusão de Atendimento & Blindagem Anti-IDOR (`PATCH /appointments/:id/complete`):** Transição estrita e atômica para o status `COMPLETED`, restrita a donos de empresa autenticados (`COMPANY_OWNER`) e administradores do sistema (`ADMIN`/`SUPER_ADMIN`) validando a propriedade da barbearia (`appointment.company.userId === req.user.sub`), rejeitando transições em agendamentos `PENDING_PAYMENT`, `CANCELED` ou já `COMPLETED`.
+- **Liquidação Financeira em Custódia (Escrow Hold) & Auto-Conclusão:** Valores de sinais recebidos via Pix entram na subconta do estabelecimento como saldo retido em custódia (`escrowLockedBalance`), sendo liberados para saque (`availableBalance`) estritamente quando o agendamento transiciona para `COMPLETED`. Cron job horário (`autoCompletePastConfirmedAppointments`) conclui automaticamente agendamentos confirmados cujo término ocorreu há mais de 24 horas sem contestação, liberando a custódia caso o profissional esqueça de concluir manualmente.
+- **Política de Saques da Plataforma (Semanal Gratuito vs Sob Demanda com Tarifa):**
+  - **Saque Automático Semanal Gratuito:** Cron job semanal executado às segundas-feiras às 06:00 (`@Cron('0 6 * * 1')`) transferindo o saldo disponível total para a conta bancária/chave Pix cadastrada do estabelecimento com taxa 100% subsidiada pela plataforma (`asaasFee = 0`).
+  - **Saque Avulso Sob Demanda (`POST /company/withdraw`):** Permite ao estabelecimento resgatar saldo liberado fora da segunda-feira, descontando a tarifa de transferência do gateway (`ASAAS_TRANSFER_FEE = 5.00`) do montante líquido transferido com validação anti-saldo negativo (`requestedAmount > 5.00`).
 - **Rate Limiting Granular, Blindagem HTTP & Swagger Padronizado:** Configuração global de rate limiting via `@nestjs/throttler` (`ThrottlerGuard` com 120 req/60s padrão para suporte a NAT e navegação real) e limites granulares de proteção contra DoS/Brute Force (15 req/60s em `/auth/login` e `/users/create`, 5 req/60s em `/auth/forgot-password`, 10 req/60s em `/transactions/pix/:appointmentId`, 120 req/60s em `/appointments/available-slots` para navegação dinâmica no calendário e `@SkipThrottle()` em `/webhooks/asaas`); injeção de `helmet` contra vulnerabilidades web de cabeçalho, política estrita de CORS com suporte a origens de desenvolvimento e variáveis de ambiente em produção, e Swagger interativo categorizado em 12 tags canônicas disponibilizado em `/api` e `/api/docs`.
+
 
 ---
 

@@ -16,6 +16,9 @@ describe('CompanyController', () => {
     findBySlug: jest.fn(),
     getCompanyBySlug: jest.fn(),
     getDashboardMetrics: jest.fn(),
+    getCompanyBalance: jest.fn(),
+    requestInstantWithdrawal: jest.fn(),
+    getCompanyWithdrawalHistory: jest.fn(),
     updateCompany: jest.fn(),
     deactivateCompany: jest.fn(),
     activateCompany: jest.fn(),
@@ -255,4 +258,84 @@ describe('CompanyController', () => {
       expect(result).toEqual(expected);
     });
   });
+
+  describe('getBalance', () => {
+    it('should return company balance and escrow hold metrics for authenticated owner', async () => {
+      const req = { user: { sub: 'user-1' } } as any;
+      const expected = {
+        companyId: 'comp-1',
+        businessName: 'Barbearia VIP',
+        walletId: 'wal_123',
+        availableBalance: 245.0,
+        escrowLockedBalance: 120.0,
+        completedNetRevenue: 745.0,
+        totalWithdrawn: 500.0,
+        nextFreeWithdrawalDate: '2026-08-31T06:00:00.000Z',
+        instantTransferFee: 5.0,
+      };
+      mockCompanyService.getCompanyBalance.mockResolvedValue(expected);
+
+      const result = await controller.getBalance(req);
+
+      expect(companyService.getCompanyBalance).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('requestWithdrawal', () => {
+    it('should request instant withdrawal for authenticated owner', async () => {
+      const req = { user: { sub: 'user-1' } } as any;
+      const dto = { amount: 100.0 };
+      const expected = {
+        message: 'Saque avulso solicitado com sucesso.',
+        withdrawal: {
+          id: 'tx-1',
+          requestedAmount: 100.0,
+          transferFee: 5.0,
+          netAmountTransferred: 95.0,
+          status: 'CONFIRMED',
+          transferredAt: new Date(),
+          remainingAvailableBalance: 145.0,
+          escrowLockedBalance: 120.0,
+        },
+      };
+      mockCompanyService.requestInstantWithdrawal.mockResolvedValue(expected);
+
+      const result = await controller.requestWithdrawal(req, dto as any);
+
+      expect(companyService.requestInstantWithdrawal).toHaveBeenCalledWith(
+        'user-1',
+        dto,
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getWithdrawals', () => {
+    it('should return withdrawal history for authenticated owner', async () => {
+      const req = { user: { sub: 'user-1' } } as any;
+      const expected = [
+        {
+          id: 'tx-1',
+          requestedAmount: 100.0,
+          transferFee: 5.0,
+          netAmountTransferred: 95.0,
+          status: 'CONFIRMED',
+          isFreeWeekly: false,
+          asaasTransferId: 'tra_123',
+          transferredAt: new Date(),
+        },
+      ];
+      mockCompanyService.getCompanyWithdrawalHistory.mockResolvedValue(expected);
+
+      const result = await controller.getWithdrawals(req);
+
+      expect(
+        companyService.getCompanyWithdrawalHistory,
+      ).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual(expected);
+    });
+  });
 });
+
+

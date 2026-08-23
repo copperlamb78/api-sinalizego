@@ -328,6 +328,75 @@ export class AsaasService implements OnModuleInit {
     }
   }
 
+  /**
+   * Realiza transferência de saldo da subconta Asaas para a conta bancária/chave Pix do estabelecimento.
+   */
+  async transferSubaccountBalance(
+    financialProfileId: string,
+    value: number,
+    options?: {
+      isFreeWeekly?: boolean;
+      pixAddressKey?: string;
+      description?: string;
+    },
+  ): Promise<any> {
+    const financialProfile = await this.prisma.financialProfile.findUnique({
+      where: { id: financialProfileId },
+      select: { asaasApiKey: true, walletId: true, cpfCnpj: true },
+    });
+
+    if (!financialProfile || !financialProfile.asaasApiKey) {
+      throw new BadRequestException(
+        'Perfil financeiro ou chave Asaas não configurada para transferência.',
+      );
+    }
+
+    const accountApiKey = CryptoHelper.decrypt(financialProfile.asaasApiKey);
+    const transferPayload: any = {
+      value: Number(value.toFixed(2)),
+      description:
+        options?.description ||
+        (options?.isFreeWeekly
+          ? 'Saque automático semanal gratuito SinalizeGO'
+          : 'Saque avulso sob demanda SinalizeGO'),
+    };
+
+    if (options?.pixAddressKey) {
+      transferPayload.operationType = 'PIX';
+      transferPayload.pixAddressKey = options.pixAddressKey;
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/transfers`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          access_token: accountApiKey,
+        },
+        body: JSON.stringify(transferPayload),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        const errorMsg =
+          responseData?.errors?.[0]?.description ||
+          'Falha ao processar transferência no Asaas.';
+        throw new BadRequestException(`Asaas: ${errorMsg}`);
+      }
+
+      return responseData;
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(`Erro ao transferir saldo no Asaas: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Falha na comunicação com Asaas ao realizar transferência: ${error.message}`,
+      );
+    }
+  }
+
   async createPixChargeWithSplit(
     asaasCustomerId: string,
     barberWalletId: string,

@@ -3,19 +3,27 @@ import { CompanyService } from './company.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SlugHelper } from './helpers/create-slug.helper';
 import { AuthService } from '../auth/auth.service';
+import { AsaasService } from 'src/asaas/asaas.service';
 import {
   BadRequestException,
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { ApptStatus, Role } from '@prisma/client';
+import {
+  ApptStatus,
+  BillingType,
+  Role,
+  TransactionStatus,
+  TransactionType,
+} from '@prisma/client';
 
 describe('CompanyService', () => {
   let service: CompanyService;
   let prisma: PrismaService;
   let slugHelper: SlugHelper;
   let authService: AuthService;
+  let asaasService: AsaasService;
 
   const mockPrisma = {
     user: {
@@ -33,6 +41,19 @@ describe('CompanyService', () => {
     appointment: {
       findMany: jest.fn(),
     },
+    financialProfile: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    transaction: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
+      update: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
+    },
+    $transaction: jest.fn((cb) =>
+      typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb),
+    ),
   };
 
   const mockSlugHelper = {
@@ -45,6 +66,10 @@ describe('CompanyService', () => {
       refreshToken: 'refresh.token.owner',
     }),
     updateRefreshTokenHash: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockAsaasService = {
+    transferSubaccountBalance: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -63,6 +88,10 @@ describe('CompanyService', () => {
           provide: AuthService,
           useValue: mockAuthService,
         },
+        {
+          provide: AsaasService,
+          useValue: mockAsaasService,
+        },
       ],
     }).compile();
 
@@ -70,6 +99,7 @@ describe('CompanyService', () => {
     prisma = module.get<PrismaService>(PrismaService);
     slugHelper = module.get<SlugHelper>(SlugHelper);
     authService = module.get<AuthService>(AuthService);
+    asaasService = module.get<AsaasService>(AsaasService);
 
     jest.clearAllMocks();
   });
@@ -436,4 +466,289 @@ describe('CompanyService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('getCompanyBalance (Escrow Hold & Available Balance)', () => {
+    it('should calculate available balance from COMPLETED appointments and escrow balance from CONFIRMED', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        financialProfileId: 'fp-1',
+      });
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-1',
+        walletId: 'wal_123',
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        { status: ApptStatus.COMPLETED, downPaymentAmount: '50.00' },
+        { status: ApptStatus.COMPLETED, downPaymentAmount: '30.00' },
+        { status: ApptStatus.CONFIRMED, downPaymentAmount: '40.00' }, // em custódia
+        { status: ApptStatus.CANCELED, downPaymentAmount: '20.00' },
+      ]);
+      mockPrisma.transaction.findMany.mockResolvedValue([
+        { totalValue: '20.00' }, // saque anterior
+      ]);
+
+      const balance = await service.getCompanyBalance('user-owner');
+
+      expect(balance.companyId).toBe('comp-1');
+      expect(balance.walletId).toBe('wal_123');
+      expect(balance.completedNetRevenue).toBe(80.0);
+      expect(balance.escrowLockedBalance).toBe(40.0);
+      expect(balance.totalWithdrawn).toBe(20.0);
+      expect(balance.availableBalance).toBe(60.0); // 80 - 20 = 60
+      expect(balance.instantTransferFee).toBe(5.0);
+      expect(balance.nextFreeWithdrawalDate).toBeDefined();
+    });
+
+    it('should throw NotFoundException if company does not exist', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+
+      await expect(service.getCompanyBalance('unknown-user')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException if financial profile or walletId is missing', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+      });
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
+
+      await expect(service.getCompanyBalance('user-owner')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('requestInstantWithdrawal (On-Demand with Fee)', () => {
+    beforeEach(() => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        financialProfileId: 'fp-1',
+      });
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-1',
+        walletId: 'wal_123',
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        { status: ApptStatus.COMPLETED, downPaymentAmount: '100.00' },
+        { status: ApptStatus.CONFIRMED, downPaymentAmount: '50.00' },
+      ]);
+      mockPrisma.transaction.findMany.mockResolvedValue([]);
+    });
+
+    it('should throw BadRequestException if available balance is zero', async () => {
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        { status: ApptStatus.CONFIRMED, downPaymentAmount: '50.00' }, // apenas em custódia
+      ]);
+
+      await expect(
+        service.requestInstantWithdrawal('user-owner', { amount: 20 }),
+      ).rejects.toThrow(
+        /Saldo disponível insuficiente para saque. Os valores de agendamentos ainda não realizados permanecem em custódia/,
+      );
+    });
+
+    it('should throw BadRequestException if requested amount exceeds available balance', async () => {
+      await expect(
+        service.requestInstantWithdrawal('user-owner', { amount: 150 }),
+      ).rejects.toThrow(/excede o saldo disponível liberado para saque/);
+    });
+
+    it('should throw BadRequestException if requested amount is <= transfer fee (R$ 5.00)', async () => {
+      await expect(
+        service.requestInstantWithdrawal('user-owner', { amount: 5.0 }),
+      ).rejects.toThrow(
+        /O valor solicitado para saque avulso deve ser superior à taxa de transferência bancária de R\$ 5/,
+      );
+    });
+
+    it('should throw ConflictException if there is already a PENDING withdrawal in-flight', async () => {
+      mockPrisma.transaction.findFirst.mockResolvedValueOnce({
+        id: 'tx-pending-1',
+        status: TransactionStatus.PENDING,
+      });
+
+      await expect(
+        service.requestInstantWithdrawal('user-owner', { amount: 50 }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should revert pending transaction to CANCELED if Asaas transfer fails', async () => {
+      mockPrisma.transaction.create.mockResolvedValue({ id: 'tx-pending-1' });
+      mockAsaasService.transferSubaccountBalance.mockRejectedValueOnce(
+        new Error('Asaas API unavailable'),
+      );
+
+      await expect(
+        service.requestInstantWithdrawal('user-owner', { amount: 50 }),
+      ).rejects.toThrow('Asaas API unavailable');
+
+      expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
+        where: { id: 'tx-pending-1' },
+        data: { status: TransactionStatus.CANCELED },
+      });
+    });
+
+    it('should process instant withdrawal successfully deducting transfer fee', async () => {
+      mockAsaasService.transferSubaccountBalance.mockResolvedValue({
+        id: 'tra_98765',
+        status: 'PENDING',
+      });
+      mockPrisma.transaction.create.mockResolvedValue({
+        id: 'tx-withdraw-1',
+        totalValue: 50.0,
+        netValue: 45.0,
+        asaasFee: 5.0,
+        createdAt: new Date(),
+      });
+      mockPrisma.transaction.update.mockResolvedValue({
+        id: 'tx-withdraw-1',
+        totalValue: 50.0,
+        netValue: 45.0,
+        asaasFee: 5.0,
+        status: TransactionStatus.CONFIRMED,
+        createdAt: new Date(),
+      });
+
+      const result = await service.requestInstantWithdrawal('user-owner', {
+        amount: 50.0,
+      });
+
+      expect(mockAsaasService.transferSubaccountBalance).toHaveBeenCalledWith(
+        'fp-1',
+        45.0, // 50 - 5 = 45
+        { isFreeWeekly: false },
+      );
+      expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'WITHDRAWAL',
+          status: 'PENDING',
+          totalValue: 50.0,
+          netValue: 45.0,
+          asaasFee: 5.0,
+          barberWalletId: 'wal_123',
+        }),
+      });
+      expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
+        where: { id: 'tx-withdraw-1' },
+        data: expect.objectContaining({
+          status: TransactionStatus.CONFIRMED,
+          asaasPaymentId: 'tra_98765',
+        }),
+      });
+      expect(result.message).toBe('Saque avulso solicitado com sucesso.');
+      expect(result.withdrawal.requestedAmount).toBe(50.0);
+      expect(result.withdrawal.transferFee).toBe(5.0);
+      expect(result.withdrawal.netAmountTransferred).toBe(45.0);
+      expect(result.withdrawal.remainingAvailableBalance).toBe(50.0); // 100 - 50 = 50
+    });
+  });
+
+  describe('getCompanyWithdrawalHistory', () => {
+    it('should return withdrawal history with audit details', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        financialProfileId: 'fp-1',
+      });
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        walletId: 'wal_123',
+      });
+      mockPrisma.transaction.findMany.mockResolvedValue([
+        {
+          id: 'tx-1',
+          totalValue: '100.00',
+          netValue: '95.00',
+          asaasFee: '5.00',
+          status: TransactionStatus.CONFIRMED,
+          asaasPaymentId: 'tra_1',
+          createdAt: new Date('2026-08-23T10:00:00.000Z'),
+        },
+        {
+          id: 'tx-2',
+          totalValue: '200.00',
+          netValue: '200.00',
+          asaasFee: '0.00',
+          status: TransactionStatus.CONFIRMED,
+          asaasPaymentId: 'payout_1',
+          createdAt: new Date('2026-08-17T06:00:00.000Z'),
+        },
+      ]);
+
+      const history = await service.getCompanyWithdrawalHistory('user-owner');
+
+      expect(history).toHaveLength(2);
+      expect(history[0].requestedAmount).toBe(100.0);
+      expect(history[0].transferFee).toBe(5.0);
+      expect(history[0].isFreeWeekly).toBe(false);
+      expect(history[1].isFreeWeekly).toBe(true);
+    });
+  });
+
+  describe('executeWeeklyFreePayouts (Cron Semanal Gratuito)', () => {
+    it('should execute free payouts for all active companies with available balance', async () => {
+      mockPrisma.company.findMany.mockResolvedValue([
+        { id: 'comp-1', businessName: 'Barbearia Alpha', userId: 'user-1' },
+        { id: 'comp-2', businessName: 'Barbearia Beta', userId: 'user-2' },
+      ]);
+
+      // Company 1 has balance 100, Company 2 has balance 0
+      jest.spyOn(service, 'getCompanyBalance').mockImplementation(async (userId) => {
+        if (userId === 'user-1') {
+          return {
+            companyId: 'comp-1',
+            businessName: 'Barbearia Alpha',
+            walletId: 'wal_1',
+            availableBalance: 100.0,
+            escrowLockedBalance: 50.0,
+            completedNetRevenue: 100.0,
+            totalWithdrawn: 0,
+            nextFreeWithdrawalDate: new Date().toISOString(),
+            instantTransferFee: 5.0,
+          };
+        }
+        return {
+          companyId: 'comp-2',
+          businessName: 'Barbearia Beta',
+          walletId: 'wal_2',
+          availableBalance: 0,
+          escrowLockedBalance: 0,
+          completedNetRevenue: 0,
+          totalWithdrawn: 0,
+          nextFreeWithdrawalDate: new Date().toISOString(),
+          instantTransferFee: 5.0,
+        };
+      });
+
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-1',
+        walletId: 'wal_1',
+      });
+      mockAsaasService.transferSubaccountBalance.mockResolvedValue({
+        id: 'tra_payout_1',
+      });
+      mockPrisma.transaction.create.mockResolvedValue({ id: 'tx-payout-1' });
+
+      const executedCount = await service.executeWeeklyFreePayouts();
+
+      expect(executedCount).toBe(1);
+      expect(mockAsaasService.transferSubaccountBalance).toHaveBeenCalledWith(
+        'fp-1',
+        100.0,
+        { isFreeWeekly: true },
+      );
+      expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'WITHDRAWAL',
+          totalValue: 100.0,
+          netValue: 100.0,
+          asaasFee: 0, // gratuito
+        }),
+      });
+    });
+  });
 });
+
+
