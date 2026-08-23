@@ -35,6 +35,7 @@ describe('AsaasService', () => {
       ASAAS_API_URL: 'https://sandbox.asaas.com/api/v3',
       ASAAS_API_KEY: 'test_api_key',
       ASAAS_PIX_FEE: '0.99',
+      ENCRYPTION_SECRET: 'test-secret',
     };
 
     const module: TestingModule = await Test.createTestingModule({
