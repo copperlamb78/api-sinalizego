@@ -201,6 +201,33 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
+    it('should throw UnauthorizedException("Credenciais inválidas") if user does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.login({
+          email: 'nonexistent@test.com',
+          password: 'password123',
+        }),
+      ).rejects.toThrow(new UnauthorizedException('Credenciais inválidas'));
+    });
+
+    it('should throw UnauthorizedException("Credenciais inválidas") if password is invalid', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'joao@test.com',
+        password: await bcrypt.hash('correctPassword123', 10),
+        isActive: true,
+      });
+
+      await expect(
+        service.login({
+          email: 'joao@test.com',
+          password: 'wrongPassword',
+        }),
+      ).rejects.toThrow(new UnauthorizedException('Credenciais inválidas'));
+    });
+
     it('should throw UnauthorizedException if account is deactivated (isActive === false)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
