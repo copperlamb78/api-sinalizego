@@ -33,6 +33,14 @@ describe('FinancialProfileService', () => {
     getSubacccountBalance: jest.fn(),
   };
 
+  beforeAll(() => {
+    process.env.ENCRYPTION_SECRET = 'test-secret';
+  });
+
+  afterAll(() => {
+    delete process.env.ENCRYPTION_SECRET;
+  });
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
