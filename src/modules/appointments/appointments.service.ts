@@ -474,4 +474,89 @@ export class AppointmentsService {
 
     return canceledAppointment;
   }
+
+  async completeAppointment(appointmentId: string, userId: string) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        company: true,
+      },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+    const isCompanyOwner = appointment.company?.userId === userId;
+
+    if (!isSystemManager && !isCompanyOwner) {
+      throw new ForbiddenException(
+        'Você não tem permissão para concluir este agendamento.',
+      );
+    }
+
+    if (appointment.status === ApptStatus.COMPLETED) {
+      throw new BadRequestException(
+        'Este agendamento já foi concluído anteriormente.',
+      );
+    }
+
+    if (appointment.status === ApptStatus.CANCELED) {
+      throw new BadRequestException(
+        'Não é possível concluir um agendamento cancelado.',
+      );
+    }
+
+    if (appointment.status === ApptStatus.PENDING_PAYMENT) {
+      throw new BadRequestException(
+        'Não é possível concluir um agendamento que ainda não foi confirmado via pagamento.',
+      );
+    }
+
+    if (appointment.status !== ApptStatus.CONFIRMED) {
+      throw new BadRequestException(
+        'Apenas agendamentos confirmados podem ser marcados como concluídos.',
+      );
+    }
+
+    return this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: ApptStatus.COMPLETED },
+      include: {
+        company: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            name: true,
+            totalPrice: true,
+            durationMinutes: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+  }
 }

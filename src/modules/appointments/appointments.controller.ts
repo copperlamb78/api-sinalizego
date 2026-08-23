@@ -161,6 +161,41 @@ export class AppointmentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Patch(':id/complete')
+  @ApiOperation({
+    summary: 'Conclui um agendamento confirmado (transição para COMPLETED)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Agendamento concluído com sucesso',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Status inválido (ex: agendamento pendente, cancelado ou já concluído)',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado para este agendamento',
+  })
+  @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
+  async complete(
+    @Param('id', ParseUUIDPipe) appointmentId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.appointmentsService.completeAppointment(appointmentId, userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch(':id/status')
   @ApiBody({
     type: AppointmentsStatusUpdateDto,

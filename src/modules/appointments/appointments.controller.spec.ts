@@ -15,6 +15,7 @@ describe('AppointmentsController', () => {
     getAppointmentByCompanyId: jest.fn(),
     getAppointmentByUserId: jest.fn(),
     updateAppointmentStatus: jest.fn(),
+    completeAppointment: jest.fn(),
     deactivateAppointment: jest.fn(),
   };
 
@@ -138,6 +139,24 @@ describe('AppointmentsController', () => {
       expect(appointmentsService.getAppointmentByUserId).toHaveBeenCalledWith(
         'client-1',
         filters,
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('complete', () => {
+    it('should complete a confirmed appointment with authenticated owner', async () => {
+      const req = { user: { sub: 'owner-1' } } as any;
+      const expected = { id: 'appointment-1', status: ApptStatus.COMPLETED };
+      mockAppointmentsService.completeAppointment.mockResolvedValue(expected);
+
+      const result = await controller.complete(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        req,
+      );
+      expect(appointmentsService.completeAppointment).toHaveBeenCalledWith(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        'owner-1',
       );
       expect(result).toEqual(expected);
     });

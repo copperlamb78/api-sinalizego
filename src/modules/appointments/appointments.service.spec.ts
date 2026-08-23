@@ -683,4 +683,114 @@ describe('AppointmentsService', () => {
       expect(result).toBe(1);
     });
   });
+
+  describe('completeAppointment', () => {
+    it('should throw NotFoundException if appointment does not exist', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.completeAppointment('appt-invalid', 'owner-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if user does not exist', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.completeAppointment('appt-1', 'user-invalid'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if user does not own the appointment company (Anti-IDOR)', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        company: { userId: 'owner-real' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'attacker-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.completeAppointment('appt-1', 'attacker-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw BadRequestException if appointment is already COMPLETED', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.COMPLETED,
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.completeAppointment('appt-1', 'owner-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if appointment is CANCELED', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.CANCELED,
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.completeAppointment('appt-1', 'owner-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if appointment is PENDING_PAYMENT', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.PENDING_PAYMENT,
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.completeAppointment('appt-1', 'owner-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should successfully complete a CONFIRMED appointment', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.CONFIRMED,
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+      const expectedCompleted = {
+        id: 'appt-1',
+        status: ApptStatus.COMPLETED,
+      };
+      mockPrisma.appointment.update.mockResolvedValue(expectedCompleted);
+
+      const result = await service.completeAppointment('appt-1', 'owner-1');
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: 'appt-1' },
+        data: { status: ApptStatus.COMPLETED },
+        include: expect.any(Object),
+      });
+      expect(result).toEqual(expectedCompleted);
+    });
+  });
 });
