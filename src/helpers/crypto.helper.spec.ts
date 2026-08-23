@@ -3,6 +3,14 @@ import { CryptoHelper } from './crypto.helper';
 describe('CryptoHelper (AES-256-GCM)', () => {
   const secretData = '$aact_YTU5YTE0M2NmN2Y5...secret_api_key_12345';
 
+  beforeAll(() => {
+    process.env.ENCRYPTION_SECRET = 'test-secret-key-12345';
+  });
+
+  afterAll(() => {
+    delete process.env.ENCRYPTION_SECRET;
+  });
+
   it('should encrypt plaintext into iv:authTag:ciphertext format', () => {
     const encrypted = CryptoHelper.encrypt(secretData);
     expect(encrypted).toBeDefined();

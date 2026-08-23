@@ -10,10 +10,12 @@ export class CryptoHelper {
   private static readonly IV_LENGTH = 16;
 
   private static getSecretKey(): Buffer {
-    const secret =
-      process.env.ENCRYPTION_SECRET ||
-      process.env.JWT_SECRET ||
-      'sinalizego-fallback-encryption-secret-32b';
+    const secret = process.env.ENCRYPTION_SECRET || process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error(
+        'Critical Security: ENCRYPTION_SECRET or JWT_SECRET is not defined.',
+      );
+    }
     return crypto.createHash('sha256').update(String(secret)).digest();
   }
 

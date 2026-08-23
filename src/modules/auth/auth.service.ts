@@ -151,7 +151,10 @@ export class AuthService {
       return genericResponse;
     }
 
-    const secret = `${process.env.JWT_SECRET || 'jwt_secret'}${user.password}`;
+    if (!process.env.JWT_SECRET) {
+      throw new Error('Critical Security: JWT_SECRET is not defined.');
+    }
+    const secret = `${process.env.JWT_SECRET}${user.password}`;
     const token = await this.jwtService.signAsync(
       { sub: user.id, email: user.email },
       {
@@ -199,7 +202,10 @@ export class AuthService {
       );
     }
 
-    const secret = `${process.env.JWT_SECRET || 'jwt_secret'}${user.password}`;
+    if (!process.env.JWT_SECRET) {
+      throw new Error('Critical Security: JWT_SECRET is not defined.');
+    }
+    const secret = `${process.env.JWT_SECRET}${user.password}`;
     try {
       await this.jwtService.verifyAsync(data.token, { secret });
     } catch {
