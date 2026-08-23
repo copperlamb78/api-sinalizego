@@ -51,7 +51,7 @@ export class AuthService {
       where: { email: data.email },
     });
     if (!user) {
-      throw new NotFoundException('Usuário não encontrado');
+      throw new UnauthorizedException('Credenciais inválidas');
     }
 
     if (!user.isActive) {
@@ -60,7 +60,7 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(data.password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Senha inválida');
+      throw new UnauthorizedException('Credenciais inválidas');
     }
 
     const tokens = await this.getTokens(user.id, user.email, user.role);
