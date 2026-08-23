@@ -154,4 +154,6 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Asaas Payment Gateway Reference:**
     *   Documentation index for LLM agents: `https://docs.asaas.com/llms.txt`
     *   To read any Asaas reference page in markdown format, append `.md` to the documentation URL (e.g., `https://docs.asaas.com/reference/criar-nova-cobranca.md`).
-    *   Always refer to official Asaas v3 schemas when constructing payloads for customer creation, Pix generation, and split processing.
+    *   Always refer to official Asaas v3 schemas when constructing payloads for customer creation, Pix generation, and split processing.\n> **Prisma Rule**: NEVER use `select` inside an `include` block (Prisma throws a runtime/type validation error). Always use nested `select` blocks exclusively when projecting relation fields (e.g. `select: { id: true, relation: { select: { field: true } } }`).
+
+> **Prisma Rule**: NEVER use `select` inside an `include` block (Prisma throws a runtime/type validation error). Always use nested `select` blocks exclusively when projecting relation fields (e.g. `select: { id: true, relation: { select: { field: true } } }`).

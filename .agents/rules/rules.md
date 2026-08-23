@@ -88,4 +88,6 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 
 *   **Asaas Payment Gateway Reference:**
     *   LLM index: `https://docs.asaas.com/llms.txt`
-    *   Append `.md` to any documentation URL to read raw markdown (e.g., `https://docs.asaas.com/reference/criar-nova-cobranca.md`).
+    *   Append `.md` to any documentation URL to read raw markdown (e.g., `https://docs.asaas.com/reference/criar-nova-cobranca.md`).\n> **Prisma Rule**: NEVER use `select` inside an `include` block (Prisma throws a runtime/type validation error). Always use nested `select` blocks exclusively when projecting relation fields (e.g. `select: { id: true, relation: { select: { field: true } } }`).
+
+> **Prisma Rule**: NEVER use `select` inside an `include` block (Prisma throws a runtime/type validation error). Always use nested `select` blocks exclusively when projecting relation fields (e.g. `select: { id: true, relation: { select: { field: true } } }`).

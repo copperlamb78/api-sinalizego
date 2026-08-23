@@ -19,13 +19,27 @@ export class TransactionsService {
   async createPixForAppointment(appointmentId: string, userId: string) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
-      include: {
+      select: {
+        id: true,
+        clientId: true,
+        status: true,
+        expiresAt: true,
+        downPaymentAmount: true,
+        platformFeeAmount: true,
         company: {
-          include: {
-            financialProfile: true,
+          select: {
+            financialProfile: {
+              select: {
+                walletId: true,
+              },
+            },
           },
         },
-        client: true,
+        client: {
+          select: {
+            asaasCustomerId: true,
+          },
+        },
         service: true,
       },
     });
