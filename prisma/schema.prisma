@@ -177,8 +177,9 @@ model ScheduleException {
   date      DateTime
   isClosed  Boolean  @default(true)
 
-  startTime String?
-  endTime   String?
+  startTime   String?
+  endTime     String?
+  description String?
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

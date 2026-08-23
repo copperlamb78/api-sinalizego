@@ -19,6 +19,7 @@ import { FinancialProfileModule } from './modules/financial-profile/financial-pr
 import { WebhooksModule } from './asaas/webhook-asaas/webhooks.module';
 import { ServiceGroupModule } from './service-group/service-group.module';
 import { MailModule } from './modules/mail/mail.module';
+import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { MailModule } from './modules/mail/mail.module';
     WebhooksModule,
     ServiceGroupModule,
     MailModule,
+    WorkingHoursModule,
   ],
   controllers: [AppController],
   providers: [
