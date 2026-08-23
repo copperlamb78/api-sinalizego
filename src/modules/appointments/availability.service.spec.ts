@@ -239,6 +239,54 @@ describe('AvailabilityService', () => {
       // Since capacity is 2 and only 1 appointment exists, 10:00 is still available
       expect(result.slots).toContain('10:00');
     });
+
+    it('should correctly handle heterogeneous service durations (30 min booking vs 60 min service query)', async () => {
+      const longService = {
+        ...mockService,
+        durationMinutes: 60, // 60 minutes service
+        serviceGroup: {
+          id: 'grp-1',
+          capacity: 1, // 1 chair
+        },
+      };
+
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockPrisma.service.findUnique.mockResolvedValue(longService);
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 2,
+        startTime: '09:00',
+        endTime: '12:00',
+        lunchStartTime: null,
+        lunchEndTime: null,
+        isClosed: false,
+      });
+
+      const futureDate = '2029-08-28';
+      // Existing 30-min appointment at 09:30 - 10:00
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        {
+          appointmentDate: new Date('2029-08-28T09:30:00'),
+          appointmentEndDate: new Date('2029-08-28T10:00:00'),
+        },
+      ]);
+
+      const result = await service.getAvailableSlots(
+        'comp-1',
+        'serv-1',
+        futureDate,
+      );
+
+      // Slot 09:00 (09:00-10:00) collides with 09:30-10:00 -> excluded
+      expect(result.slots).not.toContain('09:00');
+      // Slot 09:30 (09:30-10:30) collides with 09:30-10:00 -> excluded
+      expect(result.slots).not.toContain('09:30');
+      // Slots 10:00, 10:30, 11:00 are available
+      expect(result.slots).toContain('10:00');
+      expect(result.slots).toContain('10:30');
+      expect(result.slots).toContain('11:00');
+      expect(result.slots).toEqual(['10:00', '10:30', '11:00']);
+    });
   });
 
   describe('validateSlotWithinWorkingHours', () => {
