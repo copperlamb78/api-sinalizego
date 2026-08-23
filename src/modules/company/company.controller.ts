@@ -27,6 +27,8 @@ import {
   SYSTEM_MANAGERS,
 } from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
+import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
+import { Role } from '@prisma/client';
 
 @Controller('company')
 export class CompanyController {
@@ -192,6 +194,78 @@ export class CompanyController {
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async getAllCompanies() {
     return this.companyService.getAllCompanies();
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Get('dashboard/metrics')
+  @ApiResponse({
+    status: 200,
+    description:
+      'Métricas e relatórios operacionais/financeiros do estabelecimento',
+    schema: {
+      example: {
+        company: {
+          id: 'clsw0s98x000013z81z8z8z8z',
+          businessName: "Barber's Shop",
+          slug: 'barbers-shop',
+        },
+        period: {
+          startDate: '2026-08-01T00:00:00.000Z',
+          endDate: '2026-08-23T23:59:59.999Z',
+        },
+        financial: {
+          totalRevenue: 1250.0,
+          totalDownPaymentCollected: 625.0,
+          totalPlatformFees: 75.0,
+          netIncome: 1175.0,
+        },
+        volume: {
+          total: 25,
+          completed: 18,
+          confirmed: 4,
+          canceled: 2,
+          pendingPayment: 1,
+          completionRate: 75.0,
+        },
+        topServices: [
+          {
+            serviceId: 'srv-1',
+            serviceName: 'Corte Degradê',
+            appointmentsCount: 15,
+            totalRevenue: 525.0,
+          },
+        ],
+        upcomingToday: [
+          {
+            id: 'appt-1',
+            appointmentDate: '2026-08-23T14:30:00.000Z',
+            appointmentEndDate: '2026-08-23T15:00:00.000Z',
+            clientName: 'Carlos Silva',
+            clientPhone: '75999999999',
+            serviceName: 'Corte Degradê',
+            durationMinutes: 30,
+            downPaymentAmount: 17.5,
+            servicePrice: 35.0,
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Parâmetros de data inválidos.' })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Estabelecimento não encontrado para este usuário.',
+  })
+  async getDashboardMetrics(
+    @Req() req: Request,
+    @Query() dto?: DashboardMetricsDto,
+  ) {
+    const userId = req.user?.['sub'];
+    const userRole = req.user?.['role'] as Role;
+    return this.companyService.getDashboardMetrics(userId, userRole, dto);
   }
 
   @Get('slug/:slug')

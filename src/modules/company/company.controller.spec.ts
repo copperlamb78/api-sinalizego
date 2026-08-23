@@ -15,6 +15,7 @@ describe('CompanyController', () => {
     getAllCompanies: jest.fn(),
     findBySlug: jest.fn(),
     getCompanyBySlug: jest.fn(),
+    getDashboardMetrics: jest.fn(),
     updateCompany: jest.fn(),
     deactivateCompany: jest.fn(),
     activateCompany: jest.fn(),
@@ -208,6 +209,48 @@ describe('CompanyController', () => {
       expect(companyService.activateCompany).toHaveBeenCalledWith(
         'user-1',
         'company-1',
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getDashboardMetrics', () => {
+    it('should return dashboard metrics for authenticated owner', async () => {
+      const req = {
+        user: { sub: 'user-1', role: 'COMPANY_OWNER' },
+      } as any;
+      const dto = { startDate: '2026-08-01', endDate: '2026-08-23' };
+      const expected = {
+        company: {
+          id: 'comp-1',
+          businessName: 'Barbearia VIP',
+          slug: 'barbearia-vip',
+        },
+        financial: {
+          totalRevenue: 1000,
+          totalDownPaymentCollected: 500,
+          totalPlatformFees: 50,
+          netIncome: 950,
+        },
+        volume: {
+          total: 10,
+          completed: 8,
+          confirmed: 2,
+          canceled: 0,
+          pendingPayment: 0,
+          completionRate: 80,
+        },
+        topServices: [],
+        upcomingToday: [],
+      };
+      mockCompanyService.getDashboardMetrics.mockResolvedValue(expected);
+
+      const result = await controller.getDashboardMetrics(req, dto as any);
+
+      expect(companyService.getDashboardMetrics).toHaveBeenCalledWith(
+        'user-1',
+        'COMPANY_OWNER',
+        dto,
       );
       expect(result).toEqual(expected);
     });

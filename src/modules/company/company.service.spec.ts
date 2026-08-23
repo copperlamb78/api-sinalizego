@@ -3,8 +3,13 @@ import { CompanyService } from './company.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SlugHelper } from './helpers/create-slug.helper';
 import { AuthService } from '../auth/auth.service';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { ApptStatus, Role } from '@prisma/client';
 
 describe('CompanyService', () => {
   let service: CompanyService;
@@ -24,6 +29,9 @@ describe('CompanyService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+    },
+    appointment: {
+      findMany: jest.fn(),
     },
   };
 
@@ -261,6 +269,171 @@ describe('CompanyService', () => {
         }),
       });
       expect(result).toEqual(mockStorefront);
+    });
+  });
+
+  describe('getDashboardMetrics', () => {
+    const mockCompany = {
+      id: 'comp-1',
+      businessName: 'Barbearia VIP',
+      slug: 'barbearia-vip',
+    };
+
+    it('should throw NotFoundException if establishment is not found for COMPANY_OWNER', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getDashboardMetrics('user-owner', Role.COMPANY_OWNER),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if startDate is after endDate', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+
+      await expect(
+        service.getDashboardMetrics('user-owner', Role.COMPANY_OWNER, {
+          startDate: '2026-08-30',
+          endDate: '2026-08-01',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should calculate accurate metrics, volume, top services and upcoming appointments for owner', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+
+      const mockAppointments = [
+        {
+          id: 'appt-1',
+          status: ApptStatus.COMPLETED,
+          servicePrice: '50.00',
+          downPaymentAmount: '25.00',
+          platformFeeAmount: '2.50',
+          serviceId: 'srv-1',
+          service: { id: 'srv-1', name: 'Corte Degradê' },
+        },
+        {
+          id: 'appt-2',
+          status: ApptStatus.COMPLETED,
+          servicePrice: '30.00',
+          downPaymentAmount: '15.00',
+          platformFeeAmount: '2.00',
+          serviceId: 'srv-1',
+          service: { id: 'srv-1', name: 'Corte Degradê' },
+        },
+        {
+          id: 'appt-3',
+          status: ApptStatus.CONFIRMED,
+          servicePrice: '60.00',
+          downPaymentAmount: '30.00',
+          platformFeeAmount: '3.00',
+          serviceId: 'srv-2',
+          service: { id: 'srv-2', name: 'Barba Terapia' },
+        },
+        {
+          id: 'appt-4',
+          status: ApptStatus.CANCELED,
+          servicePrice: '40.00',
+          downPaymentAmount: '20.00',
+          platformFeeAmount: '2.00',
+          serviceId: 'srv-1',
+          service: { id: 'srv-1', name: 'Corte Degradê' },
+        },
+        {
+          id: 'appt-5',
+          status: ApptStatus.PENDING_PAYMENT,
+          servicePrice: '50.00',
+          downPaymentAmount: '25.00',
+          platformFeeAmount: '2.50',
+          serviceId: 'srv-1',
+          service: { id: 'srv-1', name: 'Corte Degradê' },
+        },
+      ];
+
+      const mockUpcoming = [
+        {
+          id: 'appt-3',
+          appointmentDate: new Date('2026-08-23T15:00:00.000Z'),
+          appointmentEndDate: new Date('2026-08-23T15:30:00.000Z'),
+          downPaymentAmount: '30.00',
+          servicePrice: '60.00',
+          client: { name: 'Lucas Santos', phone: '75999991111' },
+          service: { name: 'Barba Terapia', durationMinutes: 30 },
+        },
+      ];
+
+      // Primeiro findMany para agendamentos do período, segundo para upcoming
+      mockPrisma.appointment.findMany
+        .mockResolvedValueOnce(mockAppointments)
+        .mockResolvedValueOnce(mockUpcoming);
+
+      const result = await service.getDashboardMetrics(
+        'user-owner',
+        Role.COMPANY_OWNER,
+        {
+          startDate: '2026-08-01',
+          endDate: '2026-08-23',
+        },
+      );
+
+      expect(result.company).toEqual(mockCompany);
+      // Revenue = 50 + 30 = 80.00 (apenas COMPLETED)
+      expect(result.financial.totalRevenue).toBe(80.0);
+      // DownPayment = 25 + 15 + 30 = 70.00 (COMPLETED + CONFIRMED)
+      expect(result.financial.totalDownPaymentCollected).toBe(70.0);
+      // PlatformFees = 2.50 + 2.00 + 3.00 = 7.50 (COMPLETED + CONFIRMED)
+      expect(result.financial.totalPlatformFees).toBe(7.5);
+      // Net Income = 80 - 7.50 = 72.50
+      expect(result.financial.netIncome).toBe(72.5);
+
+      // Volume
+      expect(result.volume.total).toBe(5);
+      expect(result.volume.completed).toBe(2);
+      expect(result.volume.confirmed).toBe(1);
+      expect(result.volume.canceled).toBe(1);
+      expect(result.volume.pendingPayment).toBe(1);
+      // CompletionRate = (2 / (2 + 1 + 1)) * 100 = 50.00%
+      expect(result.volume.completionRate).toBe(50.0);
+
+      // Top Services
+      expect(result.topServices).toHaveLength(2);
+      expect(result.topServices[0].serviceName).toBe('Corte Degradê');
+      expect(result.topServices[0].appointmentsCount).toBe(2);
+      expect(result.topServices[0].totalRevenue).toBe(80.0);
+
+      // Upcoming Today
+      expect(result.upcomingToday).toHaveLength(1);
+      expect(result.upcomingToday[0].clientName).toBe('Lucas Santos');
+      expect(result.upcomingToday[0].serviceName).toBe('Barba Terapia');
+    });
+
+    it('should allow ADMIN to query metrics by companyId', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.appointment.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.getDashboardMetrics(
+        'admin-user',
+        Role.ADMIN,
+        {
+          companyId: 'comp-1',
+        },
+      );
+
+      expect(mockPrisma.company.findFirst).toHaveBeenCalledWith({
+        where: { id: 'comp-1', isActive: true },
+        select: { id: true, businessName: true, slug: true },
+      });
+      expect(result.financial.totalRevenue).toBe(0);
+      expect(result.volume.total).toBe(0);
+    });
+
+    it('should throw BadRequestException if ADMIN does not provide companyId and has no own company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getDashboardMetrics('admin-user', Role.ADMIN),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

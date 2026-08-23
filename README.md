@@ -36,7 +36,7 @@
 | 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga e auditoria de cancelamento |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
-| 🧪 **Suíte de Testes Completa** | Mais de 280 testes unitários cobrindo todos os módulos, controllers, services, helpers, regras financeiras e permissões |
+| 🧪 **Suíte de Testes Completa** | 304 testes unitários automatizados (31 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, dashboards e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -195,6 +195,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 |--------|------|-----------|------|-------|
 | `GET` | `/company/slug/:slug` | Consultar perfil público do estabelecimento (Storefront consolidado) | ❌ | — |
 | `GET` | `/company/get-by-slug/:slug` | Buscar empresa por slug (vitrine pública) | ❌ | — |
+| `GET` | `/company/dashboard/metrics` | Métricas & relatórios operacionais/financeiros do estabelecimento (Dashboard do Dono) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `POST` | `/company/create` | Criar empresa (com novo usuário) | ❌ | — |
 | `POST` | `/company/create-company-to-user` | Criar empresa para usuário existente | 🔑 JWT | — |
 | `GET` | `/company/get-by-user-id` | Buscar empresa por userId | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
@@ -542,10 +543,12 @@ src/
     │   ├── company.controller.ts
     │   ├── company.controller.spec.ts
     │   ├── company.service.ts
+    │   ├── company.service.spec.ts
     │   ├── dto/
     │   │   ├── company-create.dto.ts
     │   │   ├── company-filter.dto.ts
-    │   │   └── company-update.dto.ts
+    │   │   ├── company-update.dto.ts
+    │   │   └── dashboard-metrics.dto.ts
     │   └── helpers/
     │       └── create-slug.helper.ts
     │
@@ -614,7 +617,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **31 suítes de teste e 298 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **31 suítes de teste e 304 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -634,6 +637,7 @@ npm test
 - **Usuários & Gestão de Contas:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF, rota para auto-desativação (`DELETE /users/me`), e rotas administrativas exclusivas para desativação e reativação de contas de terceiros (`DELETE /users/:userId` e `PATCH /users/:userId/activate` restritas a `SYSTEM_MANAGERS`).
 - **Empresas & Promoção de Roles:** Criação com validação de unicidade de e-mail e slug, criação vinculada a usuário existente com promoção automática para `COMPANY_OWNER` e emissão/retorno imediato do novo par de tokens (`access_token`, `refresh_token`) refletindo os privilégios atualizados sem necessidade de novo login.
 - **Storefront & Vitrine Pública Consolidada (`CompanyService.findBySlug`):** Endpoint público de alta performance (`GET /company/slug/:slug`) retornando dados cadastrais, grade completa de expediente (`workingHours`) e catálogo de serviços agrupados por capacidade (`serviceGroups` e `services`) em uma única query otimizada (`select`), com validação de status ativo e tratamento de erro 404.
+- **Métricas & Relatórios Operacionais/Financeiros (Dashboard do Dono - `CompanyService.getDashboardMetrics`):** Endpoint autenticado (`GET /company/dashboard/metrics`) protegido por Anti-IDOR (`INTERNAL_NO_EMPLOYEE`), agregando receita bruta de atendimentos concluídos (`totalRevenue`), sinais capturados (`totalDownPaymentCollected`), taxas retidas da plataforma (`totalPlatformFees`), receita líquida (`netIncome`), volume por status com taxa de comparecimento (`completionRate`), ranking dos 5 serviços mais demandados (`topServices`) e fila dos próximos atendimentos confirmados do dia (`upcomingToday`), com suporte a filtros flexíveis por intervalo de data (`startDate`/`endDate`).
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos, grupos de serviços e uploads de empresas concorrentes, validação estrita de posse em criação, edição, exclusão e uploads, validação de UUID (`@IsUUID('4')`) e checagem de pertencimento de `serviceGroupId` à empresa do usuário logado na criação e edição de serviços (`createService` / `updateService`).
 - **Uploads Seguros & Magic Bytes:** Proteção com `RolesGuard`, limite de 5MB por arquivo, validação de posse da empresa e inspeção binária real de magic bytes para JPEG, PNG e WEBP.
 - **Proteção Anti-DoS de Reservas & Limpeza Automática:** Descarte imediato de reservas `PENDING_PAYMENT` expiradas na contagem de vagas, limite estrito de 3 reservas pendentes simultâneas por cliente e cron job a cada minuto (`@nestjs/schedule`) cancelando agendamentos/cobranças Asaas expiradas.
