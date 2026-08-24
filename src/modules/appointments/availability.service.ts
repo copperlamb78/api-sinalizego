@@ -187,6 +187,13 @@ export class AvailabilityService {
     const now = new Date();
     const availableSlots: string[] = [];
 
+    // Pre-calculate appointment times in milliseconds to avoid O(N * M) Date parsing
+    // ⚡ Bolt: Memoize expensive Date parsing outside the slot check loop
+    const activeAppointmentsMs = activeAppointments.map((appt) => ({
+      startMs: new Date(appt.appointmentDate).getTime(),
+      endMs: new Date(appt.appointmentEndDate).getTime(),
+    }));
+
     for (
       let currentMinutes = startMinutes;
       currentMinutes + durationMinutes <= endMinutes;
@@ -237,11 +244,9 @@ export class AvailabilityService {
       const slotStartMs = slotStartDate.getTime();
       const slotEndMs = slotEndDate.getTime();
 
-      const overlappingCount = activeAppointments.filter((appt) => {
-        const apptStartMs = new Date(appt.appointmentDate).getTime();
-        const apptEndMs = new Date(appt.appointmentEndDate).getTime();
-        return apptStartMs < slotEndMs && apptEndMs > slotStartMs;
-      }).length;
+      const overlappingCount = activeAppointmentsMs.filter(
+        (appt) => appt.startMs < slotEndMs && appt.endMs > slotStartMs,
+      ).length;
 
       if (overlappingCount < maxCapacity) {
         availableSlots.push(this.minutesToTime(currentMinutes));
