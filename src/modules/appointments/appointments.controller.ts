@@ -203,6 +203,42 @@ export class AppointmentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Patch(':id/no-show')
+  @ApiOperation({
+    summary:
+      'Registra a falta do cliente (No-Show) com retenção legal do sinal de garantia para o estabelecimento',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Agendamento registrado como No-Show com sucesso',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Status inválido ou tentativa de registro antes do horário do agendamento (+15 min de tolerância)',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado para este agendamento',
+  })
+  @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
+  async markNoShow(
+    @Param('id', ParseUUIDPipe) appointmentId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.appointmentsService.markAsNoShow(appointmentId, userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch(':id/status')
   @ApiBody({
     type: AppointmentsStatusUpdateDto,

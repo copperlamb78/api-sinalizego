@@ -183,6 +183,11 @@ describe('AdminService', () => {
       expect(result.growth.appointments.byStatus.NO_SHOW).toBe(0);
       expect(result.appointmentsByStatus.COMPLETED).toBe(1);
 
+      // Loss Prevented Metrics
+      expect(result.lossPrevented).toBeDefined();
+      expect(result.lossPrevented.totalLossPrevented).toBe(0);
+      expect(result.lossPrevented.retainedAppointmentsCount).toBe(0);
+
       // Top Tenants
       expect(result.topTenants).toHaveLength(2);
       expect(result.topTenants[0].businessName).toBe('Barbearia VIP');

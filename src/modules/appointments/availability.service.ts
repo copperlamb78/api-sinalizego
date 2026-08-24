@@ -167,7 +167,7 @@ export class AvailabilityService {
       where: {
         companyId: company.id,
         isActive: true,
-        status: { notIn: [ApptStatus.CANCELED] },
+        status: { notIn: [ApptStatus.CANCELED, ApptStatus.NO_SHOW] },
         appointmentDate: { gte: dayStartFilter, lt: dayEndFilter },
         service: {
           serviceGroupId: service.serviceGroupId,

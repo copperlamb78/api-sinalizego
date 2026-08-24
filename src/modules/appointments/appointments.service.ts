@@ -529,6 +529,7 @@ export class AppointmentsService {
 
     let isRefunded = false;
     let refundAmount: number | undefined = undefined;
+    let retainedDeposit: number | undefined = undefined;
 
     if (appointment.status === ApptStatus.CONFIRMED) {
       const transaction = await this.prisma.transaction.findFirst({
@@ -570,6 +571,8 @@ export class AppointmentsService {
         } else {
           // 2. Cancelamento tardio (<= 24h):
           // O sinal mínimo de garantia é retido para compensação de vacância.
+          retainedDeposit = guaranteedDepositAmount;
+
           // Se o cliente adiantou valor superior ao sinal mínimo (ex: 50%, 75% ou 100%), o excedente é estornado.
           if (paidAmount > guaranteedDepositAmount) {
             const excessToRefund = Number(
@@ -603,6 +606,8 @@ export class AppointmentsService {
       where: { id: appointmentId },
       data: {
         status: 'CANCELED',
+        retainedDepositAmount:
+          retainedDeposit !== undefined ? retainedDeposit : null,
         isActive: false,
         disabledAt: new Date(),
         disabledBy: user.id,
@@ -669,6 +674,12 @@ export class AppointmentsService {
       );
     }
 
+    if (appointment.status === ApptStatus.NO_SHOW) {
+      throw new BadRequestException(
+        'Não é possível concluir um agendamento que foi registrado como falta (No-Show).',
+      );
+    }
+
     if (appointment.status === ApptStatus.PENDING_PAYMENT) {
       throw new BadRequestException(
         'Não é possível concluir um agendamento que ainda não foi confirmado via pagamento.',
@@ -681,9 +692,137 @@ export class AppointmentsService {
       );
     }
 
+    // Trava Temporal: Não permitir conclusão antes do início do agendamento
+    if (new Date() < appointment.appointmentDate) {
+      throw new BadRequestException(
+        'Não é possível concluir um atendimento antes do horário de início agendado.',
+      );
+    }
+
     return this.prisma.appointment.update({
       where: { id: appointmentId },
       data: { status: ApptStatus.COMPLETED },
+      include: {
+        company: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            name: true,
+            totalPrice: true,
+            durationMinutes: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Registra a falta do cliente (No-Show) com retenção legal do sinal de garantia para o estabelecimento.
+   */
+  async markAsNoShow(appointmentId: string, userId: string) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        company: true,
+        service: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isSystemManager =
+      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+    const isCompanyOwner = appointment.company?.userId === userId;
+
+    if (!isSystemManager && !isCompanyOwner) {
+      throw new ForbiddenException(
+        'Você não tem permissão para registrar falta neste agendamento.',
+      );
+    }
+
+    if (appointment.status === ApptStatus.NO_SHOW) {
+      throw new BadRequestException(
+        'Este agendamento já foi registrado como falta (No-Show).',
+      );
+    }
+
+    if (appointment.status === ApptStatus.COMPLETED) {
+      throw new BadRequestException(
+        'Não é possível marcar como falta um agendamento já concluído.',
+      );
+    }
+
+    if (appointment.status === ApptStatus.CANCELED) {
+      throw new BadRequestException(
+        'Não é possível marcar como falta um agendamento já cancelado.',
+      );
+    }
+
+    if (appointment.status === ApptStatus.PENDING_PAYMENT) {
+      throw new BadRequestException(
+        'Não é possível registrar falta para um agendamento com pagamento pendente.',
+      );
+    }
+
+    if (appointment.status !== ApptStatus.CONFIRMED) {
+      throw new BadRequestException(
+        'Apenas agendamentos confirmados podem ser registrados como falta (No-Show).',
+      );
+    }
+
+    const now = new Date();
+    // Trava Temporal: Tolerância de 15 minutos após o horário agendado
+    const minAllowedTime = new Date(
+      appointment.appointmentDate.getTime() + 15 * 60 * 1000,
+    );
+    if (now < minAllowedTime) {
+      throw new BadRequestException(
+        'O registro de falta (No-Show) só é permitido após o início do horário agendado (com tolerância mínima de 15 minutos).',
+      );
+    }
+
+    const retainedDeposit = Number(appointment.downPaymentAmount || 0);
+
+    return this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        status: ApptStatus.NO_SHOW,
+        retainedDepositAmount: retainedDeposit,
+        disabledAt: now,
+        disabledBy: user.id,
+      },
       include: {
         company: {
           select: {

@@ -434,11 +434,20 @@ export class CompanyService {
         servicePrice: true,
         downPaymentAmount: true,
         platformFeeAmount: true,
+        retainedDepositAmount: true,
+        appointmentDate: true,
         serviceId: true,
         service: {
           select: {
             id: true,
             name: true,
+            durationMinutes: true,
+          },
+        },
+        client: {
+          select: {
+            name: true,
+            phone: true,
           },
         },
       },
@@ -451,7 +460,23 @@ export class CompanyService {
     let completedCount = 0;
     let confirmedCount = 0;
     let canceledCount = 0;
+    let noShowCount = 0;
     let pendingPaymentCount = 0;
+
+    // Métricas de Prejuízo Evitado (Loss Prevention Intelligence)
+    let totalRetainedLossPrevented = 0;
+    let totalProtectedMinutes = 0;
+    let totalPotentialLostRevenue = 0;
+    const protectedAppointmentsList: Array<{
+      id: string;
+      clientName: string;
+      clientPhone: string | null;
+      serviceName: string;
+      appointmentDate: Date;
+      servicePrice: number;
+      retainedAmount: number;
+      reason: string;
+    }> = [];
 
     const servicesMap = new Map<
       string,
@@ -480,9 +505,48 @@ export class CompanyService {
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
           break;
-        case ApptStatus.CANCELED:
-          canceledCount++;
+        case ApptStatus.NO_SHOW: {
+          noShowCount++;
+          const noShowRetained = Number(
+            appt.retainedDepositAmount || appt.downPaymentAmount || 0,
+          );
+          totalDownPaymentCollected += noShowRetained;
+          totalRetainedLossPrevented += noShowRetained;
+          totalProtectedMinutes += appt.service?.durationMinutes || 30;
+          totalPotentialLostRevenue += price;
+          protectedAppointmentsList.push({
+            id: appt.id,
+            clientName: appt.client?.name || 'Cliente',
+            clientPhone: appt.client?.phone || null,
+            serviceName: appt.service?.name || 'Serviço',
+            appointmentDate: appt.appointmentDate,
+            servicePrice: price,
+            retainedAmount: Number(noShowRetained.toFixed(2)),
+            reason: 'Não Compareceu (No-Show)',
+          });
           break;
+        }
+        case ApptStatus.CANCELED: {
+          canceledCount++;
+          const canceledRetained = Number(appt.retainedDepositAmount || 0);
+          if (canceledRetained > 0) {
+            totalDownPaymentCollected += canceledRetained;
+            totalRetainedLossPrevented += canceledRetained;
+            totalProtectedMinutes += appt.service?.durationMinutes || 30;
+            totalPotentialLostRevenue += price;
+            protectedAppointmentsList.push({
+              id: appt.id,
+              clientName: appt.client?.name || 'Cliente',
+              clientPhone: appt.client?.phone || null,
+              serviceName: appt.service?.name || 'Serviço',
+              appointmentDate: appt.appointmentDate,
+              servicePrice: price,
+              retainedAmount: Number(canceledRetained.toFixed(2)),
+              reason: 'Cancelamento Tardio (<= 24h)',
+            });
+          }
+          break;
+        }
         case ApptStatus.PENDING_PAYMENT:
           pendingPaymentCount++;
           break;
@@ -507,11 +571,31 @@ export class CompanyService {
     }
 
     const totalAppointments = appointments.length;
-    const validCount = completedCount + confirmedCount + canceledCount;
+    const validCount =
+      completedCount + confirmedCount + canceledCount + noShowCount;
     const completionRate =
       validCount > 0
         ? Number(((completedCount / validCount) * 100).toFixed(2))
         : 0;
+
+    const protectionEfficiencyRate =
+      totalPotentialLostRevenue > 0
+        ? Number(
+            (
+              (totalRetainedLossPrevented / totalPotentialLostRevenue) *
+              100
+            ).toFixed(2),
+          )
+        : 0;
+
+    const lossPrevented = {
+      totalLossPrevented: Number(totalRetainedLossPrevented.toFixed(2)),
+      retainedAppointmentsCount: protectedAppointmentsList.length,
+      totalProtectedHours: Number((totalProtectedMinutes / 60).toFixed(1)),
+      estimatedLossWithoutApp: Number(totalPotentialLostRevenue.toFixed(2)),
+      protectionEfficiencyRate,
+      recentProtectedAppointments: protectedAppointmentsList.slice(0, 10),
+    };
 
     const topServices = Array.from(servicesMap.values())
       .sort(
@@ -620,13 +704,32 @@ export class CompanyService {
       .filter((a) => a.status === ApptStatus.COMPLETED)
       .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
 
+    const noShowDeposits = appointments
+      .filter((a) => a.status === ApptStatus.NO_SHOW)
+      .reduce(
+        (acc, a) =>
+          acc + Number(a.retainedDepositAmount || a.downPaymentAmount || 0),
+        0,
+      );
+
+    const canceledRetainedDeposits = appointments
+      .filter(
+        (a) =>
+          a.status === ApptStatus.CANCELED &&
+          Number(a.retainedDepositAmount || 0) > 0,
+      )
+      .reduce((acc, a) => acc + Number(a.retainedDepositAmount || 0), 0);
+
+    const totalEarnedDeposits =
+      completedDepositsNet + noShowDeposits + canceledRetainedDeposits;
+
     const escrowLockedBalance = appointments
       .filter((a) => a.status === ApptStatus.CONFIRMED)
       .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
 
     const availableBalance = Math.max(
       0,
-      Number((completedDepositsNet - totalWithdrawn).toFixed(2)),
+      Number((totalEarnedDeposits - totalWithdrawn).toFixed(2)),
     );
 
     return {
@@ -655,9 +758,11 @@ export class CompanyService {
         completed: completedCount,
         confirmed: confirmedCount,
         canceled: canceledCount,
+        noShow: noShowCount,
         pendingPayment: pendingPaymentCount,
         completionRate,
       },
+      lossPrevented,
       topServices,
       upcomingToday,
     };
@@ -699,17 +804,36 @@ export class CompanyService {
     const appointments = await this.prisma.appointment.findMany({
       where: {
         companyId: company.id,
-        isActive: true,
       },
       select: {
         status: true,
         downPaymentAmount: true,
+        retainedDepositAmount: true,
       },
     });
 
     const completedNetRevenue = appointments
       .filter((a) => a.status === ApptStatus.COMPLETED)
       .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
+
+    const noShowNetRevenue = appointments
+      .filter((a) => a.status === ApptStatus.NO_SHOW)
+      .reduce(
+        (acc, a) =>
+          acc + Number(a.retainedDepositAmount || a.downPaymentAmount || 0),
+        0,
+      );
+
+    const canceledRetainedRevenue = appointments
+      .filter(
+        (a) =>
+          a.status === ApptStatus.CANCELED &&
+          Number(a.retainedDepositAmount || 0) > 0,
+      )
+      .reduce((acc, a) => acc + Number(a.retainedDepositAmount || 0), 0);
+
+    const totalEarnedRevenue =
+      completedNetRevenue + noShowNetRevenue + canceledRetainedRevenue;
 
     const escrowLockedBalance = appointments
       .filter((a) => a.status === ApptStatus.CONFIRMED)
@@ -733,7 +857,7 @@ export class CompanyService {
 
     const availableBalance = Math.max(
       0,
-      Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
+      Number((totalEarnedRevenue - totalWithdrawn).toFixed(2)),
     );
 
     const now = new Date();
@@ -816,18 +940,40 @@ export class CompanyService {
         );
       }
 
-      // Busca agendamentos ativos da empresa para apuração de saldo
+      // Busca agendamentos da empresa para apuração de saldo
       const appointments = await tx.appointment.findMany({
         where: {
           companyId: company.id,
-          isActive: true,
         },
-        select: { status: true, downPaymentAmount: true },
+        select: {
+          status: true,
+          downPaymentAmount: true,
+          retainedDepositAmount: true,
+        },
       });
 
       const completedNetRevenue = appointments
         .filter((a) => a.status === ApptStatus.COMPLETED)
         .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
+
+      const noShowNetRevenue = appointments
+        .filter((a) => a.status === ApptStatus.NO_SHOW)
+        .reduce(
+          (acc, a) =>
+            acc + Number(a.retainedDepositAmount || a.downPaymentAmount || 0),
+          0,
+        );
+
+      const canceledRetainedRevenue = appointments
+        .filter(
+          (a) =>
+            a.status === ApptStatus.CANCELED &&
+            Number(a.retainedDepositAmount || 0) > 0,
+        )
+        .reduce((acc, a) => acc + Number(a.retainedDepositAmount || 0), 0);
+
+      const totalEarnedRevenue =
+        completedNetRevenue + noShowNetRevenue + canceledRetainedRevenue;
 
       const escrowLocked = appointments
         .filter((a) => a.status === ApptStatus.CONFIRMED)
@@ -852,7 +998,7 @@ export class CompanyService {
 
       const currentAvailableBalance = Math.max(
         0,
-        Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
+        Number((totalEarnedRevenue - totalWithdrawn).toFixed(2)),
       );
 
       if (currentAvailableBalance <= 0) {

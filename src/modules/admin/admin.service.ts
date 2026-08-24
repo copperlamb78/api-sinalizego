@@ -82,6 +82,7 @@ export class AdminService {
           servicePrice: true,
           downPaymentAmount: true,
           platformFeeAmount: true,
+          retainedDepositAmount: true,
           companyId: true,
           company: {
             select: {
@@ -124,7 +125,12 @@ export class AdminService {
     let completedCount = 0;
     let confirmedCount = 0;
     let canceledCount = 0;
+    let noShowCount = 0;
     let pendingPaymentCount = 0;
+
+    let totalRetainedLossPrevented = 0;
+    let totalPotentialLostRevenue = 0;
+    let retainedAppointmentsCount = 0;
 
     // Pré-população estrita de status para garantir resiliência e evitar undefined
     const appointmentsByStatus: Record<string, number> = {
@@ -132,10 +138,10 @@ export class AdminService {
       [ApptStatus.CONFIRMED]: 0,
       [ApptStatus.PENDING_PAYMENT]: 0,
       [ApptStatus.CANCELED]: 0,
+      [ApptStatus.NO_SHOW]: 0,
       PENDING: 0,
       CANCELLED_BY_CLIENT: 0,
       CANCELLED_BY_COMPANY: 0,
-      NO_SHOW: 0,
     };
 
     const tenantsMap = new Map<
@@ -169,9 +175,29 @@ export class AdminService {
           gmv += downPayment;
           platformGrossRevenue += platformFee;
           break;
-        case ApptStatus.CANCELED:
-          canceledCount++;
+        case ApptStatus.NO_SHOW: {
+          noShowCount++;
+          const noShowRetained = Number(
+            appt.retainedDepositAmount || appt.downPaymentAmount || 0,
+          );
+          gmv += noShowRetained;
+          platformGrossRevenue += platformFee;
+          totalRetainedLossPrevented += noShowRetained;
+          totalPotentialLostRevenue += price;
+          retainedAppointmentsCount++;
           break;
+        }
+        case ApptStatus.CANCELED: {
+          canceledCount++;
+          const canceledRetained = Number(appt.retainedDepositAmount || 0);
+          if (canceledRetained > 0) {
+            gmv += canceledRetained;
+            totalRetainedLossPrevented += canceledRetained;
+            totalPotentialLostRevenue += price;
+            retainedAppointmentsCount++;
+          }
+          break;
+        }
         case ApptStatus.PENDING_PAYMENT:
           pendingPaymentCount++;
           appointmentsByStatus.PENDING = pendingPaymentCount;
@@ -181,7 +207,8 @@ export class AdminService {
       // Agrupamento por Empresa (Top Tenants)
       if (
         (appt.status === ApptStatus.COMPLETED ||
-          appt.status === ApptStatus.CONFIRMED) &&
+          appt.status === ApptStatus.CONFIRMED ||
+          appt.status === ApptStatus.NO_SHOW) &&
         appt.company
       ) {
         const existing = tenantsMap.get(appt.companyId) || {
@@ -210,13 +237,31 @@ export class AdminService {
       );
     } else {
       // Fallback para taxa padrão de 0.99 por agendamento liquidado
-      totalAsaasPixCosts = (completedCount + confirmedCount) * 0.99;
+      totalAsaasPixCosts =
+        (completedCount + confirmedCount + noShowCount) * 0.99;
     }
 
     const platformNetProfit = Math.max(
       0,
       platformGrossRevenue - totalAsaasPixCosts,
     );
+
+    const protectionEfficiencyRate =
+      totalPotentialLostRevenue > 0
+        ? Number(
+            (
+              (totalRetainedLossPrevented / totalPotentialLostRevenue) *
+              100
+            ).toFixed(2),
+          )
+        : 0;
+
+    const lossPrevented = {
+      totalLossPrevented: Number(totalRetainedLossPrevented.toFixed(2)),
+      retainedAppointmentsCount,
+      estimatedLossWithoutApp: Number(totalPotentialLostRevenue.toFixed(2)),
+      protectionEfficiencyRate,
+    };
 
     const topTenants = Array.from(tenantsMap.values())
       .sort(
@@ -258,11 +303,13 @@ export class AdminService {
           completed: completedCount ?? 0,
           confirmed: confirmedCount ?? 0,
           canceled: canceledCount ?? 0,
+          noShow: noShowCount ?? 0,
           pendingPayment: pendingPaymentCount ?? 0,
           byStatus: appointmentsByStatus,
         },
         appointmentsByStatus,
       },
+      lossPrevented,
       appointmentsByStatus,
       topTenants,
     };

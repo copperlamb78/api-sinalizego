@@ -38,7 +38,7 @@
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 347 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
+| 🧪 **Suíte de Testes Completa** | 354 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, registro de No-Show com travas temporais, Prejuízo Evitado, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -267,7 +267,8 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `GET` | `/appointments` | Listar todos os agendamentos | 🔑 JWT | `SUPER_ADMIN` |
 | `GET` | `/appointments/company` | Listar agendamentos da empresa do usuário (blindado contra IDOR) | 🔑 JWT | `INTERNAL_USERS` |
 | `GET` | `/appointments/user` | Listar agendamentos do cliente autenticado (blindado contra IDOR) | 🔑 JWT | — |
-| `PATCH` | `/appointments/:id/complete` | Concluir agendamento confirmado (transição para `COMPLETED`) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/appointments/:id/complete` | Concluir atendimento realizado com trava temporal (`now >= appointmentDate`) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `PATCH` | `/appointments/:id/no-show` | Registrar falta do cliente (No-Show) com retenção de sinal e trava de tolerância (+15 min) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento (apenas transições válidas) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `DELETE` | `/appointments/:id/client` | Cancelar agendamento pelo cliente (estorno integral se > 24h ou estorno do excedente ao sinal mínimo se <= 24h) | 🔑 JWT | — |
 | `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento com log de auditoria | 🔑 JWT | — |
@@ -415,12 +416,13 @@ erDiagram
         string clientId FK
         datetime appointmentDate
         datetime appointmentEndDate
-        enum status "PENDING_PAYMENT | CONFIRMED | COMPLETED | CANCELED"
+        enum status "PENDING_PAYMENT | CONFIRMED | COMPLETED | CANCELED | NO_SHOW"
         datetime expiresAt
         string pixTxId
         decimal servicePrice
         decimal downPaymentAmount
         decimal platformFeeAmount
+        decimal retainedDepositAmount
         decimal amountPaidOnline
         decimal amountToPayInSalon
         decimal platformTaxCharged
@@ -587,6 +589,7 @@ src/
     │   ├── company-service.controller.ts
     │   ├── company-service.controller.spec.ts
     │   ├── company-service.service.ts
+    │   ├── company-service.service.spec.ts
     │   └── dto/
     │       ├── create-service.dto.ts
     │       ├── filter-service.dto.ts
@@ -624,6 +627,7 @@ src/
     │   ├── financial-profile.controller.ts
     │   ├── financial-profile.controller.spec.ts
     │   ├── financial-profile.service.ts
+    │   ├── financial-profile.service.spec.ts
     │   └── dto/
     │       ├── create-financial-profile.dto.ts
     │       └── filter-financial-profile.dto.ts
@@ -647,7 +651,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 347 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 354 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -667,9 +671,9 @@ npm test
 - **Usuários & Gestão de Contas:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF, rota para auto-desativação (`DELETE /users/me`), e rotas administrativas exclusivas para desativação e reativação de contas de terceiros (`DELETE /users/:userId` e `PATCH /users/:userId/activate` restritas a `SYSTEM_MANAGERS`).
 - **Empresas & Promoção de Roles:** Criação com validação de unicidade de e-mail e slug, criação vinculada a usuário existente com promoção automática para `COMPANY_OWNER` e emissão/retorno imediato do novo par de tokens (`access_token`, `refresh_token`) refletindo os privilégios atualizados sem necessidade de novo login.
 - **Storefront & Vitrine Pública Consolidada (`CompanyService.findBySlug`):** Endpoint público de alta performance (`GET /company/slug/:slug`) retornando dados cadastrais, grade completa de expediente (`workingHours`) e catálogo de serviços agrupados por capacidade (`serviceGroups` e `services`) em uma única query otimizada (`select`), com validação de status ativo e tratamento de erro 404.
-- **Métricas & Relatórios Operacionais/Financeiros (Dashboard do Dono - `CompanyService.getDashboardMetrics`):** Endpoint autenticado (`GET /company/dashboard/metrics`) protegido por Anti-IDOR (`INTERNAL_NO_EMPLOYEE`), agregando receita bruta de atendimentos concluídos (`totalRevenue`), sinais capturados (`totalDownPaymentCollected`), taxas retidas da plataforma (`totalPlatformFees`), receita líquida (`netIncome`), volume por status com taxa de comparecimento (`completionRate`), ranking dos 5 serviços mais demandados (`topServices`) e fila dos próximos atendimentos confirmados do dia (`upcomingToday`), com suporte a filtros flexíveis por intervalo de data (`startDate`/`endDate`).
+- **Métricas & Relatórios Operacionais/Financeiros (Dashboard do Dono - `CompanyService.getDashboardMetrics`):** Endpoint autenticado (`GET /company/dashboard/metrics`) protegido por Anti-IDOR (`INTERNAL_NO_EMPLOYEE`), agregando receita bruta de atendimentos concluídos (`totalRevenue`), sinais capturados (`totalDownPaymentCollected`), taxas retidas da plataforma (`totalPlatformFees`), receita líquida (`netIncome`), volume por status com taxa de comparecimento (`completionRate`), ranking dos 5 serviços mais demandados (`topServices`), fila dos próximos atendimentos confirmados do dia (`upcomingToday`), e **Inteligência de Prejuízo Evitado (`lossPrevented`)** consolidando total financeiro retido em cancelamentos tardios/faltas (`totalLossPrevented`), contagem de atendimentos protegidos, horas de cadeira remuneradas (`totalProtectedHours`), taxa de eficiência de proteção e lista auditável dos últimos agendamentos salvos.
 - **Super Admin & Inteligência de Plataforma (`AdminModule`):** Endpoints administrativos globais restritos a `SYSTEM_MANAGERS` (`ADMIN` e `SUPER_ADMIN`):
-  - **Platform Intelligence (`GET /admin/dashboard/metrics`):** Cálculo consolidado da receita bruta do SaaS (`platformGrossRevenue`), custos reais de gateway Asaas Pix (`totalAsaasPixCosts`), lucro líquido da plataforma (`platformNetProfit`), volume transacionado total (`gmv`), métricas de crescimento (usuários, clientes, proprietários e estabelecimentos ativos/inativos) e ranking das 5 empresas mais rentáveis (`topTenants`).
+  - **Platform Intelligence (`GET /admin/dashboard/metrics`):** Cálculo consolidado da receita bruta do SaaS (`platformGrossRevenue`), custos reais de gateway Asaas Pix (`totalAsaasPixCosts`), lucro líquido da plataforma (`platformNetProfit`), volume transacionado total (`gmv`), métricas de crescimento (usuários, clientes, proprietários e estabelecimentos ativos/inativos), inteligência global de Prejuízo Evitado (`lossPrevented`) e ranking das 5 empresas mais rentáveis (`topTenants`).
   - **Gestão Global de Empresas (`GET /admin/companies`):** Listagem paginada e sanitizada de todas as empresas do ecossistema com busca multi-campos e contadores relacionais (`appointments`, `services`, `serviceGroups`).
   - **Moderação & Suspensão (`PATCH /admin/companies/:id/toggle-status`):** Alternância atômica do status de ativação/suspensão de estabelecimentos com auditoria de `disabledAt`.
 - **Multi-tenancy & IDOR:** Bloqueio de consulta a agendamentos, grupos de serviços e uploads de empresas concorrentes, validação estrita de posse em criação, edição, exclusão e uploads, validação de UUID (`@IsUUID('4')`) e checagem de pertencimento de `serviceGroupId` à empresa do usuário logado na criação e edição de serviços (`createService` / `updateService`).
@@ -679,11 +683,13 @@ npm test
 - **Webhooks Asaas, Idempotência & Conciliação Ativa:** Tabela dedicada `webhook_events` para de-duplicação e auditoria, conferência estrita de valores (`payment.value === transaction.totalValue`) com estorno automático de pagamentos divergentes, máquina de estados impedindo cancelamento de agendamentos confirmados por eventos atrasados (`PAYMENT_DELETED`), tratamento de chargeback/disputas (`PAYMENT_CHARGEBACK_*`), comparação de token em tempo constante (`crypto.timingSafeEqual`) e job cron a cada 30 minutos reconciliando transações pendentes via `GET /v3/payments/{id}`.
 - **Perfis Financeiros & Criptografia em Repouso (AES-256-GCM):** Criptografia com tag de autenticação (`CryptoHelper`) de chaves de subcontas (`asaasApiKey`) em repouso no banco de dados com decriptação estrita sob demanda, projeção pública centralizada (`FINANCIAL_PROFILE_PUBLIC_SELECT`) e expurgo total de chaves privadas em todas as respostas HTTP e documentação Swagger.
 - **Vitrine Pública & Histórico Congelado:** Exibição precisa de taxas em Reais na vitrine pública (`getServicesBySlug`), persistência congelada de `platformFeeAmount` e `downPaymentAmount` no banco de dados e reutilização exata na emissão de Pix no Asaas sem recálculos divergentes.
-- **Integridade Financeira, Tipagem Decimal & Split Asaas:** Migração estrita de todos os campos monetários no banco de dados para `Decimal @db.Decimal(10, 2)` (`Service.totalPrice`, `Appointment.servicePrice`, `Appointment.downPaymentAmount`, `Appointment.platformFeeAmount`, `Transaction.totalValue`, `Transaction.netValue`, `Transaction.platformFee`, `Transaction.asaasFee`, `FinancialProfile.incomeValue`), evitando imprecisões de ponto flutuante binário IEEE 754; cálculo de taxa da plataforma por faixas cumulativas progressivas (10% até R$ 250,00 e 5% acima) com **arredondamento para cima em múltiplos de R$ 0,25** e piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (30% ou 50%), **trava de microtransações (Safety Gate de R$ 15,00)**, taxa do Asaas obtida dinamicamente da conta (`/myAccount/fees`) e atualização automática da taxa real liquidada via webhook (`Transaction.asaasFee`).
+- **Integridade Financeira, Tipagem Decimal & Split Asaas:** Migração estrita de todos os campos monetários no banco de dados para `Decimal @db.Decimal(10, 2)` (`Service.totalPrice`, `Appointment.servicePrice`, `Appointment.downPaymentAmount`, `Appointment.platformFeeAmount`, `Appointment.retainedDepositAmount`, `Transaction.totalValue`, `Transaction.netValue`, `Transaction.platformFee`, `Transaction.asaasFee`, `FinancialProfile.incomeValue`), evitando imprecisões de ponto flutuante binário IEEE 754; cálculo de taxa da plataforma por faixas cumulativas progressivas (10% até R$ 250,00 e 5% acima) com **arredondamento para cima em múltiplos de R$ 0,25** e piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (30% ou 50%), **trava de microtransações (Safety Gate de R$ 15,00)**, taxa do Asaas obtida dinamicamente da conta (`/myAccount/fees`) e atualização automática da taxa real liquidada via webhook (`Transaction.asaasFee`).
 - **Expediente Semanal & Exceções de Agenda (`WorkingHoursModule`):** Configuração completa da grade semanal (`PUT /working-hours` e `GET /working-hours`) com validação estrita de horários (`startTime < endTime`, intervalo de almoço contido no expediente e formato `HH:mm`), consulta pública de horários da empresa (`GET /working-hours/company/:companyId`), e gestão de exceções/feriados (`POST`, `GET`, `DELETE /working-hours/exceptions`) protegidos contra IDOR.
 - **Motor de Disponibilidade & Slot Engine (`AvailabilityService`):** Algoritmo canônico de cálculo de horários livres (`GET /appointments/available-slots`) cruzando expediente do dia (`WorkingHour`/`ScheduleException`), fatiamento em blocos com descarte automático de colisões com intervalo de almoço, filtragem por capacidade concorrente do grupo de serviços (`ServiceGroup.capacity`), descarte de horários passados no dia atual, e validação mandatória de expediente na criação de agendamentos (`AppointmentsService.createAppointment`).
-- **Conclusão de Atendimento & Blindagem Anti-IDOR (`PATCH /appointments/:id/complete`):** Transição estrita e atômica para o status `COMPLETED`, restrita a donos de empresa autenticados (`COMPANY_OWNER`) e administradores do sistema (`ADMIN`/`SUPER_ADMIN`) validando a propriedade da barbearia (`appointment.company.userId === req.user.sub`), rejeitando transições em agendamentos `PENDING_PAYMENT`, `CANCELED` ou já `COMPLETED`.
-- **Liquidação Financeira em Custódia (Escrow Hold) & Auto-Conclusão:** Valores de sinais recebidos via Pix entram na subconta do estabelecimento como saldo retido em custódia (`escrowLockedBalance`), sendo liberados para saque (`availableBalance`) estritamente quando o agendamento transiciona para `COMPLETED`. Cron job horário (`autoCompletePastConfirmedAppointments`) conclui automaticamente agendamentos confirmados cujo término ocorreu há mais de 24 horas sem contestação, liberando a custódia caso o profissional esqueça de concluir manualmente.
+- **Conclusão de Atendimento, Registro de No-Show & Travas Temporais:**
+  - **Conclusão (`PATCH /appointments/:id/complete`):** Transição atômica para `COMPLETED`, restrita ao proprietário/admin, protegida por trava temporal impedindo conclusão antes do início do horário agendado (`now >= appointmentDate`).
+  - **Falta / No-Show (`PATCH /appointments/:id/no-show`):** Transição atômica para `NO_SHOW` com retenção do sinal de garantia (`retainedDepositAmount`), protegida por trava temporal de tolerância mínima de 15 minutos (`now >= appointmentDate + 15min`) e liberação do saldo retido para saque do estabelecimento.
+- **Liquidação Financeira em Custódia (Escrow Hold) & Auto-Conclusão:** Valores de sinais recebidos via Pix entram na subconta do estabelecimento como saldo retido em custódia (`escrowLockedBalance`), sendo liberados para saque (`availableBalance`) estritamente quando o agendamento transiciona para `COMPLETED` ou `NO_SHOW` (ou cancelamentos tardios retidos). Cron job horário (`autoCompletePastConfirmedAppointments`) conclui automaticamente agendamentos confirmados cujo término ocorreu há mais de 24 horas sem contestação, liberando a custódia caso o profissional esqueça de concluir manualmente.
 - **Política de Saques da Plataforma (Semanal Gratuito com Piso de R$ 100,00 vs Sob Demanda com Tarifa):**
   - **Saque Automático Semanal Gratuito:** Cron job semanal executado às segundas-feiras às 06:00 (`@Cron('0 6 * * 1')`) transferindo o saldo disponível total para a conta bancária/chave Pix cadastrada do estabelecimento com taxa 100% subsidiada pela plataforma (`asaasFee = 0`), **desde que o saldo atinja o piso mínimo de R$ 100,00** (`MIN_FREE_WEEKLY_PAYOUT`).
   - **Regra de Acúmulo de Saldo:** Se na segunda-feira o saldo disponível for inferior a R$ 100,00 (ex: R$ 45,00), o valor não é cancelado nem perdido: ele permanece acumulando na conta do estabelecimento para a próxima semana até atingir o piso de gratuidade.

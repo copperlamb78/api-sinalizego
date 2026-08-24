@@ -886,10 +886,28 @@ describe('AppointmentsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should successfully complete a CONFIRMED appointment', async () => {
+    it('should throw BadRequestException if appointmentDate is in the future', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue({
         id: 'appt-1',
         status: ApptStatus.CONFIRMED,
+        appointmentDate: new Date(Date.now() + 60 * 60 * 1000), // 1h no futuro
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.completeAppointment('appt-1', 'owner-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should successfully complete a CONFIRMED appointment when appointmentDate is past or now', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.CONFIRMED,
+        appointmentDate: new Date(Date.now() - 30 * 60 * 1000), // 30min no passado
         company: { userId: 'owner-1' },
       });
       mockPrisma.user.findUnique.mockResolvedValue({
@@ -909,6 +927,102 @@ describe('AppointmentsService', () => {
         include: expect.any(Object),
       });
       expect(result).toEqual(expectedCompleted);
+    });
+  });
+
+  describe('markAsNoShow (Loss Prevention & Retained Deposit)', () => {
+    it('should throw NotFoundException if appointment does not exist', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(null);
+
+      await expect(service.markAsNoShow('appt-99', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw ForbiddenException if user is not company owner or admin', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        company: { userId: 'other-owner' },
+        service: { totalPrice: 100 },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-intruder',
+        role: Role.CLIENT,
+      });
+
+      await expect(
+        service.markAsNoShow('appt-1', 'user-intruder'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw BadRequestException if appointment is not CONFIRMED', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.PENDING_PAYMENT,
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.markAsNoShow('appt-1', 'owner-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if less than 15 minutes have passed since appointmentDate', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.CONFIRMED,
+        appointmentDate: new Date(Date.now() + 10 * 60 * 1000), // no futuro
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.markAsNoShow('appt-1', 'owner-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should successfully mark as NO_SHOW and retain deposit when >= 15 min past start time', async () => {
+      const pastDate = new Date(Date.now() - 30 * 60 * 1000); // 30 min atrás (> 15 min de tolerância)
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.CONFIRMED,
+        appointmentDate: pastDate,
+        downPaymentAmount: 40.0,
+        company: { userId: 'owner-1' },
+        service: { id: 'srv-1', name: 'Corte', totalPrice: 80 },
+        client: { id: 'cli-1', name: 'João', email: 'joao@test.com' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      const expectedNoShow = {
+        id: 'appt-1',
+        status: ApptStatus.NO_SHOW,
+        retainedDepositAmount: 40.0,
+      };
+      mockPrisma.appointment.update.mockResolvedValue(expectedNoShow);
+
+      const result = await service.markAsNoShow('appt-1', 'owner-1');
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: 'appt-1' },
+        data: {
+          status: ApptStatus.NO_SHOW,
+          retainedDepositAmount: 40.0,
+          disabledAt: expect.any(Date),
+          disabledBy: 'owner-1',
+        },
+        include: expect.any(Object),
+      });
+      expect(result).toEqual(expectedNoShow);
     });
   });
 

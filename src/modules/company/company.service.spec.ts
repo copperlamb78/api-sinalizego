@@ -420,9 +420,15 @@ describe('CompanyService', () => {
       expect(result.volume.completed).toBe(2);
       expect(result.volume.confirmed).toBe(1);
       expect(result.volume.canceled).toBe(1);
+      expect(result.volume.noShow).toBe(0);
       expect(result.volume.pendingPayment).toBe(1);
-      // CompletionRate = (2 / (2 + 1 + 1)) * 100 = 50.00%
+      // CompletionRate = (2 / (2 + 1 + 1 + 0)) * 100 = 50.00%
       expect(result.volume.completionRate).toBe(50.0);
+
+      // Loss Prevented Intelligence
+      expect(result.lossPrevented).toBeDefined();
+      expect(result.lossPrevented.totalLossPrevented).toBe(0);
+      expect(result.lossPrevented.retainedAppointmentsCount).toBe(0);
 
       // Top Services
       expect(result.topServices).toHaveLength(2);

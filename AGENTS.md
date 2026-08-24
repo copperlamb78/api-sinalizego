@@ -134,6 +134,11 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Cancellation & Escrow Hold Rules (CDC Art. 51 / CC Arts. 417 a 420):** Funds received via split must remain locked in the ecosystem ledger until the service is successfully rendered or the cancellation window closes. 
     *   If a client requests a cancellation *before* the 24-hour mark prior to the appointment, the system triggers the Asaas refund API for a full 100% refund.
     *   If the cancellation request occurs *within* the 24-hour mark, the cancellation is permitted to free the calendar; the guaranteed minimum deposit (`guaranteedDepositAmount`) is retained for the barber as vacancy compensation, and any excess amount paid upfront by the client is automatically refunded partially via Asaas Pix.
+*   **No-Show Handling, Time-Gated Actions & Loss Prevention (`lossPrevented`):**
+    *   **Time-Gate on Completion (`completeAppointment`):** A booking cannot be marked as `COMPLETED` before the scheduled appointment start time (`now >= appointmentDate`).
+    *   **Time-Gate & Tolerance on No-Show (`markAsNoShow`):** Marking an appointment as `NO_SHOW` requires a mandatory 15-minute tolerance window past the start time (`now >= appointmentDate + 15 min`).
+    *   **Retained Deposit & Ledger Release:** When an appointment is marked as `NO_SHOW` or canceled with `<= 24h`, the guaranteed minimum deposit is frozen in `retainedDepositAmount` and immediately released into the company's `availableBalance`.
+    *   **Loss Prevention Intelligence:** Dashboard metrics (`GET /company/dashboard/metrics` and `GET /admin/dashboard/metrics`) provide explicit loss prevention reporting (`totalLossPrevented`, `retainedAppointmentsCount`, `totalProtectedHours`, `estimatedLossWithoutApp`, `protectionEfficiencyRate`).
 *   **Weekly Free Payout Floor & Balance Accumulation Rule:**
     *   The weekly automatic free payout (`@Cron('0 6 * * 1')`) executes strictly for companies with `availableBalance >= R$ 100.00` (`MIN_FREE_WEEKLY_PAYOUT`).
     *   If `availableBalance < R$ 100.00`, the balance is never lost or canceled; it remains accumulating in the company account until reaching the R$ 100.00 threshold for the next free payout cycle.

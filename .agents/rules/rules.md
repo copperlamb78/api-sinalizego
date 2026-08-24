@@ -69,6 +69,11 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 *   **Cancellation Policy (CDC Art. 51 / CC Arts. 417 a 420):**
     *   `> 24h` before appointment: Trigger full Asaas refund (`refundPayment`).
     *   `<= 24h`: Cancel appointment to free calendar; retain guaranteed minimum deposit for the barber as vacancy compensation, and automatically trigger partial refund via Asaas for any excess amount paid upfront.
+*   **No-Show Handling, Time-Gated Actions & Loss Prevention:**
+    *   `completeAppointment` strictly requires `now >= appointmentDate`.
+    *   `markAsNoShow` strictly requires `now >= appointmentDate + 15 min` (15-minute tolerance gate).
+    *   Retained deposits from no-shows and late cancellations are frozen in `retainedDepositAmount` and immediately released into the company's `availableBalance`.
+    *   `lossPrevented` metrics are reported in both company and admin dashboard endpoints.
 *   **Weekly Free Payout Floor & Balance Accumulation:**
     *   Weekly free automatic payout (`@Cron('0 6 * * 1')`) runs strictly for companies with `availableBalance >= R$ 100.00` (`MIN_FREE_WEEKLY_PAYOUT`).
     *   Balances `< R$ 100.00` remain accumulating indefinitely until reaching the free threshold.
