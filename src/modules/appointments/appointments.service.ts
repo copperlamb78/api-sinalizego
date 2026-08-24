@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -22,6 +24,10 @@ import { AsaasService } from 'src/asaas/asaas.service';
 import { AvailabilityService } from './availability.service';
 import { MailService } from '../mail/mail.service';
 import { TransactionStatus } from '@prisma/client';
+import {
+  MAX_ACTIVE_APPOINTMENTS_PER_CLIENT,
+  MAX_WEEKLY_CANCELLATIONS_LIMIT,
+} from 'src/common/constants/billing.constant';
 
 @Injectable()
 export class AppointmentsService {
@@ -46,22 +52,6 @@ export class AppointmentsService {
 
     if (!user.cpfCnpj) {
       throw new BadRequestException('Usuário não possui CPF/CNPJ.');
-    }
-
-    // Camada de Segurança Anti-DoS: Máximo de 3 agendamentos PENDING_PAYMENT ativos por cliente
-    const activePendingCount = await this.prisma.appointment.count({
-      where: {
-        clientId: user.id,
-        status: ApptStatus.PENDING_PAYMENT,
-        isActive: true,
-        expiresAt: { gt: new Date() },
-      },
-    });
-
-    if (activePendingCount >= 3) {
-      throw new BadRequestException(
-        'Você já possui 3 agendamentos pendentes de pagamento. Conclua o pagamento ou aguarde a expiração para criar novas reservas.',
-      );
     }
 
     const company = await this.prisma.company.findFirst({
@@ -112,8 +102,58 @@ export class AppointmentsService {
     );
     const platformFee = this.calculateTax.calculatePlatformTax(downPayment);
 
-    // Proteção Anti-Race Condition: atomicidade na verificação de capacidade e criação do agendamento
+    // Proteção Anti-Race Condition: atomicidade serializada com lock pessimista na linha do usuário
     const appointment = await this.prisma.$transaction(async (tx) => {
+      // 1. Lock pessimista na linha do usuário para serializar requisições concorrentes e evitar bypass de limites
+      await tx.$executeRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+
+      const now = new Date();
+
+      // 2. Trava de Segurança Anti-Abuso: Bloqueio temporário para contas com cancelamento excessivo (>= 3 na mesma semana) disparados pelo cliente
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const weeklyCancellationsCount = await tx.appointment.count({
+        where: {
+          clientId: user.id,
+          status: ApptStatus.CANCELED,
+          disabledBy: user.id,
+          OR: [
+            { disabledAt: { gte: sevenDaysAgo } },
+            { updatedAt: { gte: sevenDaysAgo } },
+          ],
+        },
+      });
+
+      if (weeklyCancellationsCount >= MAX_WEEKLY_CANCELLATIONS_LIMIT) {
+        throw new HttpException(
+          `Sua conta atingiu o limite de ${MAX_WEEKLY_CANCELLATIONS_LIMIT} cancelamentos nesta semana. Por motivos de segurança e prevenção de abusos, novos agendamentos estão temporariamente bloqueados.`,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      // 3. Trava de Concorrência & Anti-DoS: Limite de no máximo 2 agendamentos ativos simultâneos por cliente (ativo até o término do corte)
+      const activeAppointmentsCount = await tx.appointment.count({
+        where: {
+          clientId: user.id,
+          isActive: true,
+          OR: [
+            {
+              status: ApptStatus.PENDING_PAYMENT,
+              expiresAt: { gt: now },
+            },
+            {
+              status: ApptStatus.CONFIRMED,
+              appointmentEndDate: { gt: now },
+            },
+          ],
+        },
+      });
+
+      if (activeAppointmentsCount >= MAX_ACTIVE_APPOINTMENTS_PER_CLIENT) {
+        throw new BadRequestException(
+          `Você atingiu o limite de ${MAX_ACTIVE_APPOINTMENTS_PER_CLIENT} agendamentos ativos simultâneos. Conclua ou aguarde a realização dos seus agendamentos para criar novas reservas.`,
+        );
+      }
+
       const maxCapacity = service.serviceGroup?.capacity ?? 1;
 
       // Consulta de sobreposição canônica de intervalos:

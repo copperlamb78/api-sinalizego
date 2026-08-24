@@ -6,6 +6,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   NotFoundException,
 } from '@nestjs/common';
 import { ApptStatus, Role, TransactionStatus } from '@prisma/client';
@@ -49,6 +51,7 @@ describe('AppointmentsService', () => {
     companyService: {
       findFirst: jest.fn(),
     },
+    $executeRaw: jest.fn().mockResolvedValue(1),
     $transaction: jest.fn((cb) =>
       typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb),
     ),
@@ -278,9 +281,36 @@ describe('AppointmentsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should throw BadRequestException if client already has 3 active PENDING_PAYMENT appointments (Anti-DoS)', async () => {
+    it('should throw HttpException TOO_MANY_REQUESTS if client has 3 or more cancellations in the current week (Anti-Abuse)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
-      mockPrisma.appointment.count.mockResolvedValue(3); // Já possui 3 pendentes
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+      mockPrisma.appointment.count.mockResolvedValueOnce(3); // 3 cancelamentos na semana
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2026-09-01T10:00:00Z',
+          } as any,
+          'user-1',
+        ),
+      ).rejects.toThrow(
+        new HttpException(
+          'Sua conta atingiu o limite de 3 cancelamentos nesta semana. Por motivos de segurança e prevenção de abusos, novos agendamentos estão temporariamente bloqueados.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        ),
+      );
+    });
+
+    it('should throw BadRequestException if client already has 2 concurrent active appointments (Anti-DoS / Concorrência)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+      mockPrisma.appointment.count
+        .mockResolvedValueOnce(0) // 0 cancelamentos
+        .mockResolvedValueOnce(2); // 2 agendamentos ativos
 
       await expect(
         service.createAppointment(
@@ -293,7 +323,7 @@ describe('AppointmentsService', () => {
         ),
       ).rejects.toThrow(
         new BadRequestException(
-          'Você já possui 3 agendamentos pendentes de pagamento. Conclua o pagamento ou aguarde a expiração para criar novas reservas.',
+          'Você atingiu o limite de 2 agendamentos ativos simultâneos. Conclua ou aguarde a realização dos seus agendamentos para criar novas reservas.',
         ),
       );
     });

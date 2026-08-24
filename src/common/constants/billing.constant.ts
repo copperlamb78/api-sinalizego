@@ -35,3 +35,14 @@ export const ASAAS_TRANSFER_FEE = 5.0;
  */
 export const MIN_FREE_WEEKLY_PAYOUT = 100.0;
 
+/**
+ * Limite máximo de agendamentos ativos simultâneos por cliente (Anti-DoS / Concorrência).
+ */
+export const MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2;
+
+/**
+ * Limite máximo de cancelamentos permitidos por cliente na mesma semana (7 dias) antes do bloqueio temporário.
+ */
+export const MAX_WEEKLY_CANCELLATIONS_LIMIT = 3;
+
+

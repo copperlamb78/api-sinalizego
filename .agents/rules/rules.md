@@ -43,7 +43,7 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 
 ## 3. Registered Helpers & Core Components (Reuse STRICTLY)
 
-*   **`CalculateTax` (`src/helpers/calculate-tax.helper.ts`):** Calculates platform fees over deposit amount with cumulative brackets, R$ 2.00 floor (`MIN_PLATFORM_TAX`), and ceiling rounding to multiples of **R$ 0.25**.
+*   **`CalculateTax` (`src/helpers/calculate-tax.helper.ts`):** Calculates platform fees over deposit amount with cumulative progressive brackets (10% up to R$ 250.00 and 5% above), R$ 2.00 floor (`MIN_PLATFORM_TAX`), and ceiling rounding to multiples of **R$ 0.25**.
 *   **`CalculateDeposit` (`src/helpers/calculate-deposit.helper.ts`):** Handles deposit blocks (`[floor, 50, 75, 100]`) and the R$ 15.00 Micro-Transaction Safety Gate.
 *   **`ValidateImage` (`src/helpers/validate-image.helper.ts`):** Validates real binary magic bytes for uploads (JPEG, PNG, WEBP).
 *   **`CryptoHelper` (`src/helpers/crypto.helper.ts`):** Symmetric encryption and decryption at rest (AES-256-GCM) with authentication tags for sensitive credentials (`asaasApiKey`).
@@ -91,7 +91,8 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 *   **Pix Anti-DoS (15-Minute Hold):**
     *   All Pix charges expire in **15 minutes** (`expiresAt`).
     *   Slot availability checks dynamically exclude expired `PENDING_PAYMENT` records (`OR: [{ status: { not: 'PENDING_PAYMENT' } }, { expiresAt: { gt: now } }]`).
-    *   Limit clients to **3 concurrent active `PENDING_PAYMENT`** bookings.
+    *   Limit clients to **2 concurrent active appointments** (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2`).
+    *   Block accounts with **3 or more cancellations in the same week (7 days)** from creating new appointments (`MAX_WEEKLY_CANCELLATIONS_LIMIT = 3`).
     *   A Cron Job (`@nestjs/schedule`) runs every minute to mark expired appointments as `CANCELED` and delete the charge on Asaas.
 
 ---

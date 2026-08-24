@@ -29,7 +29,7 @@ Welcome, Antigravity Agent. This document outlines the core architectural patter
 You must reuse existing code instead of rewriting functionality. Pay special attention to these existing components:
 
 *   **`CalculateTax` (Helper - `src/helpers/calculate-tax.helper.ts`)**:
-    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices (cumulative progressive brackets with R$ 0.25 ceiling rounding and R$ 2.00 minimum floor).
+    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices (cumulative progressive brackets: 10% up to R$ 250.00 and 5% above with R$ 0.25 ceiling rounding and R$ 2.00 minimum floor).
     *   **Methods**: `calculatePlatformTaxPercentage(totalPrice)` and `calculatePlatformTax(totalPrice)`.
 
 *   **`CalculateDeposit` (Helper - `src/helpers/calculate-deposit.helper.ts`)**:
@@ -128,7 +128,8 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Pix Expiration, Anti-DoS & Booking Hold Limits:** To strictly prevent schedule collisions and denial of service:
     *   Every Pix charge created via Asaas **must** be generated with an explicit expiration timeframe of **15 minutes** (`expiresAt`).
     *   Slot availability checks dynamically exclude expired `PENDING_PAYMENT` appointments (`OR: [{ status: { not: 'PENDING_PAYMENT' } }, { expiresAt: { gt: now } }]`).
-    *   A client is limited to a maximum of **3 active PENDING_PAYMENT** appointments simultaneously.
+    *   A client is limited to a maximum of **2 concurrent active appointments** (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2`) simultaneously.
+    *   Accounts with **3 or more cancellations in the same week (7 days)** are blocked preventively from creating new appointments (`MAX_WEEKLY_CANCELLATIONS_LIMIT = 3`).
     *   A scheduled task (Cron Job `@nestjs/schedule`) executes every minute to cancel expired pending bookings and release gateway charges.
 *   **Immutable Historical Pricing:** Once an `Appointment` is created, all financial fields (`totalAmount`, `amountPaidOnline`, `amountToPayInSalon`, `platformTaxCharged`) must be permanently frozen in that record. Never calculate real-time values based on the `Service` or `Company` tables for existing appointments, ensuring price changes do not retroactively affect past bookings.
 *   **Onboarding Strict Requirements:** A company/barber is strictly prohibited from activating booking capabilities or creating services if their Asaas subaccount integration is incomplete. The system must validate that the `walletId` exists and the account status is fully active/approved before opening the schedule.
