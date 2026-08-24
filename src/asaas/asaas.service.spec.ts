@@ -34,7 +34,6 @@ describe('AsaasService', () => {
       ...originalEnv,
       ASAAS_API_URL: 'https://sandbox.asaas.com/api/v3',
       ASAAS_API_KEY: 'test_api_key',
-      ASAAS_PIX_FEE: '0.99',
       ENCRYPTION_SECRET: 'test-secret',
     };
 
@@ -67,41 +66,33 @@ describe('AsaasService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('Initialization and ASAAS_PIX_FEE validation', () => {
-    it('should initialize with configured ASAAS_PIX_FEE', () => {
+  describe('Initialization and Dynamic Fee Discovery', () => {
+    it('should initialize with DEFAULT_ASAAS_GATEWAY_COST fallback', () => {
       expect(service.asaasPixFee).toBe(0.99);
     });
 
-    it('should fallback to default fee when ASAAS_PIX_FEE is not set', () => {
-      const savedEnv = process.env.ASAAS_PIX_FEE;
-      delete process.env.ASAAS_PIX_FEE;
+    it('should dynamically update fee during onModuleInit from fetchAccountFees', async () => {
+      jest.spyOn(service, 'fetchAccountFees').mockResolvedValue({
+        payment: {
+          pix: {
+            fixedFeeValueWithDiscount: 1.49,
+          },
+        },
+      });
 
+      await service.onModuleInit();
+      expect(service.asaasPixFee).toBe(1.49);
+    });
+
+    it('should maintain fallback fee when fetchAccountFees returns null or fails', async () => {
       const instance = new AsaasService(
         mockPrisma as any,
         mockCalculateTax as any,
       );
-      expect(instance.asaasPixFee).toBe(BARBER_ASAAS_PIX_FEE);
-      instance.onModuleInit();
+      jest.spyOn(instance, 'fetchAccountFees').mockResolvedValue(null);
 
-      process.env.ASAAS_PIX_FEE = savedEnv;
-    });
-
-    it('should fallback to default fee when ASAAS_PIX_FEE is invalid', () => {
-      const savedEnv = process.env.ASAAS_PIX_FEE;
-      process.env.ASAAS_PIX_FEE = 'invalid_number';
-
-      const instance = new AsaasService(
-        mockPrisma as any,
-        mockCalculateTax as any,
-      );
-      expect(instance.asaasPixFee).toBe(BARBER_ASAAS_PIX_FEE);
-      instance.onModuleInit();
-
-      process.env.ASAAS_PIX_FEE = savedEnv;
-    });
-
-    it('should run onModuleInit without throwing when configured properly', () => {
-      expect(() => service.onModuleInit()).not.toThrow();
+      await instance.onModuleInit();
+      expect(instance.asaasPixFee).toBe(0.99);
     });
   });
 

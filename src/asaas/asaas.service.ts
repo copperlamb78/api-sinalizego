@@ -51,14 +51,7 @@ export class AsaasService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly calculateTax: CalculateTax,
   ) {
-    const rawFee = process.env.ASAAS_PIX_FEE;
-    if (rawFee !== undefined && rawFee !== '') {
-      const parsed = Number(rawFee);
-      this.asaasPixFee =
-        !isNaN(parsed) && parsed >= 0 ? parsed : BARBER_ASAAS_PIX_FEE;
-    } else {
-      this.asaasPixFee = BARBER_ASAAS_PIX_FEE;
-    }
+    this.asaasPixFee = DEFAULT_ASAAS_GATEWAY_COST;
   }
 
   async fetchAccountFees(): Promise<any> {
@@ -82,20 +75,6 @@ export class AsaasService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    const rawFee = process.env.ASAAS_PIX_FEE;
-    if (
-      rawFee !== undefined &&
-      rawFee !== '' &&
-      !isNaN(Number(rawFee)) &&
-      Number(rawFee) >= 0
-    ) {
-      this.asaasPixFee = Number(rawFee);
-      this.logger.log(
-        `[AsaasService] ASAAS_PIX_FEE configurada via ENV: R$ ${this.asaasPixFee.toFixed(2)}`,
-      );
-      return;
-    }
-
     if (this.apiKey) {
       try {
         const fees = await this.fetchAccountFees();
@@ -113,7 +92,7 @@ export class AsaasService implements OnModuleInit {
         ) {
           this.asaasPixFee = Number(dynamicFee);
           this.logger.log(
-            `[AsaasService] Taxa Pix sincronizada diretamente da conta Asaas: R$ ${this.asaasPixFee.toFixed(2)}`,
+            `[AsaasService] Taxa Pix sincronizada dinamicamente da conta Asaas: R$ ${this.asaasPixFee.toFixed(2)}`,
           );
           return;
         }

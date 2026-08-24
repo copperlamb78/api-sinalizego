@@ -38,7 +38,7 @@
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 348 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
+| 🧪 **Suíte de Testes Completa** | 347 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -99,7 +99,6 @@ ENABLE_SWAGGER_IN_PROD="false"
 # Gateway Asaas
 ASAAS_API_URL="https://sandbox.asaas.com/api/v3"
 ASAAS_API_KEY="$aact_YTU5YTE0M2..."
-ASAAS_PIX_FEE=0.99
 ASAAS_WEBHOOK_URL="https://api.sinalizego.com/api/v1/webhooks/asaas"
 ASAAS_WEBHOOK_EMAIL="neodevzone@gmail.com"
 ASAAS_WEBHOOK_TOKEN="asaas_webhook_secret_token_123456"
@@ -648,7 +647,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 348 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 347 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -680,7 +679,7 @@ npm test
 - **Webhooks Asaas, Idempotência & Conciliação Ativa:** Tabela dedicada `webhook_events` para de-duplicação e auditoria, conferência estrita de valores (`payment.value === transaction.totalValue`) com estorno automático de pagamentos divergentes, máquina de estados impedindo cancelamento de agendamentos confirmados por eventos atrasados (`PAYMENT_DELETED`), tratamento de chargeback/disputas (`PAYMENT_CHARGEBACK_*`), comparação de token em tempo constante (`crypto.timingSafeEqual`) e job cron a cada 30 minutos reconciliando transações pendentes via `GET /v3/payments/{id}`.
 - **Perfis Financeiros & Criptografia em Repouso (AES-256-GCM):** Criptografia com tag de autenticação (`CryptoHelper`) de chaves de subcontas (`asaasApiKey`) em repouso no banco de dados com decriptação estrita sob demanda, projeção pública centralizada (`FINANCIAL_PROFILE_PUBLIC_SELECT`) e expurgo total de chaves privadas em todas as respostas HTTP e documentação Swagger.
 - **Vitrine Pública & Histórico Congelado:** Exibição precisa de taxas em Reais na vitrine pública (`getServicesBySlug`), persistência congelada de `platformFeeAmount` e `downPaymentAmount` no banco de dados e reutilização exata na emissão de Pix no Asaas sem recálculos divergentes.
-- **Integridade Financeira, Tipagem Decimal & Split Asaas:** Migração estrita de todos os campos monetários no banco de dados para `Decimal @db.Decimal(10, 2)` (`Service.totalPrice`, `Appointment.servicePrice`, `Appointment.downPaymentAmount`, `Appointment.platformFeeAmount`, `Transaction.totalValue`, `Transaction.netValue`, `Transaction.platformFee`, `Transaction.asaasFee`, `FinancialProfile.incomeValue`), evitando imprecisões de ponto flutuante binário IEEE 754; cálculo de taxa da plataforma por faixas cumulativas progressivas (10% até R$ 250,00 e 5% acima) com **arredondamento para cima em múltiplos de R$ 0,25** e piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (25% ou 50%), seleção dinâmica de blocos pelo cliente (`[piso, 50, 75, 100]`), **trava de microtransações (Safety Gate de R$ 15,00)** com descarte de blocos inválidos/rejeição de sinais menores que R$ 15,00, taxa Asaas parametrizável (`ASAAS_PIX_FEE`) com validação no boot e atualização automática da taxa real liquidada via webhook (`Transaction.asaasFee`).
+- **Integridade Financeira, Tipagem Decimal & Split Asaas:** Migração estrita de todos os campos monetários no banco de dados para `Decimal @db.Decimal(10, 2)` (`Service.totalPrice`, `Appointment.servicePrice`, `Appointment.downPaymentAmount`, `Appointment.platformFeeAmount`, `Transaction.totalValue`, `Transaction.netValue`, `Transaction.platformFee`, `Transaction.asaasFee`, `FinancialProfile.incomeValue`), evitando imprecisões de ponto flutuante binário IEEE 754; cálculo de taxa da plataforma por faixas cumulativas progressivas (10% até R$ 250,00 e 5% acima) com **arredondamento para cima em múltiplos de R$ 0,25** e piso mínimo de R$ 2,00, configuração restrita de sinal do estabelecimento (30% ou 50%), **trava de microtransações (Safety Gate de R$ 15,00)**, taxa do Asaas obtida dinamicamente da conta (`/myAccount/fees`) e atualização automática da taxa real liquidada via webhook (`Transaction.asaasFee`).
 - **Expediente Semanal & Exceções de Agenda (`WorkingHoursModule`):** Configuração completa da grade semanal (`PUT /working-hours` e `GET /working-hours`) com validação estrita de horários (`startTime < endTime`, intervalo de almoço contido no expediente e formato `HH:mm`), consulta pública de horários da empresa (`GET /working-hours/company/:companyId`), e gestão de exceções/feriados (`POST`, `GET`, `DELETE /working-hours/exceptions`) protegidos contra IDOR.
 - **Motor de Disponibilidade & Slot Engine (`AvailabilityService`):** Algoritmo canônico de cálculo de horários livres (`GET /appointments/available-slots`) cruzando expediente do dia (`WorkingHour`/`ScheduleException`), fatiamento em blocos com descarte automático de colisões com intervalo de almoço, filtragem por capacidade concorrente do grupo de serviços (`ServiceGroup.capacity`), descarte de horários passados no dia atual, e validação mandatória de expediente na criação de agendamentos (`AppointmentsService.createAppointment`).
 - **Conclusão de Atendimento & Blindagem Anti-IDOR (`PATCH /appointments/:id/complete`):** Transição estrita e atômica para o status `COMPLETED`, restrita a donos de empresa autenticados (`COMPANY_OWNER`) e administradores do sistema (`ADMIN`/`SUPER_ADMIN`) validando a propriedade da barbearia (`appointment.company.userId === req.user.sub`), rejeitando transições em agendamentos `PENDING_PAYMENT`, `CANCELED` ou já `COMPLETED`.
