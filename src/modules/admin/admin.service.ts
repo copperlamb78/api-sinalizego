@@ -126,6 +126,18 @@ export class AdminService {
     let canceledCount = 0;
     let pendingPaymentCount = 0;
 
+    // Pré-população estrita de status para garantir resiliência e evitar undefined
+    const appointmentsByStatus: Record<string, number> = {
+      [ApptStatus.COMPLETED]: 0,
+      [ApptStatus.CONFIRMED]: 0,
+      [ApptStatus.PENDING_PAYMENT]: 0,
+      [ApptStatus.CANCELED]: 0,
+      PENDING: 0,
+      CANCELLED_BY_CLIENT: 0,
+      CANCELLED_BY_COMPANY: 0,
+      NO_SHOW: 0,
+    };
+
     const tenantsMap = new Map<
       string,
       {
@@ -143,6 +155,9 @@ export class AdminService {
       const downPayment = Number(appt.downPaymentAmount || 0);
       const platformFee = Number(appt.platformFeeAmount || 0);
 
+      appointmentsByStatus[appt.status] =
+        (appointmentsByStatus[appt.status] || 0) + 1;
+
       switch (appt.status) {
         case ApptStatus.COMPLETED:
           completedCount++;
@@ -159,6 +174,7 @@ export class AdminService {
           break;
         case ApptStatus.PENDING_PAYMENT:
           pendingPaymentCount++;
+          appointmentsByStatus.PENDING = pendingPaymentCount;
           break;
       }
 
@@ -221,30 +237,33 @@ export class AdminService {
         endDate: endDate.toISOString(),
       },
       financial: {
-        platformGrossRevenue: Number(platformGrossRevenue.toFixed(2)),
-        totalAsaasPixCosts: Number(totalAsaasPixCosts.toFixed(2)),
-        platformNetProfit: Number(platformNetProfit.toFixed(2)),
-        gmv: Number(gmv.toFixed(2)),
+        platformGrossRevenue: Number((platformGrossRevenue || 0).toFixed(2)),
+        totalAsaasPixCosts: Number((totalAsaasPixCosts || 0).toFixed(2)),
+        platformNetProfit: Number((platformNetProfit || 0).toFixed(2)),
+        gmv: Number((gmv || 0).toFixed(2)),
       },
       growth: {
         users: {
-          total: totalUsers,
-          clients: clientsCount,
-          owners: ownersCount,
+          total: totalUsers ?? 0,
+          clients: clientsCount ?? 0,
+          owners: ownersCount ?? 0,
         },
         companies: {
-          total: totalCompanies,
-          active: activeCompanies,
-          inactive: inactiveCompanies,
+          total: totalCompanies ?? 0,
+          active: activeCompanies ?? 0,
+          inactive: inactiveCompanies ?? 0,
         },
         appointments: {
-          total: appointments.length,
-          completed: completedCount,
-          confirmed: confirmedCount,
-          canceled: canceledCount,
-          pendingPayment: pendingPaymentCount,
+          total: appointments.length ?? 0,
+          completed: completedCount ?? 0,
+          confirmed: confirmedCount ?? 0,
+          canceled: canceledCount ?? 0,
+          pendingPayment: pendingPaymentCount ?? 0,
+          byStatus: appointmentsByStatus,
         },
+        appointmentsByStatus,
       },
+      appointmentsByStatus,
       topTenants,
     };
   }

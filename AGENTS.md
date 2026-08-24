@@ -44,8 +44,11 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   **Purpose**: Symmetric encryption and decryption at rest (AES-256-GCM) with authentication tags for sensitive credentials (e.g. `asaasApiKey`).
     *   **Methods**: `CryptoHelper.encrypt(plaintext: string): string` and `CryptoHelper.decrypt(ciphertext: string): string`.
 
+*   **`AllExceptionsFilter` (Filter - `src/common/filters/all-exceptions.filter.ts`)**:
+    *   **Purpose**: Global unified exception filter registered in `main.ts`. Standardizes all error payloads (HttpException, Prisma errors, Unhandled errors) into a structured JSON payload with `statusCode`, `message`, `error`, `timestamp`, and `path`.
+
 *   **`PrismaClientExceptionFilter` (Filter - `src/common/filters/prisma-client-exception.filter.ts`)**:
-    *   **Purpose**: This is already registered globally in `main.ts`. It maps Prisma errors (`P2002` Conflict, `P2025` Not Found) to proper HTTP responses. Do not write manual try-catch blocks in controllers just to return 404 or 409 for these Prisma errors. Rely on the global filter.
+    *   **Purpose**: Maps Prisma errors (`P2002` Conflict, `P2025` Not Found) to proper HTTP responses. Do not write manual try-catch blocks in controllers just to return 404 or 409 for these Prisma errors. Rely on the global filter.
 
 *   **`RolesGuard` (Guard - `src/modules/auth/roles/guard/roles.guard.ts`)**:
     *   **Purpose**: Use this guard alongside the `@Roles()` decorator to protect routes based on user roles.

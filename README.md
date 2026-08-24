@@ -36,7 +36,9 @@
 | 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga e auditoria de cancelamento |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
-| 🧪 **Suíte de Testes Completa** | 335 testes unitários automatizados (33 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
+| 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
+| 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
+| 🧪 **Suíte de Testes Completa** | 342 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -480,7 +482,9 @@ src/
 │   │   ├── billing.constant.ts        # Constantes de faturamento, split Asaas e travas
 │   │   └── role-groups.constant.ts    # Grupos de roles (SYSTEM_MANAGERS, INTERNAL_USERS, etc.)
 │   └── filters/
-│       └── prisma-client-exception.filter.ts # Filtro global de exceções Prisma
+│       ├── all-exceptions.filter.ts           # Filtro global unificado de exceções e padronização JSON
+│       ├── all-exceptions.filter.spec.ts      # Testes unitários do AllExceptionsFilter
+│       └── prisma-client-exception.filter.ts  # Filtro global de exceções Prisma
 │
 ├── ✉️ modules/mail/
 │   ├── mail.module.ts                 # Módulo de envio de e-mails Brevo
@@ -644,7 +648,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **33 suítes de teste e 317 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 342 testes unitários automatizados**.
 
 Para rodar todos os testes:
 

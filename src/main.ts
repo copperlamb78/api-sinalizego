@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import { HttpAdapterHost, NestFactory } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { PrismaClientExceptionFilter } from './common/filters/prisma-client-exception.filter';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import helmet from 'helmet';
 
 async function bootstrap() {
@@ -16,7 +16,7 @@ async function bootstrap() {
     }),
   );
 
-  // 2. Configuração Estrita de CORS
+  // 2. Configuração Abrangente de CORS
   const rawCorsOrigins = process.env.CORS_ORIGINS || process.env.FRONTEND_URL;
   const defaultOrigins = [
     'http://localhost:3000',
@@ -25,6 +25,8 @@ async function bootstrap() {
     'https://sinalizego.com',
     'https://app.sinalizego.com',
     'https://admin.sinalizego.com',
+    'https://sinalizego.com.br',
+    'https://app.sinalizego.com.br',
     'https://sinalizego.vercel.app',
   ];
 
@@ -47,7 +49,7 @@ async function bootstrap() {
         !origin ||
         allowedOrigins.includes(origin) ||
         allowedOrigins.includes('*') ||
-        /^https:\/\/.*\.vercel\.app$/.test(origin)
+        /\.vercel\.app$/.test(origin)
       ) {
         callback(null, true);
       } else {
@@ -71,8 +73,7 @@ async function bootstrap() {
     exclude: ['/', 'webhooks/asaas'],
   });
 
-  const { httpAdapter } = app.get(HttpAdapterHost);
-  app.useGlobalFilters(new PrismaClientExceptionFilter(httpAdapter));
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -148,6 +149,8 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, document);
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();
+

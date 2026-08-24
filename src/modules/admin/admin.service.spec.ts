@@ -172,6 +172,17 @@ describe('AdminService', () => {
       expect(result.growth.appointments.canceled).toBe(1);
       expect(result.growth.appointments.pendingPayment).toBe(1);
 
+      // Pre-populated appointmentsByStatus
+      expect(result.growth.appointments.byStatus.COMPLETED).toBe(1);
+      expect(result.growth.appointments.byStatus.CONFIRMED).toBe(1);
+      expect(result.growth.appointments.byStatus.CANCELED).toBe(1);
+      expect(result.growth.appointments.byStatus.PENDING_PAYMENT).toBe(1);
+      expect(result.growth.appointments.byStatus.PENDING).toBe(1);
+      expect(result.growth.appointments.byStatus.CANCELLED_BY_CLIENT).toBe(0);
+      expect(result.growth.appointments.byStatus.CANCELLED_BY_COMPANY).toBe(0);
+      expect(result.growth.appointments.byStatus.NO_SHOW).toBe(0);
+      expect(result.appointmentsByStatus.COMPLETED).toBe(1);
+
       // Top Tenants
       expect(result.topTenants).toHaveLength(2);
       expect(result.topTenants[0].businessName).toBe('Barbearia VIP');
