@@ -33,8 +33,8 @@ You must reuse existing code instead of rewriting functionality. Pay special att
     *   **Methods**: `calculatePlatformTaxPercentage(totalPrice)` and `calculatePlatformTax(totalPrice)`.
 
 *   **`CalculateDeposit` (Helper - `src/helpers/calculate-deposit.helper.ts`)**:
-    *   **Purpose**: Use this for deposit calculation applying the Micro-Transaction Safety Gate (R$ 15.00 minimum threshold) and dynamic blocks.
-    *   **Methods**: `calculateDeposit(totalPrice, configuredFloor, clientSelectedPercent?)`, `calculateDepositDetails(totalPrice, configuredFloor, clientSelectedPercent?)` and `getAvailableBlocks(totalPrice, configuredFloor)`.
+    *   **Purpose**: Use this for deposit calculation applying the automated 50% default (with R$ 15.00 Safety Gate or 100% if < R$ 15.00) and 30% high-ticket option for services >= R$ 400.00.
+    *   **Methods**: `calculateDeposit(totalPrice, serviceDepositPercent?)`, `calculateDepositDetails(totalPrice, serviceDepositPercent?)` and `getAvailableBlocks(totalPrice, serviceDepositPercent?)`.
 
 *   **`ValidateImage` (Helper - `src/helpers/validate-image.helper.ts`)**:
     *   **Purpose**: Validates real binary file signatures (Magic Bytes) for image uploads (JPEG, PNG, WEBP) to prevent malicious or forged MIME uploads.
@@ -99,17 +99,15 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 ## 7. Core Business & Billing Rules (CRITICAL)
 
 *   **Establishment Down Payment Configuration:**
-    *   When creating or editing services, the professional/barber must define the minimum required deposit (`downPaymentPercent`) exclusively as either **25%** or **50%**.
+    *   When creating or editing services, the professional/barber defines `downPaymentPercent` / `depositPercentage` as **50%** (default) or **30%** (optional for high-ticket services `>= R$ 400.00`). If `price < R$ 400.00`, it is strictly normalized to 50%.
 
-*   **Dynamic Customer Selection Blocks:**
-    *   During checkout, the customer can select the deposit fraction they wish to pay upfront to secure their slot using progressive intervals: `[configured_floor, ..., 75%, 100%]`.
-    *   *Example (Floor 25%):* Available baseline options = `[25%, 50%, 75%, 100%]`.
-    *   *Example (Floor 50%):* Available baseline options = `[50%, 75%, 100%]`.
+*   **Automated Server-Side Deposit Calculation:**
+    *   The deposit fraction is calculated 100% server-side based on the service rules (client manual selection removed).
 
 *   **Micro-Transaction Safety Gate (R$ 15.00 Threshold):**
     *   The absolute minimum amount allowed for fractional/deposit payments is **R$ 15.00**.
     *   If the total service price is below R$ 15.00, the system **must strictly enforce 100% upfront payment** at booking.
-    *   For services priced at R$ 15.00 or higher, available percentage blocks must be dynamically filtered: any block resulting in a monetary value `< R$ 15.00` is discarded, exposing only options with a value `>= R$ 15.00` alongside the `100%` full payment option.
+    *   For services priced at R$ 15.00 or higher, the deposit is `Math.max(calculatedDeposit, 15.00)`.
 
 *   **Platform Margin & Floor Tax Guarantee:**
     *   The platform minimum fee (**R$ 2.00**) is immutable and mandatory across all transactions (`MIN_PLATFORM_TAX`), guaranteeing a positive net margin regardless of the service price.

@@ -100,7 +100,7 @@ model Service {
   description        String?
   durationMinutes    Int
   totalPrice         Decimal   @db.Decimal(10, 2)
-  downPaymentPercent Int
+  downPaymentPercent Int       @default(50)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   isActive           Boolean   @default(true)

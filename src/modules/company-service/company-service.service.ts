@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { CalculateTax } from '../../helpers/calculate-tax.helper';
+import { CalculateDeposit } from '../../helpers/calculate-deposit.helper';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { FilterServiceDto } from './dto/filter-service.dto';
 
@@ -10,16 +15,25 @@ export class CompanyServiceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calculateTax: CalculateTax,
+    private readonly calculateDeposit: CalculateDeposit,
   ) {}
 
   async createService(data: CreateServiceDto, userId: string) {
     const company = await this.prisma.company.findFirst({
       where: { userId: userId },
+      include: { financialProfile: true },
     });
 
     if (!company) {
       throw new NotFoundException(
         'Nenhuma empresa encontrada para este usuário. Certifique-se de que o usuário possui uma empresa registrada antes de criar um serviço.',
+      );
+    }
+
+    // Trava de Onboarding: o barbeiro deve ter configurado a conta financeira/bancária (Asaas) antes de cadastrar serviços
+    if (!company.financialProfile || !company.financialProfile.walletId) {
+      throw new BadRequestException(
+        'Para cadastrar serviços, você precisa primeiro configurar sua conta bancária/financeira no painel.',
       );
     }
 
@@ -33,13 +47,23 @@ export class CompanyServiceService {
       );
     }
 
+    // Normalização da regra de sinal:
+    // - Se price < 400: força 50%
+    // - Se price >= 400: aceita 30% ou 50% (default 50)
+    const price = Number(data.totalPrice);
+    const rawPercent = data.depositPercentage ?? data.downPaymentPercent ?? 50;
+    let downPaymentPercent = 50;
+    if (price >= 400 && rawPercent === 30) {
+      downPaymentPercent = 30;
+    }
+
     const service = await this.prisma.service.create({
       data: {
         name: data.name,
         description: data.description,
         durationMinutes: data.durationMinutes,
         totalPrice: data.totalPrice,
-        downPaymentPercent: data.downPaymentPercent,
+        downPaymentPercent: downPaymentPercent,
         serviceGroupId: data.serviceGroupId,
         companyId: company.id,
       },
@@ -68,13 +92,19 @@ export class CompanyServiceService {
       );
     }
 
-    return services.map((service) => ({
-      ...service,
-      totalPrice: Number(service.totalPrice),
-      platformTax: this.calculateTax.calculatePlatformTax(
-        Number(service.totalPrice),
-      ),
-    }));
+    return services.map((service) => {
+      const price = Number(service.totalPrice);
+      const deposit = this.calculateDeposit.calculateDeposit(
+        price,
+        service.downPaymentPercent,
+      );
+      return {
+        ...service,
+        totalPrice: price,
+        downPaymentAmount: deposit,
+        platformTax: this.calculateTax.calculatePlatformTax(deposit),
+      };
+    });
   }
 
   async getServicesByCompany(userId: string, filters?: FilterServiceDto) {
@@ -150,9 +180,28 @@ export class CompanyServiceService {
       }
     }
 
+    const updateData: any = { ...data };
+    delete updateData.depositPercentage;
+
+    const priceToCheck =
+      data.totalPrice !== undefined
+        ? Number(data.totalPrice)
+        : Number(serviceExists.totalPrice);
+
+    const rawPercent =
+      data.depositPercentage !== undefined
+        ? data.depositPercentage
+        : data.downPaymentPercent;
+
+    if (priceToCheck < 400) {
+      updateData.downPaymentPercent = 50;
+    } else if (rawPercent !== undefined) {
+      updateData.downPaymentPercent = rawPercent === 30 ? 30 : 50;
+    }
+
     return this.prisma.service.update({
       where: { id: serviceId },
-      data: data,
+      data: updateData,
     });
   }
 

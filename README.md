@@ -32,13 +32,13 @@
 | 👥 **Gestão de Usuários Segura** | Sanitização centralizada com `USER_PUBLIC_SELECT` (sem vazamento de hashes/tokens), alteração de senha autenticada e vínculo de CPF/CNPJ ao Asaas |
 | 🏢 **Perfil da Empresa (Company)** | Criação com slug automático, filtros, ordenação e ativação |
 | 📁 **Grupos de Serviços (ServiceGroup)** | Organização de serviços por grupos com limite de capacidade, validação de posse e soft delete protegido |
-| 💈 **Catálogo & Taxas Progressivas** | CRUD completo de serviços com taxa de plataforma calculada por faixas progressivas cumulativas (10% até R$ 250,00 e 5% acima) com piso mínimo de R$ 2,00 |
-| 📅 **Agendamentos Blindados** | Verificação de capacidade, bloqueio de confirmação manual não-paga, limite de 2 reservas ativas e auditoria anti-abuso de cancelamento |
+| 💈 **Catálogo & Regras de Sinal** | CRUD completo de serviços com sinal automático (50% padrão com piso de R$ 15,00, ou 30% para serviços >= R$ 400,00) e trava de onboarding financeiro obrigatório |
+| 📅 **Agendamentos Blindados** | Cálculo 100% automático de sinal no backend, lock pessimista FOR UPDATE, limite de 2 reservas ativas e bloqueio por excesso de cancelamentos (HTTP 429) |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 342 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
+| 🧪 **Suíte de Testes Completa** | 348 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -648,7 +648,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 342 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 348 testes unitários automatizados**.
 
 Para rodar todos os testes:
 

@@ -98,7 +98,6 @@ export class AppointmentsService {
     const downPayment = this.calculateDeposit.calculateDeposit(
       price,
       service.downPaymentPercent,
-      data.downPaymentPercent,
     );
     const platformFee = this.calculateTax.calculatePlatformTax(downPayment);
 

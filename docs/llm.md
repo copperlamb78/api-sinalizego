@@ -101,17 +101,16 @@ Quando um usuário com role `CLIENT` cadastra sua primeira empresa via `POST /ap
 +-----------------------------------------------------------------------------------+
 ```
 
-### 3.1. Piso de Sinal & Safety Gate de Microtransações (R$ 15,00)
-1. **Configuração pelo Barbeiro**: Ao criar/editar um serviço, o dono define `downPaymentPercent` **estritamente como 25% ou 50%**.
-2. **Safety Gate de R$ 15,00**:
-   - Se `totalPrice < R$ 15,00`: O sistema **força 100% de pagamento antecipado** (ex: serviço de R$ 12,00 ➔ 100% Pix no checkout).
-   - Se `totalPrice >= R$ 15,00`: O sistema gera blocos progressivos `[piso, ..., 75%, 100%]`. Qualquer opção que resulte em valor monetário `< R$ 15,00` é descartada.
-   - *Exemplo (Serviço de R$ 40,00, Piso 25%)*:
-     - 25% = R$ 10,00 (< R$ 15,00) ➔ **Descartado**
-     - 50% = R$ 20,00 (>= R$ 15,00) ➔ **Liberado**
-     - 75% = R$ 30,00 (>= R$ 15,00) ➔ **Liberado**
-     - 100% = R$ 40,00 (>= R$ 15,00) ➔ **Liberado**
-     - *Opções visíveis ao cliente*: `[50%, 75%, 100%]`.
+### 3.1. Regras de Sinal Automático, Alto Ticket & Trava de Onboarding
+1. **Trava de Onboarding Financeiro**: A criação de serviços (`POST /api/v1/company-service`) é **estritamente bloqueada** caso o estabelecimento ainda não possua conta financeira Asaas configurada (`walletId`), retornando `400 Bad Request` com mensagem amigável para o painel.
+2. **Regra Padrão (Serviços < R$ 400,00)**:
+   - Percentual de sinal fixo em **50%** do valor total do serviço.
+   - **Piso Mínimo Garantido (Safety Gate de R$ 15,00)**: O sinal nunca é inferior a R$ 15,00 (exceto se o valor total do serviço for menor que R$ 15,00, caso em que o sinal é 100% do serviço).
+3. **Regra de Alto Ticket (Serviços >= R$ 400,00)**:
+   - O prestador pode optar por definir o sinal em **30%** ou manter **50%** (padrão).
+   - O campo `downPaymentPercent` / `depositPercentage` do serviço aceita exclusivamente `30` ou `50`. Se `price < 400`, é sempre normalizado automaticamente para `50`.
+4. **Cálculo 100% Automático no Servidor**: A escolha de percentual pelo cliente foi removida do payload de agendamento, sendo derivada com segurança diretamente do serviço no banco de dados.
+
 
 ### 3.2. Taxa da Plataforma (Faixas Cumulativas & Aritmética em Centavos)
 A taxa retida pelo SinalizeGO é calculada sobre o **valor do sinal pago online** utilizando faixas progressivas com **aritmética pura de inteiros em centavos**:

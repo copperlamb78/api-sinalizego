@@ -1,12 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsDateString,
-  IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
-  Max,
-  Min,
 } from 'class-validator';
 
 export class CreateAppointmentsDto {
@@ -33,15 +29,4 @@ export class CreateAppointmentsDto {
   @IsNotEmpty({ message: 'A data do agendamento é obrigatória' })
   @IsDateString({}, { message: 'Formato de data inválido. Use ISO 8601.' })
   appointmentDate: string;
-
-  @ApiPropertyOptional({
-    description:
-      'Porcentagem de sinal escolhida pelo cliente (ex: 25, 50, 75, 100). Sujeita ao mínimo da empresa e à trava de microtransações (R$ 15,00).',
-    example: 50,
-  })
-  @IsOptional()
-  @IsInt({ message: 'A porcentagem de sinal deve ser um número inteiro' })
-  @Min(1, { message: 'A porcentagem de sinal mínima é 1%' })
-  @Max(100, { message: 'A porcentagem de sinal máxima é 100%' })
-  downPaymentPercent?: number;
 }
