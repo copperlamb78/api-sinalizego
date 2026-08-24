@@ -41,7 +41,7 @@ import { Role } from '@prisma/client';
 @ApiTags('Empresas')
 @Controller('company')
 export class CompanyController {
-  constructor(private readonly companyService: CompanyService) {}
+  constructor(private readonly companyService: CompanyService) { }
 
   @Post('create')
   @ApiBody({

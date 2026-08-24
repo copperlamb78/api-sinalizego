@@ -691,8 +691,8 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
 
 ### 6.5. Catálogo de Serviços & Splits (`/api/v1/company-service`)
 
-#### `POST /api/v1/company-service`
-- **Sumário**: Cadastra novo serviço associado a um grupo e com percentual de sinal configurado (25% ou 50%).
+#### `POST /api/v1/company-service/create`
+- **Sumário**: Cadastra novo serviço associado a um grupo e com percentual de sinal configurado (30% ou 50%).
 - **Acesso**: `COMPANY_OWNER`.
 - **Request Body (`CreateCompanyServiceDto`)**:
   ```json
@@ -701,27 +701,34 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
     "description": "Corte na máquina e navalha com toalha quente",
     "durationMinutes": 30,
     "totalPrice": 50.00,
-    "downPaymentPercent": 25,
-    "serviceGroupId": "uuid-service-group",
-    "companyId": "uuid-company"
+    "downPaymentPercent": 50,
+    "serviceGroupId": "uuid-service-group"
   }
   ```
-  *(Nota: `downPaymentPercent` aceita exclusivamente `25` ou `50`)*.
+  *(Nota: `downPaymentPercent` aceita `50` (padrão) ou `30` para serviços `>= R$ 400,00`)*.
 - **Responses**:
   - `201 Created`: Objeto do serviço criado.
-  - `400 Bad Request`: Subconta Asaas ausente ou percentual fora de `[25, 50]`.
+  - `400 Bad Request`: Subconta Asaas ausente ou dados inválidos.
 
 ---
 
-#### `GET /api/v1/company-service/company/:companyId`
-- **Sumário**: Consulta pública do catálogo ativo de serviços da empresa.
+#### `GET /api/v1/company-service/list`
+- **Sumário**: Lista os serviços cadastrados da empresa do usuário autenticado.
+- **Acesso**: `COMPANY_OWNER`.
+- **Responses**:
+  - `200 OK`: Array de serviços da empresa.
+
+---
+
+#### `GET /api/v1/company-service/list/:slug`
+- **Sumário**: Consulta pública do catálogo ativo de serviços por slug da empresa (vitrine pública).
 - **Acesso**: Público.
 - **Responses**:
   - `200 OK`: Array de serviços ativos agrupados por categoria.
 
 ---
 
-#### `PUT /api/v1/company-service/:id` & `DELETE /api/v1/company-service/:id`
+#### `PATCH /api/v1/company-service/update/:serviceId` & `DELETE /api/v1/company-service/deactivate/:serviceId`
 - **Sumário**: Edição ou desativação de serviço do catálogo.
 - **Acesso**: `COMPANY_OWNER`.
 
@@ -846,10 +853,19 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
 ---
 
 #### `PATCH /api/v1/appointments/:id/complete`
-- **Sumário**: Conclusão formal do atendimento e liberação de custódia (Escrow Hold).
+- **Sumário**: Conclusão formal do atendimento e liberação de custódia (Escrow Hold). Exige horário já iniciado (`now >= appointmentDate`).
 - **Acesso**: `COMPANY_OWNER`, `ADMIN`.
 - **Responses**:
   - `200 OK`: `{ "id": "...", "status": "COMPLETED" }`
+
+---
+
+#### `PATCH /api/v1/appointments/:id/no-show`
+- **Sumário**: Registro de falta do cliente (No-Show) com retenção do sinal para o estabelecimento e trava de tolerância mínima de 15 minutos (`now >= appointmentDate + 15min`).
+- **Acesso**: `COMPANY_OWNER`, `ADMIN`.
+- **Responses**:
+  - `200 OK`: `{ "id": "...", "status": "NO_SHOW", "retainedDepositAmount": 25.00 }`
+  - `400 Bad Request`: Menos de 15 minutos transcorridos do horário agendado ou status não confirmado.
 
 ---
 
@@ -863,7 +879,7 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
 
 ### 6.8. Perfil Financeiro & Subcontas Asaas (`/api/v1/financial-profile`)
 
-#### `POST /api/v1/financial-profile`
+#### `POST /api/v1/financial-profile/create`
 - **Sumário**: Criação de subconta bancária no Asaas com criptografia de credenciais em repouso (AES-256-GCM).
 - **Acesso**: `COMPANY_OWNER`.
 - **Request Body (`CreateFinancialProfileDto`)**:
@@ -873,6 +889,7 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
     "email": "carlos@barbearia.com",
     "cpfCnpj": "12345678901",
     "birthDate": "1990-05-15",
+    "companyType": null,
     "mobilePhone": "75999999999",
     "incomeValue": 6000.00,
     "address": "Avenida Getúlio Vargas",
@@ -881,8 +898,18 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
     "postalCode": "44001000"
   }
   ```
+  *(Nota: Se CNPJ, informe `companyType` ["MEI", "INDIVIDUAL", "LIMITED", "ASSOCIATION"] e omita `birthDate`)*.
 - **Responses**:
   - `201 Created`: Objeto do perfil financeiro com `walletId` provisionado.
+  - `409 Conflict`: CPF/CNPJ já vinculado a outra conta.
+
+---
+
+#### `GET /api/v1/financial-profile/list`
+- **Sumário**: Consulta os perfis financeiros e subcontas vinculadas ao usuário logado.
+- **Acesso**: `COMPANY_OWNER`.
+- **Responses**:
+  - `200 OK`: Array de perfis financeiros com `walletId` (sem expor `asaasApiKey`).
 
 ---
 
