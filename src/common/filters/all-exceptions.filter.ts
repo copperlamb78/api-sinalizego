@@ -65,7 +65,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
         `[UnhandledException] ${exception.message}`,
         exception.stack,
       );
-      message = exception.message || message;
     }
 
     const payload = {
