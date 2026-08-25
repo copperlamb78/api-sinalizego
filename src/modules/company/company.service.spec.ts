@@ -40,6 +40,7 @@ describe('CompanyService', () => {
     },
     appointment: {
       findMany: jest.fn(),
+      aggregate: jest.fn(),
     },
     financialProfile: {
       findFirst: jest.fn(),
@@ -48,6 +49,7 @@ describe('CompanyService', () => {
     transaction: {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { totalValue: 0 } }),
       create: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
       update: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
     },
@@ -478,15 +480,17 @@ describe('CompanyService', () => {
         id: 'fp-1',
         walletId: 'wal_123',
       });
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        { status: ApptStatus.COMPLETED, downPaymentAmount: '50.00' },
-        { status: ApptStatus.COMPLETED, downPaymentAmount: '30.00' },
-        { status: ApptStatus.CONFIRMED, downPaymentAmount: '40.00' }, // em custódia
-        { status: ApptStatus.CANCELED, downPaymentAmount: '20.00' },
-      ]);
-      mockPrisma.transaction.findMany.mockResolvedValue([
-        { totalValue: '20.00' }, // saque anterior
-      ]);
+      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.status === ApptStatus.COMPLETED) {
+          return { _sum: { downPaymentAmount: 80.00 } };
+        } else if (args.where.status === ApptStatus.CONFIRMED) {
+          return { _sum: { downPaymentAmount: 40.00 } };
+        }
+        return { _sum: { downPaymentAmount: 0 } };
+      });
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { totalValue: 20.00 }
+      });
 
       const balance = await service.getCompanyBalance('user-owner');
 
@@ -532,17 +536,26 @@ describe('CompanyService', () => {
         id: 'fp-1',
         walletId: 'wal_123',
       });
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        { status: ApptStatus.COMPLETED, downPaymentAmount: '100.00' },
-        { status: ApptStatus.CONFIRMED, downPaymentAmount: '50.00' },
-      ]);
-      mockPrisma.transaction.findMany.mockResolvedValue([]);
+      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.status === ApptStatus.COMPLETED) {
+          return { _sum: { downPaymentAmount: 100.00 } };
+        } else if (args.where.status === ApptStatus.CONFIRMED) {
+          return { _sum: { downPaymentAmount: 50.00 } };
+        }
+        return { _sum: { downPaymentAmount: 0 } };
+      });
+      mockPrisma.transaction.aggregate.mockResolvedValue({ _sum: { totalValue: 0 } });
     });
 
     it('should throw BadRequestException if available balance is zero', async () => {
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        { status: ApptStatus.CONFIRMED, downPaymentAmount: '50.00' }, // apenas em custódia
-      ]);
+      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.status === ApptStatus.COMPLETED) {
+          return { _sum: { downPaymentAmount: 0.00 } };
+        } else if (args.where.status === ApptStatus.CONFIRMED) {
+          return { _sum: { downPaymentAmount: 50.00 } };
+        }
+        return { _sum: { downPaymentAmount: 0 } };
+      });
 
       await expect(
         service.requestInstantWithdrawal('user-owner', { amount: 20 }),

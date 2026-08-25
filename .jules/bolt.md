@@ -2,3 +2,6 @@
 ## 2026-08-24 - Expensive nested loop Date parsing
 **Learning:** `new Date(string).getTime()` is extremely slow when executed repeatedly inside a hot inner loop (like O(N*M) times).
 **Action:** Always extract and memoize expensive Date parsing/conversions mapping it outside of hot inner loops to reduce redundant operations and achieve O(N) parsing complexity.
+## 2026-08-25 - In-Memory Data Load for Summation
+**Learning:** Fetching records into application memory using `findMany()` only to compute a sum via array operations (e.g. `reduce`) causes memory exhaustion and excessive deserealization latency when scaling.
+**Action:** Use database-level aggregations (`prisma.aggregate({ _sum: { ... } })`) to offload the mathematical operations to the database and drastically reduce the Node.js process load and network footprint.
