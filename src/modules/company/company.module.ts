@@ -12,4 +12,3 @@ import { AsaasModule } from 'src/asaas/asaas.module';
   exports: [CompanyService],
 })
 export class CompanyModule {}
-

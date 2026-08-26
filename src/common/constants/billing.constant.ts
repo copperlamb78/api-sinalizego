@@ -34,4 +34,3 @@ export const ASAAS_TRANSFER_FEE = 5.0;
  * Garante a viabilidade financeira da plataforma, acumulando saldos menores para semanas subsequentes.
  */
 export const MIN_FREE_WEEKLY_PAYOUT = 100.0;
-

@@ -504,10 +504,11 @@ export class AppointmentsService {
         const totalPrice = Number(
           appointment.servicePrice || appointment.service?.totalPrice || 0,
         );
-        const configuredFloor =
-          appointment.service?.downPaymentPercent ?? 25;
-        const guaranteedDepositAmount =
-          this.calculateDeposit.calculateDeposit(totalPrice, configuredFloor);
+        const configuredFloor = appointment.service?.downPaymentPercent ?? 25;
+        const guaranteedDepositAmount = this.calculateDeposit.calculateDeposit(
+          totalPrice,
+          configuredFloor,
+        );
 
         if (hoursDifference > 24) {
           // 1. Cancelamento com antecedência (> 24h): Estorno integral (100% do valor pago online)
@@ -779,15 +780,14 @@ export class AppointmentsService {
     try {
       const pastThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-      const pastConfirmedAppointments =
-        await this.prisma.appointment.findMany({
-          where: {
-            status: ApptStatus.CONFIRMED,
-            isActive: true,
-            appointmentEndDate: { lte: pastThreshold },
-          },
-          select: { id: true },
-        });
+      const pastConfirmedAppointments = await this.prisma.appointment.findMany({
+        where: {
+          status: ApptStatus.CONFIRMED,
+          isActive: true,
+          appointmentEndDate: { lte: pastThreshold },
+        },
+        select: { id: true },
+      });
 
       if (pastConfirmedAppointments.length === 0) {
         return 0;

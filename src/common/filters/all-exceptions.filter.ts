@@ -44,8 +44,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           break;
         case 'P2025':
           status = HttpStatus.NOT_FOUND;
-          message =
-            'O registro que você tentou acessar não foi encontrado.';
+          message = 'O registro que você tentou acessar não foi encontrado.';
           error = 'Not Found';
           break;
         case 'P2022':
