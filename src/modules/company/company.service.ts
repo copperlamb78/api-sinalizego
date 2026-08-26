@@ -453,6 +453,10 @@ export class CompanyService {
     let canceledCount = 0;
     let pendingPaymentCount = 0;
 
+    // Bolt optimization: compute in a single pass to avoid O(n) filter/reduce later
+    let completedDepositsNet = 0;
+    let escrowLockedBalance = 0;
+
     const servicesMap = new Map<
       string,
       {
@@ -474,11 +478,13 @@ export class CompanyService {
           totalRevenue += price;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
+          completedDepositsNet += downPayment; // Bolt optimization
           break;
         case ApptStatus.CONFIRMED:
           confirmedCount++;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
+          escrowLockedBalance += downPayment; // Bolt optimization
           break;
         case ApptStatus.CANCELED:
           canceledCount++;
@@ -612,14 +618,6 @@ export class CompanyService {
       });
       totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
     }
-
-    const completedDepositsNet = appointments
-      .filter((a) => a.status === ApptStatus.COMPLETED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
-
-    const escrowLockedBalance = appointments
-      .filter((a) => a.status === ApptStatus.CONFIRMED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
 
     const availableBalance = Math.max(
       0,
