@@ -12,3 +12,7 @@
 **Vulnerability:** The global exception filter (`AllExceptionsFilter`) was blindly returning the raw exception message to the client for unhandled `Error` instances (`message = exception.message || message;`). This can leak sensitive internal server details, database paths, or stack traces.
 **Learning:** Always provide a sanitized, generic error message to end users for 500 Internal Server Errors while logging the real exception securely internally.
 **Prevention:** Ensure global error handlers do not override the generic fallback message with raw exception messages for unexpected errors.
+## 2024-05-20 - Prevent Log Injection and Data Leakage
+**Vulnerability:** Use of raw `console.error` and uncontrolled logging in integration points (`AsaasService`), potentially leaking sensitive data like API keys, secrets, or causing circular reference crashes when dealing with complex Error objects (e.g., from Axios).
+**Learning:** `console.error` lacks context, doesn't format well in production log aggregators, and using `JSON.stringify` on raw error objects without sanitization can expose headers/tokens or crash due to circular references.
+**Prevention:** Use the application's structured logger (`this.logger.error`). Always sanitize error objects by selectively extracting safe properties (`response.data`, `message`, etc.). When logging exceptions in NestJS, always pass the message as the first parameter and the `error.stack` as the second parameter to retain standard formatting.
