@@ -9,4 +9,3 @@ import { CalculateDeposit } from '../../helpers/calculate-deposit.helper';
   controllers: [CompanyServiceController],
 })
 export class CompanyServiceModule {}
-

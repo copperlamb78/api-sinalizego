@@ -598,10 +598,7 @@ export class CompanyService {
     let totalWithdrawn = 0;
     const companyProfile = await this.prisma.financialProfile.findFirst({
       where: {
-        OR: [
-          { userId },
-          { companies: { some: { id: company.id } } },
-        ],
+        OR: [{ userId }, { companies: { some: { id: company.id } } }],
         isActive: true,
       },
       select: { id: true, walletId: true },
@@ -612,7 +609,9 @@ export class CompanyService {
         where: {
           barberWalletId: companyProfile.walletId,
           type: TransactionType.WITHDRAWAL,
-          status: { in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING] },
+          status: {
+            in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
+          },
         },
         _sum: { totalValue: true },
       });
@@ -699,7 +698,9 @@ export class CompanyService {
       },
       _sum: { downPaymentAmount: true },
     });
-    const completedNetRevenue = Number(completedAgg._sum.downPaymentAmount || 0);
+    const completedNetRevenue = Number(
+      completedAgg._sum.downPaymentAmount || 0,
+    );
 
     const escrowAgg = await this.prisma.appointment.aggregate({
       where: {
@@ -745,8 +746,7 @@ export class CompanyService {
       nextFreeWithdrawalDate: nextMonday.toISOString(),
       instantTransferFee: ASAAS_TRANSFER_FEE,
       minFreeWeeklyPayoutThreshold: MIN_FREE_WEEKLY_PAYOUT,
-      eligibleForFreeWeeklyPayout:
-        availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
+      eligibleForFreeWeeklyPayout: availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
     };
   }
 
@@ -817,7 +817,9 @@ export class CompanyService {
         },
         _sum: { downPaymentAmount: true },
       });
-      const completedNetRevenue = Number(completedAgg._sum.downPaymentAmount || 0);
+      const completedNetRevenue = Number(
+        completedAgg._sum.downPaymentAmount || 0,
+      );
 
       const escrowAgg = await tx.appointment.aggregate({
         where: {
@@ -922,8 +924,7 @@ export class CompanyService {
       data: {
         status: TransactionStatus.CONFIRMED,
         asaasPaymentId:
-          asaasResult?.id ||
-          `with_${Date.now()}_${company.id.slice(0, 6)}`,
+          asaasResult?.id || `with_${Date.now()}_${company.id.slice(0, 6)}`,
       },
     });
 

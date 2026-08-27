@@ -326,16 +326,16 @@ describe('CompanyController', () => {
           transferredAt: new Date(),
         },
       ];
-      mockCompanyService.getCompanyWithdrawalHistory.mockResolvedValue(expected);
+      mockCompanyService.getCompanyWithdrawalHistory.mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.getWithdrawals(req);
 
-      expect(
-        companyService.getCompanyWithdrawalHistory,
-      ).toHaveBeenCalledWith('user-1');
+      expect(companyService.getCompanyWithdrawalHistory).toHaveBeenCalledWith(
+        'user-1',
+      );
       expect(result).toEqual(expected);
     });
   });
 });
-
-
