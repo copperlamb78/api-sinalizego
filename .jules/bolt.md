@@ -9,3 +9,6 @@
 ## 2026-08-26 - [Array Operations Optimization]
 **Learning:** Found an instance in `company.service.ts` where arrays were being mapped/filtered multiple times sequentially instead of utilizing an existing `for (const appt of appointments)` loop that was already iterating through the same data.
 **Action:** Avoid appending `.filter().reduce()` chains at the end of methods if the target array is already being iterated over. Compute sums and metrics in a single pass to minimize intermediate array allocations and O(n) passes.
+## 2026-08-28 - [Date object optimization]
+**Learning:** Avoid replacing local time `new Date(year, month, day, hour, min)` constructions with millisecond arithmetic `baseDateMs + minutes * 60000` because this breaks during Daylight Saving Time (DST) transitions.
+**Action:** When trying to optimize date comparisons in a hot path, simply cache primitive results like `Date.now()` and `.getTime()` values to perform fast integer comparisons, rather than bypassing `new Date()` construction for specific local times.

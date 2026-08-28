@@ -184,7 +184,7 @@ export class AvailabilityService {
     });
 
     const maxCapacity = service.serviceGroup?.capacity ?? 1;
-    const now = new Date();
+    const nowMs = Date.now();
     const availableSlots: string[] = [];
 
     // Pre-calculate appointment times in milliseconds to avoid O(N * M) Date parsing
@@ -236,12 +236,13 @@ export class AvailabilityService {
       );
 
       // 2. Exclusão de horários passados caso a data consultada seja hoje
-      if (slotStartDate <= now) {
+      // ⚡ Bolt: Cache slotStartMs early to do fast integer comparison instead of Date object comparison against now
+      const slotStartMs = slotStartDate.getTime();
+      if (slotStartMs <= nowMs) {
         continue;
       }
 
       // 3. Verificação de sobreposição com agendamentos existentes no grupo de serviço
-      const slotStartMs = slotStartDate.getTime();
       const slotEndMs = slotEndDate.getTime();
 
       const overlappingCount = activeAppointmentsMs.filter(
