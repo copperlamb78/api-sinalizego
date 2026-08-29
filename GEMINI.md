@@ -29,12 +29,12 @@ Welcome, Antigravity Agent. This document outlines the core architectural patter
 You must reuse existing code instead of rewriting functionality. Pay special attention to these existing components:
 
 *   **`CalculateTax` (Helper - `src/helpers/calculate-tax.helper.ts`)**:
-    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices (cumulative progressive brackets with R$ 0.25 ceiling rounding and R$ 2.00 minimum floor).
+    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices (cumulative progressive brackets: 10% up to R$ 250.00 and 5% above with R$ 0.25 ceiling rounding and R$ 2.00 minimum floor).
     *   **Methods**: `calculatePlatformTaxPercentage(totalPrice)` and `calculatePlatformTax(totalPrice)`.
 
 *   **`CalculateDeposit` (Helper - `src/helpers/calculate-deposit.helper.ts`)**:
-    *   **Purpose**: Use this for deposit calculation applying the Micro-Transaction Safety Gate (R$ 15.00 minimum threshold) and dynamic blocks.
-    *   **Methods**: `calculateDeposit(totalPrice, configuredFloor, clientSelectedPercent?)`, `calculateDepositDetails(totalPrice, configuredFloor, clientSelectedPercent?)` and `getAvailableBlocks(totalPrice, configuredFloor)`.
+    *   **Purpose**: Use this for deposit calculation applying the automated 50% default (with R$ 15.00 Safety Gate or 100% if < R$ 15.00) and 30% high-ticket option for services >= R$ 400.00.
+    *   **Methods**: `calculateDeposit(totalPrice, serviceDepositPercent?)`, `calculateDepositDetails(totalPrice, serviceDepositPercent?)` and `getAvailableBlocks(totalPrice, serviceDepositPercent?)`.
 
 *   **`ValidateImage` (Helper - `src/helpers/validate-image.helper.ts`)**:
     *   **Purpose**: Validates real binary file signatures (Magic Bytes) for image uploads (JPEG, PNG, WEBP) to prevent malicious or forged MIME uploads.
@@ -99,17 +99,15 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 ## 7. Core Business & Billing Rules (CRITICAL)
 
 *   **Establishment Down Payment Configuration:**
-    *   When creating or editing services, the professional/barber must define the minimum required deposit (`downPaymentPercent`) exclusively as either **25%** or **50%**.
+    *   When creating or editing services, the professional/barber defines `downPaymentPercent` / `depositPercentage` as **50%** (default) or **30%** (optional for high-ticket services `>= R$ 400.00`). If `price < R$ 400.00`, it is strictly normalized to 50%.
 
-*   **Dynamic Customer Selection Blocks:**
-    *   During checkout, the customer can select the deposit fraction they wish to pay upfront to secure their slot using progressive intervals: `[configured_floor, ..., 75%, 100%]`.
-    *   *Example (Floor 25%):* Available baseline options = `[25%, 50%, 75%, 100%]`.
-    *   *Example (Floor 50%):* Available baseline options = `[50%, 75%, 100%]`.
+*   **Automated Server-Side Deposit Calculation:**
+    *   The deposit fraction is calculated 100% server-side based on the service rules (client manual selection removed).
 
 *   **Micro-Transaction Safety Gate (R$ 15.00 Threshold):**
     *   The absolute minimum amount allowed for fractional/deposit payments is **R$ 15.00**.
     *   If the total service price is below R$ 15.00, the system **must strictly enforce 100% upfront payment** at booking.
-    *   For services priced at R$ 15.00 or higher, available percentage blocks must be dynamically filtered: any block resulting in a monetary value `< R$ 15.00` is discarded, exposing only options with a value `>= R$ 15.00` alongside the `100%` full payment option.
+    *   For services priced at R$ 15.00 or higher, the deposit is `Math.max(calculatedDeposit, 15.00)`.
 
 *   **Platform Margin & Floor Tax Guarantee:**
     *   The platform minimum fee (**R$ 2.00**) is immutable and mandatory across all transactions (`MIN_PLATFORM_TAX`), guaranteeing a positive net margin regardless of the service price.
@@ -128,7 +126,8 @@ You must reuse existing code instead of rewriting functionality. Pay special att
 *   **Pix Expiration, Anti-DoS & Booking Hold Limits:** To strictly prevent schedule collisions and denial of service:
     *   Every Pix charge created via Asaas **must** be generated with an explicit expiration timeframe of **15 minutes** (`expiresAt`).
     *   Slot availability checks dynamically exclude expired `PENDING_PAYMENT` appointments (`OR: [{ status: { not: 'PENDING_PAYMENT' } }, { expiresAt: { gt: now } }]`).
-    *   A client is limited to a maximum of **3 active PENDING_PAYMENT** appointments simultaneously.
+    *   A client is limited to a maximum of **2 concurrent active appointments** (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2`) simultaneously.
+    *   Accounts with **3 or more cancellations in the same week (7 days)** are blocked preventively from creating new appointments (`MAX_WEEKLY_CANCELLATIONS_LIMIT = 3`).
     *   A scheduled task (Cron Job `@nestjs/schedule`) executes every minute to cancel expired pending bookings and release gateway charges.
 *   **Immutable Historical Pricing:** Once an `Appointment` is created, all financial fields (`totalAmount`, `amountPaidOnline`, `amountToPayInSalon`, `platformTaxCharged`) must be permanently frozen in that record. Never calculate real-time values based on the `Service` or `Company` tables for existing appointments, ensuring price changes do not retroactively affect past bookings.
 *   **Onboarding Strict Requirements:** A company/barber is strictly prohibited from activating booking capabilities or creating services if their Asaas subaccount integration is incomplete. The system must validate that the `walletId` exists and the account status is fully active/approved before opening the schedule.

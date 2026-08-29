@@ -442,7 +442,7 @@ export class AsaasService implements OnModuleInit {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error(errorData);
+        this.logger.error('Erro Asaas', typeof errorData === 'object' ? JSON.stringify(errorData) : errorData);
         throw new BadRequestException(errorData.errors[0].description);
       }
 
@@ -459,7 +459,7 @@ export class AsaasService implements OnModuleInit {
 
       if (!pixResponse.ok) {
         const errorData = await pixResponse.json();
-        console.error(errorData);
+        this.logger.error('Erro Asaas', typeof errorData === 'object' ? JSON.stringify(errorData) : errorData);
         throw new BadRequestException(errorData.errors[0].description);
       }
 
@@ -501,10 +501,7 @@ export class AsaasService implements OnModuleInit {
       if (error instanceof HttpException) {
         throw error;
       }
-      console.error(
-        'Erro ao gerar Pix no Asaas:',
-        error.response?.data || error.message,
-      );
+      this.logger.error('Erro ao gerar Pix no Asaas:: ' + (typeof (error.response?.data || error.message) === 'object' ? JSON.stringify(error.response?.data || error.message) : String(error.response?.data || error.message)), error.stack);
       throw new InternalServerErrorException('Falha ao processar pagamento');
     }
   }
@@ -521,7 +518,7 @@ export class AsaasService implements OnModuleInit {
 
       if (!pixResponse.ok) {
         const errorData = await pixResponse.json();
-        console.error(errorData);
+        this.logger.error('Erro Asaas', typeof errorData === 'object' ? JSON.stringify(errorData) : errorData);
         throw new BadRequestException(
           errorData?.errors?.[0]?.description ||
             'Falha ao obter QR Code do Pix no Asaas.',
@@ -547,10 +544,7 @@ export class AsaasService implements OnModuleInit {
       if (error instanceof HttpException) {
         throw error;
       }
-      console.error(
-        'Erro ao consultar QR Code Pix no Asaas:',
-        error.response?.data || error.message,
-      );
+      this.logger.error('Erro ao consultar QR Code Pix no Asaas:: ' + (typeof (error.response?.data || error.message) === 'object' ? JSON.stringify(error.response?.data || error.message) : String(error.response?.data || error.message)), error.stack);
       throw new InternalServerErrorException(
         'Falha ao obter QR Code do Pix no Asaas',
       );
@@ -569,7 +563,7 @@ export class AsaasService implements OnModuleInit {
       });
       if (!response.ok) {
         const errorData = await response.json();
-        console.error(errorData);
+        this.logger.error('Erro Asaas', typeof errorData === 'object' ? JSON.stringify(errorData) : errorData);
         throw new BadRequestException(errorData.errors[0].description);
       }
       const { id: customerId } = await response.json();
@@ -578,10 +572,7 @@ export class AsaasService implements OnModuleInit {
       if (error instanceof HttpException) {
         throw error;
       }
-      console.error(
-        'Erro ao criar cliente no Asaas:',
-        error.response?.data || error.message,
-      );
+      this.logger.error('Erro ao criar cliente no Asaas:: ' + (typeof (error.response?.data || error.message) === 'object' ? JSON.stringify(error.response?.data || error.message) : String(error.response?.data || error.message)), error.stack);
       throw new InternalServerErrorException('Falha ao criar cliente no Asaas');
     }
   }
@@ -598,16 +589,13 @@ export class AsaasService implements OnModuleInit {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Erro ao cancelar cobrança no Asaas:', errorData);
+        this.logger.error('Erro ao cancelar cobrança no Asaas:', typeof errorData === 'object' ? JSON.stringify(errorData) : String(errorData));
         return false;
       }
 
       return true;
     } catch (error: any) {
-      console.error(
-        'Falha na comunicação com Asaas ao cancelar cobrança:',
-        error.message,
-      );
+      this.logger.error('Falha na comunicação com Asaas ao cancelar cobrança:: ' + error.message, error.stack);
       return false;
     }
   }
@@ -639,16 +627,13 @@ export class AsaasService implements OnModuleInit {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Erro ao estornar cobrança no Asaas:', errorData);
+        this.logger.error('Erro ao estornar cobrança no Asaas:', typeof errorData === 'object' ? JSON.stringify(errorData) : String(errorData));
         return false;
       }
 
       return true;
     } catch (error: any) {
-      console.error(
-        'Falha na comunicação com Asaas ao estornar cobrança:',
-        error.message,
-      );
+      this.logger.error('Falha na comunicação com Asaas ao estornar cobrança:: ' + error.message, error.stack);
       return false;
     }
   }
@@ -665,10 +650,7 @@ export class AsaasService implements OnModuleInit {
 
       if (!response.ok) {
         const errorData = await response.json();
-        this.logger.error(
-          `Erro ao consultar cobrança #${paymentId} no Asaas:`,
-          errorData,
-        );
+        this.logger.error(`Erro ao consultar cobrança #${paymentId} no Asaas:`, typeof errorData === 'object' ? JSON.stringify(errorData) : errorData);
         return null;
       }
 

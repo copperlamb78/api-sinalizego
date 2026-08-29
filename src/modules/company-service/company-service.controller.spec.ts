@@ -42,12 +42,12 @@ describe('CompanyServiceController', () => {
   describe('CreateServiceDto Validation', () => {
     const validUUID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
-    it('should fail validation when downPaymentPercent is not 25 or 50 (e.g. 30%)', async () => {
+    it('should fail validation when downPaymentPercent is not 30 or 50 (e.g. 25% or 40%)', async () => {
       const dto = plainToInstance(CreateServiceDto, {
         name: 'Corte',
         durationMinutes: 30,
         totalPrice: 50,
-        downPaymentPercent: 30,
+        downPaymentPercent: 25,
         serviceGroupId: validUUID,
       });
       const errors = await validate(dto);
@@ -72,16 +72,16 @@ describe('CompanyServiceController', () => {
       );
     });
 
-    it('should pass validation when downPaymentPercent is 25 or 50 and serviceGroupId is a valid UUID', async () => {
-      const dto25 = plainToInstance(CreateServiceDto, {
+    it('should pass validation when downPaymentPercent is 30 or 50 and serviceGroupId is a valid UUID', async () => {
+      const dto30 = plainToInstance(CreateServiceDto, {
         name: 'Corte',
         durationMinutes: 30,
-        totalPrice: 50,
-        downPaymentPercent: 25,
+        totalPrice: 500,
+        downPaymentPercent: 30,
         serviceGroupId: validUUID,
       });
-      const errors25 = await validate(dto25);
-      expect(errors25.length).toBe(0);
+      const errors30 = await validate(dto30);
+      expect(errors30.length).toBe(0);
 
       const dto50 = plainToInstance(CreateServiceDto, {
         name: 'Corte',
@@ -103,75 +103,63 @@ describe('CompanyServiceController', () => {
         description: 'Corte masculino na tesoura e máquina',
         durationMinutes: 45,
         totalPrice: 40.0,
-        downPaymentPercent: 25,
+        downPaymentPercent: 50,
         serviceGroupId: 'group-1',
       };
       const expected = { id: 'service-1', ...dto, companyId: 'company-1' };
       mockCompanyServiceService.createService.mockResolvedValue(expected);
 
       const result = await controller.create(dto as any, req);
-      expect(service.createService).toHaveBeenCalledWith(dto, 'owner-1');
-      expect(result).toEqual(expected);
-    });
-  });
 
-  describe('getServicesByCompany', () => {
-    it('should list services of the company for the logged owner', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
-      const expected = [{ id: 'service-1', name: 'Corte Tradicional' }];
-      mockCompanyServiceService.getServicesByCompany.mockResolvedValue(
-        expected,
-      );
-
-      const result = await controller.getServicesByCompany(req, undefined);
-      expect(service.getServicesByCompany).toHaveBeenCalledWith(
+      expect(mockCompanyServiceService.createService).toHaveBeenCalledWith(
+        dto,
         'owner-1',
-        undefined,
       );
       expect(result).toEqual(expected);
     });
   });
 
   describe('getServicesBySlug', () => {
-    it('should return public service catalog for a company slug', async () => {
-      const expected = [{ id: 'service-1', name: 'Corte Tradicional' }];
+    it('should return services for valid slug', async () => {
+      const expected = [{ id: 'service-1', name: 'Corte' }];
       mockCompanyServiceService.getServicesBySlug.mockResolvedValue(expected);
 
-      const result = await controller.getServicesBySlug('barbearia-vip');
-      expect(service.getServicesBySlug).toHaveBeenCalledWith('barbearia-vip');
+      const result = await controller.getServicesBySlug('minha-barbearia');
+
+      expect(mockCompanyServiceService.getServicesBySlug).toHaveBeenCalledWith(
+        'minha-barbearia',
+      );
       expect(result).toEqual(expected);
     });
   });
 
   describe('update', () => {
-    it('should update service details', async () => {
+    it('should update service for the authenticated owner', async () => {
       const req = { user: { sub: 'owner-1' } } as any;
-      const updateDto = { name: 'Corte Degradê Premium' };
-      const expected = { id: 'service-1', name: 'Corte Degradê Premium' };
+      const dto = { name: 'Corte Atualizado' };
+      const expected = { id: 'service-1', name: 'Corte Atualizado' };
       mockCompanyServiceService.updateService.mockResolvedValue(expected);
 
-      const result = await controller.update(
-        'service-1',
-        updateDto as any,
-        req,
-      );
-      expect(service.updateService).toHaveBeenCalledWith(
+      const result = await controller.update('service-1', dto as any, req);
+
+      expect(mockCompanyServiceService.updateService).toHaveBeenCalledWith(
         'owner-1',
         'service-1',
-        updateDto,
+        dto,
       );
       expect(result).toEqual(expected);
     });
   });
 
   describe('deactivateService', () => {
-    it('should deactivate service', async () => {
+    it('should deactivate service for the authenticated owner', async () => {
       const req = { user: { sub: 'owner-1' } } as any;
       const expected = { id: 'service-1', isActive: false };
       mockCompanyServiceService.deactivateService.mockResolvedValue(expected);
 
       const result = await controller.deactivateService('service-1', req);
-      expect(service.deactivateService).toHaveBeenCalledWith(
+
+      expect(mockCompanyServiceService.deactivateService).toHaveBeenCalledWith(
         'owner-1',
         'service-1',
       );
@@ -180,13 +168,14 @@ describe('CompanyServiceController', () => {
   });
 
   describe('activateService', () => {
-    it('should activate service', async () => {
+    it('should activate service for the authenticated owner', async () => {
       const req = { user: { sub: 'owner-1' } } as any;
       const expected = { id: 'service-1', isActive: true };
       mockCompanyServiceService.activateService.mockResolvedValue(expected);
 
       const result = await controller.activateService('service-1', req);
-      expect(service.activateService).toHaveBeenCalledWith(
+
+      expect(mockCompanyServiceService.activateService).toHaveBeenCalledWith(
         'owner-1',
         'service-1',
       );
@@ -194,13 +183,33 @@ describe('CompanyServiceController', () => {
     });
   });
 
+  describe('getServicesByCompany', () => {
+    it('should return services for the authenticated owner company', async () => {
+      const req = { user: { sub: 'owner-1' } } as any;
+      const expected = [{ id: 'service-1' }];
+      mockCompanyServiceService.getServicesByCompany.mockResolvedValue(
+        expected,
+      );
+
+      const result = await controller.getServicesByCompany(req);
+
+      expect(
+        mockCompanyServiceService.getServicesByCompany,
+      ).toHaveBeenCalledWith('owner-1', undefined);
+      expect(result).toEqual(expected);
+    });
+  });
+
   describe('getAllServices', () => {
-    it('should return all services for system managers', async () => {
-      const expected = [{ id: 'service-1', name: 'Corte Tradicional' }];
+    it('should return all services (Admin)', async () => {
+      const expected = [{ id: 'service-1' }];
       mockCompanyServiceService.getAllServices.mockResolvedValue(expected);
 
       const result = await controller.getAllServices();
-      expect(service.getAllServices).toHaveBeenCalled();
+
+      expect(mockCompanyServiceService.getAllServices).toHaveBeenCalledWith(
+        undefined,
+      );
       expect(result).toEqual(expected);
     });
   });

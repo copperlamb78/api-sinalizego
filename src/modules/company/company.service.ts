@@ -453,6 +453,10 @@ export class CompanyService {
     let canceledCount = 0;
     let pendingPaymentCount = 0;
 
+    // Bolt optimization: compute in a single pass to avoid O(n) filter/reduce later
+    let completedDepositsNet = 0;
+    let escrowLockedBalance = 0;
+
     const servicesMap = new Map<
       string,
       {
@@ -474,11 +478,13 @@ export class CompanyService {
           totalRevenue += price;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
+          completedDepositsNet += downPayment; // Bolt optimization
           break;
         case ApptStatus.CONFIRMED:
           confirmedCount++;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
+          escrowLockedBalance += downPayment; // Bolt optimization
           break;
         case ApptStatus.CANCELED:
           canceledCount++;
@@ -599,7 +605,7 @@ export class CompanyService {
     });
 
     if (companyProfile?.walletId) {
-      const withdrawals = await this.prisma.transaction.findMany({
+      const withdrawalsAgg = await this.prisma.transaction.aggregate({
         where: {
           barberWalletId: companyProfile.walletId,
           type: TransactionType.WITHDRAWAL,
@@ -607,21 +613,10 @@ export class CompanyService {
             in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
           },
         },
-        select: { totalValue: true },
+        _sum: { totalValue: true },
       });
-      totalWithdrawn = withdrawals.reduce(
-        (acc, w) => acc + Number(w.totalValue || 0),
-        0,
-      );
+      totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
     }
-
-    const completedDepositsNet = appointments
-      .filter((a) => a.status === ApptStatus.COMPLETED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
-
-    const escrowLockedBalance = appointments
-      .filter((a) => a.status === ApptStatus.CONFIRMED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
 
     const availableBalance = Math.max(
       0,
@@ -695,26 +690,27 @@ export class CompanyService {
       );
     }
 
-    const appointments = await this.prisma.appointment.findMany({
+    const completedAgg = await this.prisma.appointment.aggregate({
       where: {
         companyId: company.id,
         isActive: true,
+        status: ApptStatus.COMPLETED,
       },
-      select: {
-        status: true,
-        downPaymentAmount: true,
-      },
+      _sum: { downPaymentAmount: true },
     });
+    const completedNetRevenue = Number(completedAgg._sum.downPaymentAmount || 0);
 
-    const completedNetRevenue = appointments
-      .filter((a) => a.status === ApptStatus.COMPLETED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
+    const escrowAgg = await this.prisma.appointment.aggregate({
+      where: {
+        companyId: company.id,
+        isActive: true,
+        status: ApptStatus.CONFIRMED,
+      },
+      _sum: { downPaymentAmount: true },
+    });
+    const escrowLockedBalance = Number(escrowAgg._sum.downPaymentAmount || 0);
 
-    const escrowLockedBalance = appointments
-      .filter((a) => a.status === ApptStatus.CONFIRMED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
-
-    const withdrawals = await this.prisma.transaction.findMany({
+    const withdrawalsAgg = await this.prisma.transaction.aggregate({
       where: {
         barberWalletId: financialProfile.walletId,
         type: TransactionType.WITHDRAWAL,
@@ -722,13 +718,9 @@ export class CompanyService {
           in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
         },
       },
-      select: { totalValue: true },
+      _sum: { totalValue: true },
     });
-
-    const totalWithdrawn = withdrawals.reduce(
-      (acc, w) => acc + Number(w.totalValue || 0),
-      0,
-    );
+    const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
 
     const availableBalance = Math.max(
       0,
@@ -815,24 +807,28 @@ export class CompanyService {
       }
 
       // Busca agendamentos ativos da empresa para apuração de saldo
-      const appointments = await tx.appointment.findMany({
+      const completedAgg = await tx.appointment.aggregate({
         where: {
           companyId: company.id,
           isActive: true,
+          status: ApptStatus.COMPLETED,
         },
-        select: { status: true, downPaymentAmount: true },
+        _sum: { downPaymentAmount: true },
       });
+      const completedNetRevenue = Number(completedAgg._sum.downPaymentAmount || 0);
 
-      const completedNetRevenue = appointments
-        .filter((a) => a.status === ApptStatus.COMPLETED)
-        .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
-
-      const escrowLocked = appointments
-        .filter((a) => a.status === ApptStatus.CONFIRMED)
-        .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
+      const escrowAgg = await tx.appointment.aggregate({
+        where: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.CONFIRMED,
+        },
+        _sum: { downPaymentAmount: true },
+      });
+      const escrowLocked = Number(escrowAgg._sum.downPaymentAmount || 0);
 
       // Saques já realizados ou em processamento (CONFIRMED ou PENDING)
-      const withdrawals = await tx.transaction.findMany({
+      const withdrawalsAgg = await tx.transaction.aggregate({
         where: {
           barberWalletId: financialProfile.walletId,
           type: TransactionType.WITHDRAWAL,
@@ -840,13 +836,9 @@ export class CompanyService {
             in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
           },
         },
-        select: { totalValue: true },
+        _sum: { totalValue: true },
       });
-
-      const totalWithdrawn = withdrawals.reduce(
-        (acc, w) => acc + Number(w.totalValue || 0),
-        0,
-      );
+      const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
 
       const currentAvailableBalance = Math.max(
         0,

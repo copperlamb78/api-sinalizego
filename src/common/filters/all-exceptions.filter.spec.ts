@@ -117,7 +117,7 @@ describe('AllExceptionsFilter', () => {
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Unexpected database failure',
+        message: 'Ocorreu um erro interno no servidor.',
         error: 'Internal Server Error',
       }),
     );

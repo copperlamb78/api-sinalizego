@@ -23,49 +23,52 @@ describe('CalculateTax Helper', () => {
     });
 
     it('should apply minimum fee of R$ 2.00 when calculated tax is lower than 2.00 in Tier 1', () => {
-      // 10 * 0.15 = 1.50 -> Min fee = 2.00
+      // 10 * 0.10 = 1.00 -> Min fee = 2.00
       expect(helper.calculatePlatformTax(10)).toBe(2.0);
-      // 5 * 0.15 = 0.75 -> Min fee = 2.00
+      // 5 * 0.10 = 0.50 -> Min fee = 2.00
       expect(helper.calculatePlatformTax(5)).toBe(2.0);
+      // 15 * 0.10 = 1.50 -> Min fee = 2.00
+      expect(helper.calculatePlatformTax(15)).toBe(2.0);
     });
 
-    it('should calculate 15% for values in Tier 1 (up to R$ 50.00)', () => {
-      // 30 * 0.15 = 4.50
-      expect(helper.calculatePlatformTax(30)).toBe(4.5);
-      // 50 * 0.15 = 7.50
-      expect(helper.calculatePlatformTax(50)).toBe(7.5);
+    it('should calculate 10% for values in Tier 1 (up to R$ 250.00)', () => {
+      // 20 * 0.10 = 2.00
+      expect(helper.calculatePlatformTax(20)).toBe(2.0);
+      // 30 * 0.10 = 3.00
+      expect(helper.calculatePlatformTax(30)).toBe(3.0);
+      // 50 * 0.10 = 5.00
+      expect(helper.calculatePlatformTax(50)).toBe(5.0);
+      // 60 * 0.10 = 6.00
+      expect(helper.calculatePlatformTax(60)).toBe(6.0);
+      // 100 * 0.10 = 10.00
+      expect(helper.calculatePlatformTax(100)).toBe(10.0);
+      // 250 * 0.10 = 25.00
+      expect(helper.calculatePlatformTax(250)).toBe(25.0);
     });
 
-    it('should calculate cumulative tax for Tier 2 (R$ 50.01 to R$ 250.00)', () => {
-      // 100 -> Faixa 1 (50 * 0.15 = 7.50) + Faixa 2 ((100 - 50) * 0.10 = 5.00) = 12.50
-      expect(helper.calculatePlatformTax(100)).toBe(12.5);
-      // 250 -> Faixa 1 (50 * 0.15 = 7.50) + Faixa 2 (200 * 0.10 = 20.00) = 27.50
-      expect(helper.calculatePlatformTax(250)).toBe(27.5);
-    });
-
-    it('should calculate cumulative tax for Tier 3 (above R$ 250.00)', () => {
-      // 300 -> Faixa 1 (7.50) + Faixa 2 (20.00) + Faixa 3 ((300 - 250) * 0.05 = 2.50) = 30.00
-      expect(helper.calculatePlatformTax(300)).toBe(30.0);
-      // 500 -> Faixa 1 (7.50) + Faixa 2 (20.00) + Faixa 3 ((500 - 250) * 0.05 = 12.50) = 40.00
-      expect(helper.calculatePlatformTax(500)).toBe(40.0);
+    it('should calculate cumulative tax for Tier 2 (above R$ 250.00: 25.00 + 5% of excess)', () => {
+      // 300 -> Faixa 1 (250 * 0.10 = 25.00) + Faixa 2 ((300 - 250) * 0.05 = 2.50) = 27.50
+      expect(helper.calculatePlatformTax(300)).toBe(27.5);
+      // 500 -> Faixa 1 (25.00) + Faixa 2 ((500 - 250) * 0.05 = 12.50) = 37.50
+      expect(helper.calculatePlatformTax(500)).toBe(37.5);
+      // 1000 -> Faixa 1 (25.00) + Faixa 2 ((1000 - 250) * 0.05 = 37.50) = 62.50
+      expect(helper.calculatePlatformTax(1000)).toBe(62.5);
     });
 
     it('should always round UP to the nearest multiple of R$ 0.25 (ex: 2.25, 2.50, 2.75, 3.00)', () => {
-      // 15.80 * 0.15 = 2.37 -> rounds UP to 2.50
-      expect(helper.calculatePlatformTax(15.8)).toBe(2.5);
-      // 22.80 * 0.15 = 3.42 -> rounds UP to 3.50
-      expect(helper.calculatePlatformTax(22.8)).toBe(3.5);
-      // 16.00 * 0.15 = 2.40 -> rounds UP to 2.50
-      expect(helper.calculatePlatformTax(16)).toBe(2.5);
-      // 18.00 * 0.15 = 2.70 -> rounds UP to 2.75
-      expect(helper.calculatePlatformTax(18)).toBe(2.75);
+      // 22.80 * 0.10 = 2.28 -> rounds UP to 2.50
+      expect(helper.calculatePlatformTax(22.8)).toBe(2.5);
+      // 26.00 * 0.10 = 2.60 -> rounds UP to 2.75
+      expect(helper.calculatePlatformTax(26)).toBe(2.75);
+      // 28.50 * 0.10 = 2.85 -> rounds UP to 3.00
+      expect(helper.calculatePlatformTax(28.5)).toBe(3.0);
+      // 31.00 * 0.10 = 3.10 -> rounds UP to 3.25
+      expect(helper.calculatePlatformTax(31)).toBe(3.25);
     });
 
     it('should handle boundary decimals rounding up to multiple of 0.25 accurately', () => {
-      // 50.01 -> 50 * 0.15 = 7.50 + 0.01 * 0.10 = 0.001 -> 7.501 -> rounds up to 7.75
-      expect(helper.calculatePlatformTax(50.01)).toBe(7.75);
-      // 250.01 -> 27.50 + 0.01 * 0.05 = 27.5005 -> rounds up to 27.75
-      expect(helper.calculatePlatformTax(250.01)).toBe(27.75);
+      // 250.01 -> 25.00 + 0.01 * 0.05 = 25.0005 -> rounds up to 25.25
+      expect(helper.calculatePlatformTax(250.01)).toBe(25.25);
     });
   });
 
@@ -78,12 +81,13 @@ describe('CalculateTax Helper', () => {
     it('should return effective tax rate correctly', () => {
       // 10: fee = 2.00, rate = 2.00 / 10 = 0.2
       expect(helper.calculatePlatformTaxPercentage(10)).toBe(0.2);
-      // 50: fee = 7.50, rate = 7.50 / 50 = 0.15
-      expect(helper.calculatePlatformTaxPercentage(50)).toBe(0.15);
-      // 100: fee = 12.50, rate = 12.50 / 100 = 0.125
-      expect(helper.calculatePlatformTaxPercentage(100)).toBe(0.125);
-      // 300: fee = 30.00, rate = 30.00 / 300 = 0.1
-      expect(helper.calculatePlatformTaxPercentage(300)).toBe(0.1);
+      // 50: fee = 5.00, rate = 5.00 / 50 = 0.1
+      expect(helper.calculatePlatformTaxPercentage(50)).toBe(0.1);
+      // 100: fee = 10.00, rate = 10.00 / 100 = 0.1
+      expect(helper.calculatePlatformTaxPercentage(100)).toBe(0.1);
+      // 300: fee = 27.50, rate = 27.50 / 300 = 0.0917
+      expect(helper.calculatePlatformTaxPercentage(300)).toBe(0.0917);
     });
   });
 });
+

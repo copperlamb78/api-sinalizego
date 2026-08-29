@@ -12,28 +12,25 @@ export class CalculateTax {
   calculatePlatformTax(totalPrice: number): number {
     if (totalPrice <= 0) return 0;
 
-    let baseFee = 0;
+    // Aritmética pura de inteiros em centavos (sem multiplicação por decimais)
+    const priceCents = Math.round(totalPrice * 100);
 
-    // Faixa 1: até R$ 50,00 (15%)
-    const tier1Amount = Math.min(totalPrice, 50);
-    baseFee += tier1Amount * 0.15;
+    // Faixa 1: até 25.000 centavos (R$ 250,00) com 10%
+    const tier1Cents = Math.min(priceCents, 25000);
+    const tier2Cents = priceCents > 25000 ? priceCents - 25000 : 0;
 
-    // Faixa 2: de R$ 50,01 até R$ 250,00 (10%)
-    if (totalPrice > 50) {
-      const tier2Amount = Math.min(totalPrice, 250) - 50;
-      baseFee += tier2Amount * 0.1;
-    }
+    // Frações inteiras de taxa (100 frações = 1 centavo; 2.500 frações = R$ 0,25)
+    const feeFractions = tier1Cents * 10 + tier2Cents * 5;
+    const minPlatformTaxFractions = Math.round(MIN_PLATFORM_TAX * 100) * 100; // 20.000 frações = R$ 2,00
 
-    // Faixa 3: acima de R$ 250,00 (5%)
-    if (totalPrice > 250) {
-      const tier3Amount = totalPrice - 250;
-      baseFee += tier3Amount * 0.05;
-    }
+    const totalFeeFractions = Math.max(feeFractions, minPlatformTaxFractions);
 
-    const platformFee = Math.max(baseFee, MIN_PLATFORM_TAX); // Taxa mínima de R$ 2,00
-
-    // Arredondamento para cima sempre em múltiplos de R$ 0,25 (ex: 2.25, 2.50, 2.75, 3.00)
-    const roundedFee = Math.ceil(platformFee * 4) / 4;
-    return Number(roundedFee.toFixed(2));
+    // Arredondamento para cima em múltiplos de R$ 0,25 (2.500 frações)
+    const roundedCents = Math.ceil(totalFeeFractions / 2500) * 25;
+    return Number((roundedCents / 100).toFixed(2));
   }
 }
+
+
+
+

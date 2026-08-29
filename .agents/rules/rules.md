@@ -43,8 +43,8 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 
 ## 3. Registered Helpers & Core Components (Reuse STRICTLY)
 
-*   **`CalculateTax` (`src/helpers/calculate-tax.helper.ts`):** Calculates platform fees over deposit amount with cumulative brackets, R$ 2.00 floor (`MIN_PLATFORM_TAX`), and ceiling rounding to multiples of **R$ 0.25**.
-*   **`CalculateDeposit` (`src/helpers/calculate-deposit.helper.ts`):** Handles deposit blocks (`[floor, 50, 75, 100]`) and the R$ 15.00 Micro-Transaction Safety Gate.
+*   **`CalculateTax` (`src/helpers/calculate-tax.helper.ts`):** Calculates platform fees over deposit amount with cumulative progressive brackets (10% up to R$ 250.00 and 5% above), R$ 2.00 floor (`MIN_PLATFORM_TAX`), and ceiling rounding to multiples of **R$ 0.25**.
+*   **`CalculateDeposit` (`src/helpers/calculate-deposit.helper.ts`):** Handles automated deposit calculation: 50% default (with R$ 15.00 safety gate or 100% if < R$ 15.00) and 30% option for high-ticket services (>= R$ 400.00).
 *   **`ValidateImage` (`src/helpers/validate-image.helper.ts`):** Validates real binary magic bytes for uploads (JPEG, PNG, WEBP).
 *   **`CryptoHelper` (`src/helpers/crypto.helper.ts`):** Symmetric encryption and decryption at rest (AES-256-GCM) with authentication tags for sensitive credentials (`asaasApiKey`).
 *   **`AllExceptionsFilter` (`src/common/filters/all-exceptions.filter.ts`):** Global unified exception filter standardizing error payloads into a structured JSON payload with `statusCode`, `message`, `error`, `timestamp`, and `path`.
@@ -55,17 +55,17 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 
 ## 4. Core Business, Billing & Financial Rules (CRITICAL)
 
-*   **Deposit Configuration:** Barbers define service `downPaymentPercent` exclusively as **25%** or **50%** (`@IsIn([25, 50])`).
-*   **Dynamic Customer Blocks:** Checkout offers progressive options: `[configured_floor, ..., 75%, 100%]`.
+*   **Deposit Configuration:** Barbers define service `downPaymentPercent` / `depositPercentage` as **50%** (default) or **30%** (optional for high-ticket services `>= R$ 400.00`). If `price < R$ 400.00`, it is strictly normalized to 50%.
+*   **Automated Server-Side Deposit Calculation:** The deposit fraction is calculated 100% server-side based on the service rules (client manual selection removed).
 *   **Micro-Transaction Gate (R$ 15.00 Threshold):**
-    *   Minimum fractional deposit amount is **R$ 15.00**.
+    *   Minimum deposit amount is **R$ 15.00**.
     *   If total price `< R$ 15.00`, force **100% upfront**.
-    *   If total price `>= R$ 15.00`, dynamically discard percentage blocks resulting in `< R$ 15.00` (exposing only options `>= R$ 15.00` + `100%`).
+    *   If total price `>= R$ 15.00`, deposit is `Math.max(calculatedDeposit, 15.00)`.
 *   **Fee Rules & Rounding:**
     *   Platform fee minimum floor is **R$ 2.00** (`MIN_PLATFORM_TAX`).
-    *   Fee must round UP (`Math.ceil(fee * 4) / 4`) to the nearest **R$ 0.25** increment.
+    *   Fee must round UP via pure integer cents arithmetic (`Math.ceil(totalFeeFractions / 2500) * 25`) to the nearest **R$ 0.25** increment.
 *   **Immutable Historical Pricing:** Freeze `servicePrice`, `downPaymentAmount`, and `platformFeeAmount` in `Appointment` at creation. Never recalculate fees for existing bookings from live service tables.
-*   **Onboarding Gate:** Block bookings and service creation if the company's Asaas subaccount lacks a valid `walletId` or approved status.
+*   **Onboarding Gate:** Block bookings and service creation (`POST /company-service`) if the company's Asaas subaccount lacks a valid `walletId`.
 *   **Cancellation Policy (CDC Art. 51 / CC Arts. 417 a 420):**
     *   `> 24h` before appointment: Trigger full Asaas refund (`refundPayment`).
     *   `<= 24h`: Cancel appointment to free calendar; retain guaranteed minimum deposit for the barber as vacancy compensation, and automatically trigger partial refund via Asaas for any excess amount paid upfront.
@@ -91,7 +91,8 @@ You are the Antigravity Agent. Follow these strict patterns, architectural bound
 *   **Pix Anti-DoS (15-Minute Hold):**
     *   All Pix charges expire in **15 minutes** (`expiresAt`).
     *   Slot availability checks dynamically exclude expired `PENDING_PAYMENT` records (`OR: [{ status: { not: 'PENDING_PAYMENT' } }, { expiresAt: { gt: now } }]`).
-    *   Limit clients to **3 concurrent active `PENDING_PAYMENT`** bookings.
+    *   Limit clients to **2 concurrent active appointments** (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2`).
+    *   Block accounts with **3 or more cancellations in the same week (7 days)** from creating new appointments (`MAX_WEEKLY_CANCELLATIONS_LIMIT = 3`).
     *   A Cron Job (`@nestjs/schedule`) runs every minute to mark expired appointments as `CANCELED` and delete the charge on Asaas.
 
 ---

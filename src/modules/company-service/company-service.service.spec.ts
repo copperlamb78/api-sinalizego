@@ -2,12 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CompanyServiceService } from './company-service.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CalculateTax } from 'src/helpers/calculate-tax.helper';
-import { NotFoundException } from '@nestjs/common';
+import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('CompanyServiceService', () => {
   let service: CompanyServiceService;
   let prisma: PrismaService;
   let calculateTax: CalculateTax;
+  let calculateDeposit: CalculateDeposit;
 
   const mockPrisma = {
     company: {
@@ -27,6 +29,12 @@ describe('CompanyServiceService', () => {
     calculatePlatformTaxPercentage: jest.fn().mockReturnValue(0.15),
   };
 
+  const mockCalculateDeposit = {
+    calculateDeposit: jest.fn().mockReturnValue(25.0),
+    calculateDepositDetails: jest.fn(),
+    getAvailableBlocks: jest.fn().mockReturnValue([50]),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,12 +47,17 @@ describe('CompanyServiceService', () => {
           provide: CalculateTax,
           useValue: mockCalculateTax,
         },
+        {
+          provide: CalculateDeposit,
+          useValue: mockCalculateDeposit,
+        },
       ],
     }).compile();
 
     service = module.get<CompanyServiceService>(CompanyServiceService);
     prisma = module.get<PrismaService>(PrismaService);
     calculateTax = module.get<CalculateTax>(CalculateTax);
+    calculateDeposit = module.get<CalculateDeposit>(CalculateDeposit);
     jest.clearAllMocks();
   });
 
@@ -73,7 +86,7 @@ describe('CompanyServiceService', () => {
       );
     });
 
-    it('should return services with calculated platformTax in Reais', async () => {
+    it('should return services with calculated downPaymentAmount and platformTax in Reais', async () => {
       mockPrisma.company.findUnique.mockResolvedValue({
         id: 'comp-1',
         slug: 'barbearia',
@@ -89,15 +102,19 @@ describe('CompanyServiceService', () => {
         },
       ];
       mockPrisma.service.findMany.mockResolvedValue(mockServices);
-      mockCalculateTax.calculatePlatformTax.mockReturnValue(7.5); // R$ 7,50
+      mockCalculateDeposit.calculateDeposit.mockReturnValue(25.0);
+      mockCalculateTax.calculatePlatformTax.mockReturnValue(2.5);
 
       const result = await service.getServicesBySlug('barbearia');
 
-      expect(mockCalculateTax.calculatePlatformTax).toHaveBeenCalledWith(50.0);
+      expect(mockCalculateDeposit.calculateDeposit).toHaveBeenCalledWith(50.0, 50);
+      expect(mockCalculateTax.calculatePlatformTax).toHaveBeenCalledWith(25.0);
       expect(result).toEqual([
         {
           ...mockServices[0],
-          platformTax: 7.5,
+          totalPrice: 50.0,
+          downPaymentAmount: 25.0,
+          platformTax: 2.5,
         },
       ]);
     });
@@ -120,8 +137,26 @@ describe('CompanyServiceService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('should throw BadRequestException if company does not have a financialProfile with walletId (Onboarding Gate)', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        financialProfile: null,
+      });
+
+      await expect(
+        service.createService(createDto as any, 'user-1'),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Para cadastrar serviços, você precisa primeiro configurar sua conta bancária/financeira no painel.',
+        ),
+      );
+    });
+
     it('should throw NotFoundException if serviceGroup does not belong to the user company (Anti-IDOR)', async () => {
-      mockPrisma.company.findFirst.mockResolvedValue({ id: 'comp-1' });
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        financialProfile: { walletId: 'wal_123' },
+      });
       mockPrisma.serviceGroup = {
         findFirst: jest.fn().mockResolvedValue(null),
       };
@@ -135,8 +170,11 @@ describe('CompanyServiceService', () => {
       );
     });
 
-    it('should create service when company and serviceGroup are valid', async () => {
-      mockPrisma.company.findFirst.mockResolvedValue({ id: 'comp-1' });
+    it('should create service when company, financialProfile and serviceGroup are valid', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        financialProfile: { walletId: 'wal_123' },
+      });
       mockPrisma.serviceGroup = {
         findFirst: jest
           .fn()
@@ -157,12 +195,64 @@ describe('CompanyServiceService', () => {
           description: undefined,
           durationMinutes: createDto.durationMinutes,
           totalPrice: createDto.totalPrice,
-          downPaymentPercent: createDto.downPaymentPercent,
+          downPaymentPercent: 50,
           serviceGroupId: createDto.serviceGroupId,
           companyId: 'comp-1',
         },
       });
       expect(result).toEqual(createdService);
+    });
+
+    it('should normalize downPaymentPercent to 50% if price is below R$ 400.00 even if 30% requested', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        financialProfile: { walletId: 'wal_123' },
+      });
+      mockPrisma.serviceGroup = {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'group-uuid-1', companyId: 'comp-1' }),
+      };
+      mockPrisma.service.create.mockImplementation((args) => args.data);
+
+      const result = await service.createService(
+        {
+          name: 'Barba Terapia',
+          durationMinutes: 30,
+          totalPrice: 150.0,
+          downPaymentPercent: 30,
+          serviceGroupId: 'group-uuid-1',
+        } as any,
+        'user-1',
+      );
+
+      expect(result.downPaymentPercent).toBe(50);
+    });
+
+    it('should allow 30% downPaymentPercent if price is >= R$ 400.00', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        financialProfile: { walletId: 'wal_123' },
+      });
+      mockPrisma.serviceGroup = {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'group-uuid-1', companyId: 'comp-1' }),
+      };
+      mockPrisma.service.create.mockImplementation((args) => args.data);
+
+      const result = await service.createService(
+        {
+          name: 'Mega Hair Especial',
+          durationMinutes: 180,
+          totalPrice: 600.0,
+          downPaymentPercent: 30,
+          serviceGroupId: 'group-uuid-1',
+        } as any,
+        'user-1',
+      );
+
+      expect(result.downPaymentPercent).toBe(30);
     });
   });
 
@@ -172,6 +262,7 @@ describe('CompanyServiceService', () => {
       mockPrisma.service.findFirst.mockResolvedValue({
         id: 'svc-1',
         companyId: 'comp-1',
+        totalPrice: 50.0,
       });
       mockPrisma.serviceGroup = {
         findFirst: jest.fn().mockResolvedValue(null),

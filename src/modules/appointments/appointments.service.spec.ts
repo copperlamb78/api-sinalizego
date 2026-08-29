@@ -6,6 +6,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   NotFoundException,
 } from '@nestjs/common';
 import { ApptStatus, Role, TransactionStatus } from '@prisma/client';
@@ -49,6 +51,7 @@ describe('AppointmentsService', () => {
     companyService: {
       findFirst: jest.fn(),
     },
+    $executeRaw: jest.fn().mockResolvedValue(1),
     $transaction: jest.fn((cb) =>
       typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb),
     ),
@@ -218,20 +221,20 @@ describe('AppointmentsService', () => {
       expect(result.downPaymentAmount).toBe(12.0);
     });
 
-    it('should support valid dynamic blocks (25%, 50%, 75%, 100%) for R$ 100 service', async () => {
+    it('should calculate 50% deposit for R$ 100 service regardless of client inputs', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue({
         ...mockService,
         totalPrice: 100.0,
-        downPaymentPercent: 25,
+        downPaymentPercent: 50,
       });
       mockPrisma.appointment.findMany.mockResolvedValue([]);
       mockCalculateTax.calculatePlatformTax.mockReturnValue(12.5);
 
       mockPrisma.appointment.create.mockResolvedValue({
         id: 'appt-100',
-        downPaymentAmount: 75.0,
+        downPaymentAmount: 50.0,
       });
 
       const result = await service.createAppointment(
@@ -239,7 +242,6 @@ describe('AppointmentsService', () => {
           companyId: 'company-1',
           serviceId: 'service-1',
           appointmentDate: '2026-09-01T10:00:00Z',
-          downPaymentPercent: 75,
         } as any,
         'user-1',
       );
@@ -248,22 +250,18 @@ describe('AppointmentsService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             servicePrice: 100.0,
-            downPaymentAmount: 75.0,
+            downPaymentAmount: 50.0,
           }),
         }),
       );
-      expect(result.downPaymentAmount).toBe(75.0);
+      expect(result.downPaymentAmount).toBe(50.0);
     });
 
-    it('should throw BadRequestException if client selects 25% on a R$ 40 service (25% = R$ 10 < R$ 15)', async () => {
+    it('should throw HttpException TOO_MANY_REQUESTS if client has 3 or more cancellations in the current week (Anti-Abuse)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
-      // Serviço de R$ 40 com piso 25%: bloco de 25% gera R$ 10 (< 15) e deve ser rejeitado
-      mockPrisma.service.findFirst.mockResolvedValue({
-        ...mockService,
-        totalPrice: 40.0,
-        downPaymentPercent: 25,
-      });
+      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+      mockPrisma.appointment.count.mockResolvedValueOnce(3); // 3 cancelamentos na semana
 
       await expect(
         service.createAppointment(
@@ -271,16 +269,24 @@ describe('AppointmentsService', () => {
             companyId: 'company-1',
             serviceId: 'service-1',
             appointmentDate: '2026-09-01T10:00:00Z',
-            downPaymentPercent: 25, // R$ 10 < R$ 15 -> rejeita
           } as any,
           'user-1',
         ),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(
+        new HttpException(
+          'Sua conta atingiu o limite de 3 cancelamentos nesta semana. Por motivos de segurança e prevenção de abusos, novos agendamentos estão temporariamente bloqueados.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        ),
+      );
     });
 
-    it('should throw BadRequestException if client already has 3 active PENDING_PAYMENT appointments (Anti-DoS)', async () => {
+    it('should throw BadRequestException if client already has 2 concurrent active appointments (Anti-DoS / Concorrência)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
-      mockPrisma.appointment.count.mockResolvedValue(3); // Já possui 3 pendentes
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+      mockPrisma.appointment.count
+        .mockResolvedValueOnce(0) // 0 cancelamentos
+        .mockResolvedValueOnce(2); // 2 agendamentos ativos
 
       await expect(
         service.createAppointment(
@@ -293,7 +299,7 @@ describe('AppointmentsService', () => {
         ),
       ).rejects.toThrow(
         new BadRequestException(
-          'Você já possui 3 agendamentos pendentes de pagamento. Conclua o pagamento ou aguarde a expiração para criar novas reservas.',
+          'Você atingiu o limite de 2 agendamentos ativos simultâneos. Conclua ou aguarde a realização dos seus agendamentos para criar novas reservas.',
         ),
       );
     });
@@ -387,6 +393,102 @@ describe('AppointmentsService', () => {
           'user-1',
         ),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should correctly calculate 50% deposit for standard R$ 60.00 service -> R$ 30.00 deposit', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        totalPrice: 60.0,
+        downPaymentPercent: 50,
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockPrisma.appointment.create.mockImplementation((args) => args.data);
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2026-09-01T10:00:00Z',
+        } as any,
+        'user-1',
+      );
+
+      expect(result.downPaymentAmount).toBe(30.0);
+    });
+
+    it('should correctly apply R$ 15.00 safety floor for R$ 20.00 service -> R$ 15.00 deposit', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        totalPrice: 20.0,
+        downPaymentPercent: 50,
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockPrisma.appointment.create.mockImplementation((args) => args.data);
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2026-09-01T10:00:00Z',
+        } as any,
+        'user-1',
+      );
+
+      expect(result.downPaymentAmount).toBe(15.0);
+    });
+
+    it('should correctly calculate 30% deposit for high-ticket R$ 500.00 service -> R$ 150.00 deposit', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        totalPrice: 500.0,
+        downPaymentPercent: 30,
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockPrisma.appointment.create.mockImplementation((args) => args.data);
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2026-09-01T10:00:00Z',
+        } as any,
+        'user-1',
+      );
+
+      expect(result.downPaymentAmount).toBe(150.0);
+    });
+
+    it('should correctly calculate 50% deposit for high-ticket R$ 500.00 service configured with 50% -> R$ 250.00 deposit', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue({
+        ...mockService,
+        totalPrice: 500.0,
+        downPaymentPercent: 50,
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockPrisma.appointment.create.mockImplementation((args) => args.data);
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2026-09-01T10:00:00Z',
+        } as any,
+        'user-1',
+      );
+
+      expect(result.downPaymentAmount).toBe(250.0);
     });
   });
 
@@ -953,12 +1055,7 @@ describe('AppointmentsService', () => {
           name: 'Cliente Teste',
           email: 'cliente@test.com',
         },
-        service: {
-          id: 'srv-1',
-          name: 'Corte Degradê',
-          totalPrice: 100,
-          downPaymentPercent: 25,
-        }, // Sinal mínimo é 25.00
+        service: { id: 'srv-1', name: 'Corte Degradê', totalPrice: 100, downPaymentPercent: 50 }, // Sinal padrão é 50.00
       };
 
       mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
@@ -980,10 +1077,10 @@ describe('AppointmentsService', () => {
 
       await service.deactivateAppointment('appt-2', 'owner-1');
 
-      // Excedente a estornar: 100 - 25 = 75
+      // Excedente a estornar: 100 - 50 = 50
       expect(mockAsaasService.refundPayment).toHaveBeenCalledWith(
         'pay_456',
-        75.0,
+        50.0,
         'Cancelamento tardio (<= 24h): estorno parcial do valor excedente ao sinal mínimo de garantia.',
       );
       expect(
@@ -992,7 +1089,7 @@ describe('AppointmentsService', () => {
         'cliente@test.com',
         expect.objectContaining({
           isRefunded: true,
-          refundAmount: 75.0,
+          refundAmount: 50.0,
         }),
       );
     });
