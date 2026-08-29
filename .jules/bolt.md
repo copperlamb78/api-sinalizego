@@ -12,3 +12,6 @@
 ## 2026-08-28 - [Date object optimization]
 **Learning:** Avoid replacing local time `new Date(year, month, day, hour, min)` constructions with millisecond arithmetic `baseDateMs + minutes * 60000` because this breaks during Daylight Saving Time (DST) transitions.
 **Action:** When trying to optimize date comparisons in a hot path, simply cache primitive results like `Date.now()` and `.getTime()` values to perform fast integer comparisons, rather than bypassing `new Date()` construction for specific local times.
+## 2026-08-27 - Database Aggregation in Admin Service
+**Learning:** Found an instance in `admin.service.ts` where transactions were fetched via `.findMany()` just to sum the `asaasFee`, creating unnecessary memory footprint.
+**Action:** Replaced it with `.aggregate({ _sum: { asaasFee: true } })` to perform computation natively in the database, reducing memory consumption and processing time.

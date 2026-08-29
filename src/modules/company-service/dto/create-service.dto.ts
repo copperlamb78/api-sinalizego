@@ -53,8 +53,7 @@ export class CreateServiceDto {
 
   @ApiPropertyOptional({
     example: 50,
-    description:
-      'Alias para downPaymentPercent (30% ou 50%)',
+    description: 'Alias para downPaymentPercent (30% ou 50%)',
     enum: [30, 50],
     default: 50,
   })

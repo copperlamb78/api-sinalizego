@@ -56,10 +56,7 @@ export class CalculateDeposit {
   /**
    * Retorna apenas o valor numérico em Reais do sinal calculado.
    */
-  calculateDeposit(
-    totalPrice: number,
-    serviceDepositPercent?: number,
-  ): number {
+  calculateDeposit(totalPrice: number, serviceDepositPercent?: number): number {
     return this.calculateDepositDetails(totalPrice, serviceDepositPercent)
       .depositAmount;
   }
@@ -67,7 +64,10 @@ export class CalculateDeposit {
   /**
    * Retorna os blocos válidos para exibição informativa na vitrine.
    */
-  getAvailableBlocks(totalPrice: number, serviceDepositPercent?: number): number[] {
+  getAvailableBlocks(
+    totalPrice: number,
+    serviceDepositPercent?: number,
+  ): number[] {
     if (totalPrice <= 0 || totalPrice < MIN_MICROTRANSACTION_DEPOSIT) {
       return [100];
     }

@@ -21,11 +21,13 @@ import { ServiceGroupModule } from './service-group/service-group.module';
 import { MailModule } from './modules/mail/mail.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { validate } from './common/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate,
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([

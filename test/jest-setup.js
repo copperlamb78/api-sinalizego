@@ -1,0 +1,9 @@
+process.env.JWT_SECRET = 'test_jwt_secret';
+process.env.JWT_REFRESH_SECRET = 'test_jwt_refresh_secret';
+process.env.ENCRYPTION_SECRET = 'test-secret-key';
+process.env.BREVO_API_KEY = 'test_brevo_key';
+process.env.ASAAS_API_KEY = 'test_asaas_key';
+process.env.ASAAS_WEBHOOK_TOKEN = 'test_asaas_webhook';
+process.env.CLOUDINARY_CLOUD_NAME = 'test_cloud';
+process.env.CLOUDINARY_API_KEY = 'test_cloud_key';
+process.env.CLOUDINARY_API_SECRET = 'test_cloud_secret';

@@ -44,5 +44,3 @@ export const MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2;
  * Limite máximo de cancelamentos permitidos por cliente na mesma semana (7 dias) antes do bloqueio temporário.
  */
 export const MAX_WEEKLY_CANCELLATIONS_LIMIT = 3;
-
-
