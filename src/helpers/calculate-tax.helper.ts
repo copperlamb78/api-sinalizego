@@ -30,7 +30,3 @@ export class CalculateTax {
     return Number((roundedCents / 100).toFixed(2));
   }
 }
-
-
-
-

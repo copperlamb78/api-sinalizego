@@ -482,14 +482,14 @@ describe('CompanyService', () => {
       });
       mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
         if (args.where.status === ApptStatus.COMPLETED) {
-          return { _sum: { downPaymentAmount: 80.00 } };
+          return { _sum: { downPaymentAmount: 80.0 } };
         } else if (args.where.status === ApptStatus.CONFIRMED) {
-          return { _sum: { downPaymentAmount: 40.00 } };
+          return { _sum: { downPaymentAmount: 40.0 } };
         }
         return { _sum: { downPaymentAmount: 0 } };
       });
       mockPrisma.transaction.aggregate.mockResolvedValue({
-        _sum: { totalValue: 20.00 }
+        _sum: { totalValue: 20.0 },
       });
 
       const balance = await service.getCompanyBalance('user-owner');
@@ -538,21 +538,23 @@ describe('CompanyService', () => {
       });
       mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
         if (args.where.status === ApptStatus.COMPLETED) {
-          return { _sum: { downPaymentAmount: 100.00 } };
+          return { _sum: { downPaymentAmount: 100.0 } };
         } else if (args.where.status === ApptStatus.CONFIRMED) {
-          return { _sum: { downPaymentAmount: 50.00 } };
+          return { _sum: { downPaymentAmount: 50.0 } };
         }
         return { _sum: { downPaymentAmount: 0 } };
       });
-      mockPrisma.transaction.aggregate.mockResolvedValue({ _sum: { totalValue: 0 } });
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { totalValue: 0 },
+      });
     });
 
     it('should throw BadRequestException if available balance is zero', async () => {
       mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
         if (args.where.status === ApptStatus.COMPLETED) {
-          return { _sum: { downPaymentAmount: 0.00 } };
+          return { _sum: { downPaymentAmount: 0.0 } };
         } else if (args.where.status === ApptStatus.CONFIRMED) {
-          return { _sum: { downPaymentAmount: 50.00 } };
+          return { _sum: { downPaymentAmount: 50.0 } };
         }
         return { _sum: { downPaymentAmount: 0 } };
       });

@@ -92,7 +92,7 @@ export class AdminService {
           },
         },
       }),
-      this.prisma.transaction.findMany({
+      this.prisma.transaction.aggregate({
         where: {
           status: TransactionStatus.CONFIRMED,
           createdAt: {
@@ -100,11 +100,7 @@ export class AdminService {
             lte: endDate,
           },
         },
-        select: {
-          id: true,
-          totalValue: true,
-          netValue: true,
-          platformFee: true,
+        _sum: {
           asaasFee: true,
         },
       }),
@@ -203,11 +199,14 @@ export class AdminService {
 
     // Cálculo das taxas Asaas Pix
     let totalAsaasPixCosts = 0;
-    if (confirmedTransactions.length > 0) {
-      totalAsaasPixCosts = confirmedTransactions.reduce(
-        (sum, t) => sum + Number(t.asaasFee || 0),
-        0,
-      );
+
+    // Bolt optimization: use database aggregation instead of mapping in-memory
+    if (
+      confirmedTransactions &&
+      confirmedTransactions._sum &&
+      confirmedTransactions._sum.asaasFee !== null
+    ) {
+      totalAsaasPixCosts = Number(confirmedTransactions._sum.asaasFee);
     } else {
       // Fallback para taxa padrão de 0.99 por agendamento liquidado
       totalAsaasPixCosts = (completedCount + confirmedCount) * 0.99;

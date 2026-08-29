@@ -698,7 +698,9 @@ export class CompanyService {
       },
       _sum: { downPaymentAmount: true },
     });
-    const completedNetRevenue = Number(completedAgg._sum.downPaymentAmount || 0);
+    const completedNetRevenue = Number(
+      completedAgg._sum.downPaymentAmount || 0,
+    );
 
     const escrowAgg = await this.prisma.appointment.aggregate({
       where: {
@@ -815,7 +817,9 @@ export class CompanyService {
         },
         _sum: { downPaymentAmount: true },
       });
-      const completedNetRevenue = Number(completedAgg._sum.downPaymentAmount || 0);
+      const completedNetRevenue = Number(
+        completedAgg._sum.downPaymentAmount || 0,
+      );
 
       const escrowAgg = await tx.appointment.aggregate({
         where: {
