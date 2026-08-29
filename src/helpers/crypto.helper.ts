@@ -10,11 +10,9 @@ export class CryptoHelper {
   private static readonly IV_LENGTH = 16;
 
   private static getSecretKey(): Buffer {
-    const secret = process.env.ENCRYPTION_SECRET || process.env.JWT_SECRET;
+    const secret = process.env.ENCRYPTION_SECRET;
     if (!secret) {
-      throw new Error(
-        'Critical Security: ENCRYPTION_SECRET or JWT_SECRET is not defined.',
-      );
+      throw new Error('Critical Security: ENCRYPTION_SECRET is not defined.');
     }
     return crypto.createHash('sha256').update(String(secret)).digest();
   }

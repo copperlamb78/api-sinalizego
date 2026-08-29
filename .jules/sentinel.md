@@ -1,3 +1,7 @@
+## 2026-08-26 - Missing Centralized Environment Variables Validation
+**Vulnerability:** Several critical environment variables (like API keys and encryption secrets) were checked sporadically at runtime across different services, or insecurely fell back to other secrets (e.g. `ENCRYPTION_SECRET` falling back to `JWT_SECRET`).
+**Learning:** This fragmented validation approach leads to "fail-open" behaviors or runtime crashes deeply buried in business logic, and reusing secrets severely compromises separation of concerns.
+**Prevention:** Always centralize environment variable validation at application startup using tools like `@nestjs/config` alongside `class-validator`. By enforcing validation synchronously during bootstrap, the application will "fail securely" (refuse to start) if any critical configuration is missing. For test suites, maintain a global `jest-setup.js` file to safely mock these variables and prevent test regressions.
 ## 2026-08-23 - Prevent User Enumeration in Login
 **Vulnerability:** Username/Email Enumeration via Login Error Messages.
 **Learning:** The login endpoint previously returned distinct error messages for "User not found" (`NotFoundException`) and "Invalid password" (`UnauthorizedException`), allowing an attacker to determine if an email exists in the database.
