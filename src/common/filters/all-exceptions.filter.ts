@@ -26,7 +26,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       status = exception.getStatus();
       const res = exception.getResponse();
 
-      if (typeof res === 'string') {
+      if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
+        this.logger.error(
+          `[HttpException] ${exception.message}`,
+          exception.stack,
+        );
+      } else if (typeof res === 'string') {
         message = res;
         error = exception.name.replace(/Exception$/, '') || 'Http Error';
       } else if (typeof res === 'object' && res !== null) {

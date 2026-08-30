@@ -122,4 +122,24 @@ describe('AllExceptionsFilter', () => {
       }),
     );
   });
+
+  it('should handle HttpException with 500 status code', () => {
+    const exception = new HttpException(
+      'DB Connection Failed',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Ocorreu um erro interno no servidor.',
+        error: 'Internal Server Error',
+      }),
+    );
+  });
 });
