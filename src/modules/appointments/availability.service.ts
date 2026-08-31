@@ -159,8 +159,8 @@ export class AvailabilityService {
       : null;
 
     const [year, month, day] = dateStr.split('-').map(Number);
-    const dayStartFilter = new Date(year, month - 1, day, 0, 0, 0, 0);
-    const dayEndFilter = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+    const dayStartFilter = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const dayEndFilter = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
 
     // Consulta todos os agendamentos ativos concorrentes do dia para o mesmo grupo de serviço
     const activeAppointments = await this.prisma.appointment.findMany({
@@ -219,20 +219,24 @@ export class AvailabilityService {
       const slotEndMin = slotEndMinutes % 60;
 
       const slotStartDate = new Date(
-        year,
-        month - 1,
-        day,
-        slotStartHour,
-        slotStartMin,
-        0,
+        Date.UTC(
+          year,
+          month - 1,
+          day,
+          slotStartHour,
+          slotStartMin,
+          0,
+        ),
       );
       const slotEndDate = new Date(
-        year,
-        month - 1,
-        day,
-        slotEndHour,
-        slotEndMin,
-        0,
+        Date.UTC(
+          year,
+          month - 1,
+          day,
+          slotEndHour,
+          slotEndMin,
+          0,
+        ),
       );
 
       // 2. Exclusão de horários passados caso a data consultada seja hoje
@@ -269,11 +273,11 @@ export class AvailabilityService {
     appointmentStartDate: Date,
     appointmentEndDate: Date,
   ): Promise<void> {
-    const year = appointmentStartDate.getFullYear();
-    const month = (appointmentStartDate.getMonth() + 1)
+    const year = appointmentStartDate.getUTCFullYear();
+    const month = (appointmentStartDate.getUTCMonth() + 1)
       .toString()
       .padStart(2, '0');
-    const day = appointmentStartDate.getDate().toString().padStart(2, '0');
+    const day = appointmentStartDate.getUTCDate().toString().padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
     const schedule = await this.resolveWorkingHoursForDate(companyId, dateStr);
@@ -285,9 +289,11 @@ export class AvailabilityService {
     }
 
     const apptStartMinutes =
-      appointmentStartDate.getHours() * 60 + appointmentStartDate.getMinutes();
+      appointmentStartDate.getUTCHours() * 60 +
+      appointmentStartDate.getUTCMinutes();
     const apptEndMinutes =
-      appointmentEndDate.getHours() * 60 + appointmentEndDate.getMinutes();
+      appointmentEndDate.getUTCHours() * 60 +
+      appointmentEndDate.getUTCMinutes();
 
     const workStartMinutes = this.timeToMinutes(schedule.startTime);
     const workEndMinutes = this.timeToMinutes(schedule.endTime);

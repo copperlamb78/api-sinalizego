@@ -1211,7 +1211,7 @@ export class CompanyService {
    * Cron Job semanal para saque automático gratuito toda segunda-feira às 06:00.
    * Transfere o saldo liberado sem cobrança de tarifa de transferência para o estabelecimento com idempotência diária.
    */
-  @Cron('0 6 * * 1')
+  @Cron('0 6 * * 1', { timeZone: 'America/Sao_Paulo' })
   async executeWeeklyFreePayouts(): Promise<number> {
     this.logger.log(
       '[Cron Payouts] Iniciando rotina de saques automáticos semanais gratuitos...',

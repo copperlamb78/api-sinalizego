@@ -493,7 +493,7 @@ export class WebhooksService {
    * Conciliação Ativa: Job executado a cada 30 minutos para consultar pagamentos
    * que permaneceram PENDING e reconciliar com o Asaas em caso de falha de entrega do webhook.
    */
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron(CronExpression.EVERY_30_MINUTES, { timeZone: 'America/Sao_Paulo' })
   async reconcilePendingTransactions(): Promise<number> {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);

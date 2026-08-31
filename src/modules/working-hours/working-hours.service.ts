@@ -213,7 +213,8 @@ export class WorkingHoursService {
       }
     }
 
-    const exceptionDate = new Date(dto.date);
+    const [year, month, day] = dto.date.split('-').map(Number);
+    const exceptionDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     if (isNaN(exceptionDate.getTime())) {
       throw new BadRequestException('Formato de data inválido.');
     }
@@ -236,14 +237,24 @@ export class WorkingHoursService {
   async getScheduleExceptions(userId: string, companyId?: string) {
     const company = await this.resolveCompany(userId, companyId);
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const startOfTodayUTC = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
 
     return this.prisma.scheduleException.findMany({
       where: {
         companyId: company.id,
         isActive: true,
-        date: { gte: startOfToday },
+        date: { gte: startOfTodayUTC },
       },
       orderBy: { date: 'asc' },
     });

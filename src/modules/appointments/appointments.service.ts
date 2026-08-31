@@ -203,7 +203,7 @@ export class AppointmentsService {
    * Cron Job executado a cada minuto para cancelar agendamentos pendentes expirados
    * e liberar o horário cancelando a cobrança no gateway Asaas.
    */
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_MINUTE, { timeZone: 'America/Sao_Paulo' })
   async handleExpiredAppointments(): Promise<number> {
     try {
       const now = new Date();
@@ -855,27 +855,31 @@ export class AppointmentsService {
   /**
    * Cron Job diário às 19:00 para envio de lembretes aos clientes com agendamento no dia seguinte (D-1).
    */
-  @Cron('0 19 * * *')
+  @Cron('0 19 * * *', { timeZone: 'America/Sao_Paulo' })
   async sendDailyAppointmentReminders(): Promise<number> {
     try {
       const now = new Date();
       const tomorrowStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + 1,
-        0,
-        0,
-        0,
-        0,
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + 1,
+          0,
+          0,
+          0,
+          0,
+        ),
       );
       const tomorrowEnd = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + 1,
-        23,
-        59,
-        59,
-        999,
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + 1,
+          23,
+          59,
+          59,
+          999,
+        ),
       );
 
       const appointments = await this.prisma.appointment.findMany({
@@ -953,7 +957,7 @@ export class AppointmentsService {
    * Cron Job horário para auto-concluir agendamentos confirmados cujo término ocorreu há mais de 24h.
    * Libera automaticamente o saldo retido em custódia (Escrow Hold) caso o estabelecimento não tenha clicado manualmente.
    */
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_HOUR, { timeZone: 'America/Sao_Paulo' })
   async autoCompletePastConfirmedAppointments(): Promise<number> {
     try {
       const pastThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);

@@ -24,6 +24,9 @@ export class CreateScheduleExceptionDto {
     example: '2026-12-25',
   })
   @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'date deve estar estritamente no formato YYYY-MM-DD',
+  })
   date: string;
 
   @ApiPropertyOptional({

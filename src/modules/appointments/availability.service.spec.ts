@@ -181,8 +181,8 @@ describe('AvailabilityService', () => {
       // Existing appointment at 10:00 - 10:30
       mockPrisma.appointment.findMany.mockResolvedValue([
         {
-          appointmentDate: new Date('2029-08-28T10:00:00'),
-          appointmentEndDate: new Date('2029-08-28T10:30:00'),
+          appointmentDate: new Date('2029-08-28T10:00:00.000Z'),
+          appointmentEndDate: new Date('2029-08-28T10:30:00.000Z'),
         },
       ]);
 
@@ -225,8 +225,8 @@ describe('AvailabilityService', () => {
       // 1 appointment at 10:00 - 10:30 with capacity = 2
       mockPrisma.appointment.findMany.mockResolvedValue([
         {
-          appointmentDate: new Date('2029-08-28T10:00:00'),
-          appointmentEndDate: new Date('2029-08-28T10:30:00'),
+          appointmentDate: new Date('2029-08-28T10:00:00.000Z'),
+          appointmentEndDate: new Date('2029-08-28T10:30:00.000Z'),
         },
       ]);
 
@@ -266,8 +266,8 @@ describe('AvailabilityService', () => {
       // Existing 30-min appointment at 09:30 - 10:00
       mockPrisma.appointment.findMany.mockResolvedValue([
         {
-          appointmentDate: new Date('2029-08-28T09:30:00'),
-          appointmentEndDate: new Date('2029-08-28T10:00:00'),
+          appointmentDate: new Date('2029-08-28T09:30:00.000Z'),
+          appointmentEndDate: new Date('2029-08-28T10:00:00.000Z'),
         },
       ]);
 
@@ -295,8 +295,8 @@ describe('AvailabilityService', () => {
         isClosed: true,
       });
 
-      const startDate = new Date('2026-12-25T10:00:00');
-      const endDate = new Date('2026-12-25T10:30:00');
+      const startDate = new Date('2026-12-25T10:00:00.000Z');
+      const endDate = new Date('2026-12-25T10:30:00.000Z');
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', startDate, endDate),
@@ -314,8 +314,8 @@ describe('AvailabilityService', () => {
         isClosed: false,
       });
 
-      const earlyStart = new Date('2026-08-24T08:00:00');
-      const earlyEnd = new Date('2026-08-24T08:30:00');
+      const earlyStart = new Date('2026-08-24T08:00:00.000Z');
+      const earlyEnd = new Date('2026-08-24T08:30:00.000Z');
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', earlyStart, earlyEnd),
@@ -333,8 +333,8 @@ describe('AvailabilityService', () => {
         isClosed: false,
       });
 
-      const lunchStart = new Date('2026-08-24T12:15:00');
-      const lunchEnd = new Date('2026-08-24T12:45:00');
+      const lunchStart = new Date('2026-08-24T12:15:00.000Z');
+      const lunchEnd = new Date('2026-08-24T12:45:00.000Z');
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', lunchStart, lunchEnd),
@@ -352,8 +352,8 @@ describe('AvailabilityService', () => {
         isClosed: false,
       });
 
-      const validStart = new Date('2026-08-24T14:00:00');
-      const validEnd = new Date('2026-08-24T14:30:00');
+      const validStart = new Date('2026-08-24T14:00:00.000Z');
+      const validEnd = new Date('2026-08-24T14:30:00.000Z');
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', validStart, validEnd),
