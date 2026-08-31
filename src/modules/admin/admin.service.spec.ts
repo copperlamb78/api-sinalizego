@@ -110,6 +110,7 @@ describe('AdminService', () => {
       const mockTransactionsAgg = {
         _sum: {
           asaasFee: '1.98',
+          platformAbsorbedFee: '0.00',
         },
       };
       mockPrisma.transaction.aggregate.mockResolvedValue(mockTransactionsAgg);
@@ -145,10 +146,10 @@ describe('AdminService', () => {
 
       // Platform Gross Revenue: 5.00 + 4.00 = 9.00
       expect(result.financial.platformGrossRevenue).toBe(9.0);
-      // Asaas Pix Costs: 0.99 + 0.99 = 1.98
-      expect(result.financial.totalAsaasPixCosts).toBe(1.98);
-      // Net Profit: 9.00 - 1.98 = 7.02
-      expect(result.financial.platformNetProfit).toBe(7.02);
+      // Platform Absorbed Gateway Costs: 0.00 (Regra N2 / A10)
+      expect(result.financial.totalAsaasPixCosts).toBe(0.0);
+      // Net Profit: 9.00 - 0.00 = 9.00
+      expect(result.financial.platformNetProfit).toBe(9.0);
       // GMV: 100.00 (COMPLETED) + 40.00 (CONFIRMED) = 140.00
       expect(result.financial.gmv).toBe(140.0);
 
@@ -235,8 +236,8 @@ describe('AdminService', () => {
       const result = await service.getDashboardMetrics();
 
       expect(result.financial.platformGrossRevenue).toBe(2.5);
-      expect(result.financial.totalAsaasPixCosts).toBe(0.99);
-      expect(result.financial.platformNetProfit).toBe(1.51);
+      expect(result.financial.totalAsaasPixCosts).toBe(0.0);
+      expect(result.financial.platformNetProfit).toBe(2.5);
     });
   });
 

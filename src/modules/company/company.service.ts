@@ -783,11 +783,82 @@ export class CompanyService {
   }
 
   /**
+   * Helper privado para cálculo centralizado de saldo disponível, custódia e saques (WP-03 / A4 / A14).
+   */
+  private async computeAvailableBalance(
+    companyId: string,
+    walletId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx || this.prisma;
+
+    const [completedAgg, escrowAgg, withdrawalsAgg] = await Promise.all([
+      client.transaction.aggregate({
+        where: {
+          appointment: {
+            companyId: companyId,
+            isActive: true,
+            status: ApptStatus.COMPLETED,
+          },
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.CONFIRMED,
+        },
+        _sum: { netValue: true },
+      }),
+      client.transaction.aggregate({
+        where: {
+          appointment: {
+            companyId: companyId,
+            isActive: true,
+            status: ApptStatus.CONFIRMED,
+          },
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.CONFIRMED,
+        },
+        _sum: { netValue: true },
+      }),
+      client.transaction.aggregate({
+        where: {
+          barberWalletId: walletId,
+          type: TransactionType.WITHDRAWAL,
+          status: {
+            in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
+          },
+        },
+        _sum: { totalValue: true },
+      }),
+    ]);
+
+    const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
+    const escrowLockedBalance = Number(escrowAgg._sum.netValue || 0);
+    const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
+    const availableBalance = Math.max(
+      0,
+      Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
+    );
+
+    return {
+      completedNetRevenue: Number(completedNetRevenue.toFixed(2)),
+      escrowLockedBalance: Number(escrowLockedBalance.toFixed(2)),
+      totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
+      availableBalance: Number(availableBalance.toFixed(2)),
+    };
+  }
+
+  /**
    * Consulta o saldo detalhado da empresa: disponível, em custódia (Escrow Hold) e histórico de saques.
    */
-  async getCompanyBalance(userId: string) {
+  async getCompanyBalance(userId: string, companyId?: string) {
+    const whereClause: Prisma.CompanyWhereInput = {
+      userId,
+      isActive: true,
+    };
+    if (companyId) {
+      whereClause.id = companyId;
+    }
+
     const company = await this.prisma.company.findFirst({
-      where: { userId, isActive: true },
+      where: whereClause,
       select: { id: true, businessName: true, financialProfileId: true },
     });
 
@@ -828,49 +899,9 @@ export class CompanyService {
       );
     }
 
-    const completedAgg = await this.prisma.transaction.aggregate({
-      where: {
-        appointment: {
-          companyId: company.id,
-          isActive: true,
-          status: ApptStatus.COMPLETED,
-        },
-        type: TransactionType.DEPOSIT,
-        status: TransactionStatus.CONFIRMED,
-      },
-      _sum: { netValue: true },
-    });
-    const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
-
-    const escrowAgg = await this.prisma.transaction.aggregate({
-      where: {
-        appointment: {
-          companyId: company.id,
-          isActive: true,
-          status: ApptStatus.CONFIRMED,
-        },
-        type: TransactionType.DEPOSIT,
-        status: TransactionStatus.CONFIRMED,
-      },
-      _sum: { netValue: true },
-    });
-    const escrowLockedBalance = Number(escrowAgg._sum.netValue || 0);
-
-    const withdrawalsAgg = await this.prisma.transaction.aggregate({
-      where: {
-        barberWalletId: financialProfile.walletId,
-        type: TransactionType.WITHDRAWAL,
-        status: {
-          in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
-        },
-      },
-      _sum: { totalValue: true },
-    });
-    const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
-
-    const availableBalance = Math.max(
-      0,
-      Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
+    const balanceMetrics = await this.computeAvailableBalance(
+      company.id,
+      financialProfile.walletId,
     );
 
     const now = new Date();
@@ -883,23 +914,32 @@ export class CompanyService {
       companyId: company.id,
       businessName: company.businessName,
       walletId: financialProfile.walletId,
-      availableBalance: Number(availableBalance.toFixed(2)),
-      escrowLockedBalance: Number(escrowLockedBalance.toFixed(2)),
-      completedNetRevenue: Number(completedNetRevenue.toFixed(2)),
-      totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
+      availableBalance: balanceMetrics.availableBalance,
+      escrowLockedBalance: balanceMetrics.escrowLockedBalance,
+      completedNetRevenue: balanceMetrics.completedNetRevenue,
+      totalWithdrawn: balanceMetrics.totalWithdrawn,
       nextFreeWithdrawalDate: nextMonday.toISOString(),
       instantTransferFee: await this.asaasService.getTransferFee(),
       minFreeWeeklyPayoutThreshold: MIN_FREE_WEEKLY_PAYOUT,
-      eligibleForFreeWeeklyPayout: availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
+      eligibleForFreeWeeklyPayout:
+        balanceMetrics.availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
     };
   }
 
   /**
    * Solicita saque avulso sob demanda fora do ciclo semanal com proteção atômica anti-race condition e dedução de tarifa.
    */
-  async requestInstantWithdrawal(userId: string, dto?: WithdrawDto) {
+  async requestInstantWithdrawal(userId: string, dto?: WithdrawDto, companyId?: string) {
+    const whereClause: Prisma.CompanyWhereInput = {
+      userId,
+      isActive: true,
+    };
+    if (companyId) {
+      whereClause.id = companyId;
+    }
+
     const company = await this.prisma.company.findFirst({
-      where: { userId, isActive: true },
+      where: whereClause,
       select: { id: true, businessName: true, financialProfileId: true },
     });
 
@@ -965,53 +1005,13 @@ export class CompanyService {
         );
       }
 
-      // Busca agendamentos ativos da empresa para apuração de saldo
-
-      const completedAgg = await tx.transaction.aggregate({
-        where: {
-          appointment: {
-            companyId: company.id,
-            isActive: true,
-            status: ApptStatus.COMPLETED,
-          },
-          type: TransactionType.DEPOSIT,
-          status: TransactionStatus.CONFIRMED,
-        },
-        _sum: { netValue: true },
-      });
-      const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
-
-      const escrowAgg = await tx.transaction.aggregate({
-        where: {
-          appointment: {
-            companyId: company.id,
-            isActive: true,
-            status: ApptStatus.CONFIRMED,
-          },
-          type: TransactionType.DEPOSIT,
-          status: TransactionStatus.CONFIRMED,
-        },
-        _sum: { netValue: true },
-      });
-      const escrowLocked = Number(escrowAgg._sum.netValue || 0);
-
-      // Saques já realizados ou em processamento (CONFIRMED ou PENDING)
-      const withdrawalsAgg = await tx.transaction.aggregate({
-        where: {
-          barberWalletId: financialProfile.walletId,
-          type: TransactionType.WITHDRAWAL,
-          status: {
-            in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
-          },
-        },
-        _sum: { totalValue: true },
-      });
-      const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
-
-      const currentAvailableBalance = Math.max(
-        0,
-        Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
+      const balanceMetrics = await this.computeAvailableBalance(
+        company.id,
+        financialProfile.walletId,
+        tx,
       );
+
+      const currentAvailableBalance = balanceMetrics.availableBalance;
 
       if (currentAvailableBalance <= 0) {
         throw new BadRequestException(
@@ -1046,6 +1046,8 @@ export class CompanyService {
           netValue: netTransferred,
           platformFee: 0,
           asaasFee: transferFee,
+          platformAbsorbedFee: 0,
+          paidByPlatform: false,
           billingType: BillingType.PIX,
           barberWalletId: financialProfile.walletId,
         },
@@ -1058,7 +1060,7 @@ export class CompanyService {
         remainingBalance: Number(
           (currentAvailableBalance - requested).toFixed(2),
         ),
-        escrowLockedBalance: Number(escrowLocked.toFixed(2)),
+        escrowLockedBalance: balanceMetrics.escrowLockedBalance,
       };
     });
 
@@ -1100,13 +1102,16 @@ export class CompanyService {
       message: 'Saque avulso solicitado com sucesso.',
       withdrawal: {
         id: confirmedTx.id,
-        requestedAmount: Number(requestedAmount.toFixed(2)),
-        transferFee: Number(transferFee.toFixed(2)),
-        netAmountTransferred: Number(netAmountTransferred.toFixed(2)),
-        status: TransactionStatus.CONFIRMED,
-        transferredAt: confirmedTx.createdAt,
+        transactionId: confirmedTx.id,
+        requestedAmount: requestedAmount,
+        netAmountTransferred: netAmountTransferred,
+        transferFee: transferFee,
+        transferFeeDeducted: transferFee,
         remainingAvailableBalance: remainingBalance,
-        escrowLockedBalance,
+        escrowLockedBalance: escrowLockedBalance,
+        status: confirmedTx.status,
+        transferredAt: confirmedTx.createdAt,
+        destinationPixKey: financialProfile.pixAddressKey,
       },
     };
   }
@@ -1251,56 +1256,85 @@ export class CompanyService {
 
           if (!financialProfile?.walletId) continue;
 
-          // Salvaguarda de Idempotência: Garante que este estabelecimento ainda não recebeu saque gratuito hoje
+          // Salvaguarda de Idempotência: Garante que este estabelecimento não possui saque em voo ou executado hoje
           const alreadyExecutedToday = await this.prisma.transaction.findFirst({
             where: {
               barberWalletId: financialProfile.walletId,
               type: TransactionType.WITHDRAWAL,
-              asaasFee: 0,
+              status: {
+                in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
+              },
               createdAt: { gte: todayStart },
             },
           });
 
           if (alreadyExecutedToday) {
             this.logger.log(
-              `[Cron Payouts] Empresa "${company.businessName}" já teve seu saque semanal processado hoje. Pulando.`,
+              `[Cron Payouts] Empresa "${company.businessName}" já possui saque registrado hoje. Pulando.`,
             );
             continue;
           }
 
-          const balance = await this.getCompanyBalance(company.userId);
-          if (balance.availableBalance >= MIN_FREE_WEEKLY_PAYOUT) {
-            const transferResult =
-              await this.asaasService.transferSubaccountBalance(
-                financialProfile.id,
-                balance.availableBalance,
-                {
-                  isFreeWeekly: true,
-                  pixAddressKey: financialProfile.pixAddressKey || undefined,
-                  pixAddressKeyType: financialProfile.pixAddressKeyType || undefined,
-                },
-              );
+          const balance = await this.computeAvailableBalance(
+            company.id,
+            financialProfile.walletId,
+          );
 
-            await this.prisma.transaction.create({
+          if (balance.availableBalance >= MIN_FREE_WEEKLY_PAYOUT) {
+            // 1. Reserva Atômica Local com status PENDING (proteção anti-race condition)
+            const pendingTx = await this.prisma.transaction.create({
               data: {
                 type: TransactionType.WITHDRAWAL,
-                status: TransactionStatus.CONFIRMED,
+                status: TransactionStatus.PENDING,
                 totalValue: balance.availableBalance,
                 netValue: balance.availableBalance,
                 platformFee: 0,
                 asaasFee: 0,
+                platformAbsorbedFee: 0,
+                paidByPlatform: true,
                 billingType: BillingType.PIX,
                 barberWalletId: financialProfile.walletId,
-                asaasPaymentId:
-                  transferResult?.id ||
-                  `payout_${Date.now()}_${company.id.slice(0, 6)}`,
               },
             });
 
-            payoutsExecuted++;
-            this.logger.log(
-              `[Cron Payouts] Saque gratuito de R$ ${balance.availableBalance.toFixed(2)} executado para a empresa "${company.businessName}".`,
-            );
+            // 2. Chamada Externa de Transferência ao Gateway Asaas
+            try {
+              const transferResult =
+                await this.asaasService.transferSubaccountBalance(
+                  financialProfile.id,
+                  balance.availableBalance,
+                  {
+                    isFreeWeekly: true,
+                    pixAddressKey: financialProfile.pixAddressKey || undefined,
+                    pixAddressKeyType:
+                      financialProfile.pixAddressKeyType || undefined,
+                  },
+                );
+
+              // 3. Sucesso: Confirma a transação no banco
+              await this.prisma.transaction.update({
+                where: { id: pendingTx.id },
+                data: {
+                  status: TransactionStatus.CONFIRMED,
+                  asaasPaymentId:
+                    transferResult?.id ||
+                    `payout_${Date.now()}_${company.id.slice(0, 6)}`,
+                },
+              });
+
+              payoutsExecuted++;
+              this.logger.log(
+                `[Cron Payouts] Saque gratuito de R$ ${balance.availableBalance.toFixed(2)} executado para a empresa "${company.businessName}".`,
+              );
+            } catch (transferErr: any) {
+              this.logger.error(
+                `[Cron Payouts] Falha na transferência Asaas para empresa #${company.id}: ${transferErr?.message || transferErr}. Revertendo reserva de saldo...`,
+              );
+              await this.prisma.transaction.update({
+                where: { id: pendingTx.id },
+                data: { status: TransactionStatus.CANCELED },
+              });
+            }
           } else if (balance.availableBalance > 0) {
             this.logger.log(
               `[Cron Payouts] Empresa "${company.businessName}" possui saldo liberado de R$ ${balance.availableBalance.toFixed(2)}, inferior ao piso de gratuidade (R$ ${MIN_FREE_WEEKLY_PAYOUT.toFixed(2)}). O valor continuará acumulando.`,

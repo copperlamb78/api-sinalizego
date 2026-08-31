@@ -784,54 +784,31 @@ describe('CompanyService', () => {
         { id: 'comp-3', businessName: 'Barbearia Zero', userId: 'user-3' },
       ]);
 
-      // Company 1: R$ 150 (>= 100 -> paga)
-      // Company 2: R$ 45 (< 100 -> acumula)
-      // Company 3: R$ 0 (-> pula)
-      jest
-        .spyOn(service, 'getCompanyBalance')
-        .mockImplementation(async (userId) => {
-          if (userId === 'user-1') {
+      // Mock computeAvailableBalance para as 3 empresas
+      const computeSpy = jest
+        .spyOn(service as any, 'computeAvailableBalance')
+        .mockImplementation(async (companyId: string) => {
+          if (companyId === 'comp-1') {
             return {
-              companyId: 'comp-1',
-              businessName: 'Barbearia Alpha',
-              walletId: 'wal_1',
               availableBalance: 150.0,
               escrowLockedBalance: 50.0,
               completedNetRevenue: 150.0,
               totalWithdrawn: 0,
-              nextFreeWithdrawalDate: new Date().toISOString(),
-              instantTransferFee: 5.0,
-              minFreeWeeklyPayoutThreshold: 100.0,
-              eligibleForFreeWeeklyPayout: true,
             };
           }
-          if (userId === 'user-2') {
+          if (companyId === 'comp-2') {
             return {
-              companyId: 'comp-2',
-              businessName: 'Barbearia Beta (Pequena)',
-              walletId: 'wal_2',
               availableBalance: 45.0,
               escrowLockedBalance: 20.0,
               completedNetRevenue: 45.0,
               totalWithdrawn: 0,
-              nextFreeWithdrawalDate: new Date().toISOString(),
-              instantTransferFee: 5.0,
-              minFreeWeeklyPayoutThreshold: 100.0,
-              eligibleForFreeWeeklyPayout: false,
             };
           }
           return {
-            companyId: 'comp-3',
-            businessName: 'Barbearia Zero',
-            walletId: 'wal_3',
             availableBalance: 0,
             escrowLockedBalance: 0,
             completedNetRevenue: 0,
             totalWithdrawn: 0,
-            nextFreeWithdrawalDate: new Date().toISOString(),
-            instantTransferFee: 5.0,
-            minFreeWeeklyPayoutThreshold: 100.0,
-            eligibleForFreeWeeklyPayout: false,
           };
         });
 
@@ -846,6 +823,7 @@ describe('CompanyService', () => {
         id: 'tra_payout_1',
       });
       mockPrisma.transaction.create.mockResolvedValue({ id: 'tx-payout-1' });
+      mockPrisma.transaction.update.mockResolvedValue({ id: 'tx-payout-1', status: TransactionStatus.CONFIRMED });
 
       const executedCount = await service.executeWeeklyFreePayouts();
 
@@ -863,14 +841,26 @@ describe('CompanyService', () => {
           pixAddressKeyType: 'CPF',
         },
       );
+      // Confirma que a transação PENDING foi criada ANTES da chamada
       expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           type: 'WITHDRAWAL',
+          status: 'PENDING',
           totalValue: 150.0,
           netValue: 150.0,
-          asaasFee: 0, // gratuito
+          paidByPlatform: true,
+          asaasFee: 0,
         }),
       });
+      // Confirma que a transação foi atualizada para CONFIRMED após a transferência
+      expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
+        where: { id: 'tx-payout-1' },
+        data: expect.objectContaining({
+          status: TransactionStatus.CONFIRMED,
+        }),
+      });
+
+      computeSpy.mockRestore();
     });
   });
 });

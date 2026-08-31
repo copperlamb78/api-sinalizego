@@ -280,9 +280,10 @@ model Transaction {
   platformAbsorbedFee Decimal @default(0) @db.Decimal(10, 2) // Parcela da tarifa Asaas absorvida pela plataforma (tarifaReal - parte do barbeiro)
 
   // Status e Tipo
-  status      TransactionStatus @default(PENDING)
-  type        TransactionType   @default(DEPOSIT)
-  billingType BillingType       @default(PIX)
+  status         TransactionStatus @default(PENDING)
+  type           TransactionType   @default(DEPOSIT)
+  billingType    BillingType       @default(PIX)
+  paidByPlatform Boolean           @default(false) // Indica se a taxa de transferencia de saque foi custeada pela plataforma (Regra N5)
 
   // Relacionamentos (Quem pagou e quem recebeu)
   customerId String? // ID do cliente que agendou/pagou se DEPOSIT

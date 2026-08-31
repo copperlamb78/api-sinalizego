@@ -27,9 +27,15 @@ export const DEFAULT_ASAAS_GATEWAY_COST = 1.99;
 export const MIN_PLATFORM_TAX = 2.0;
 
 /**
- * Tarifa padrão de transferência bancária / saque avulso Asaas (R$ 5,00).
+ * Tarifa padrão de transferência bancária / saque avulso Asaas (R$ 5,00 fallback estimado).
  */
 export const ASAAS_TRANSFER_FEE = 5.0;
+export const FALLBACK_TRANSFER_FEE_ESTIMATE = 5.0;
+
+/**
+ * Piso mínimo para saque avulso sob demanda (R$ 10,00).
+ */
+export const MIN_INSTANT_WITHDRAWAL = 10.0;
 
 /**
  * Piso mínimo de saldo acumulado para saque automático semanal gratuito (R$ 100,00).

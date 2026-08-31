@@ -138,6 +138,7 @@ export class AdminService {
         },
         _sum: {
           asaasFee: true,
+          platformAbsorbedFee: true,
         },
       }),
       this.prisma.user.count({ where: { isActive: true } }),
@@ -261,25 +262,22 @@ export class AdminService {
       };
     });
 
-    // Cálculo das taxas Asaas Pix
-    let totalAsaasPixCosts = 0;
-
-    // Bolt optimization: use database aggregation instead of mapping in-memory
+    // Custos de gateway absorvidos pela plataforma (tarifa real > R$ 0,99 — N2 / A10)
+    let totalPlatformAbsorbedCosts = 0;
     if (
       confirmedTransactions &&
       confirmedTransactions._sum &&
-      confirmedTransactions._sum.asaasFee !== null
+      confirmedTransactions._sum.platformAbsorbedFee !== null &&
+      confirmedTransactions._sum.platformAbsorbedFee !== undefined
     ) {
-      totalAsaasPixCosts = Number(confirmedTransactions._sum.asaasFee);
-    } else {
-      // Fallback para taxa padrão de 0.99 por agendamento liquidado
-      totalAsaasPixCosts =
-        (completedCount + confirmedCount + noShowCount) * 0.99;
+      totalPlatformAbsorbedCosts = Number(
+        confirmedTransactions._sum.platformAbsorbedFee,
+      );
     }
 
     const platformNetProfit = Math.max(
       0,
-      platformGrossRevenue - totalAsaasPixCosts,
+      platformGrossRevenue - totalPlatformAbsorbedCosts,
     );
 
     const protectionEfficiencyRate =
@@ -306,7 +304,9 @@ export class AdminService {
       },
       financial: {
         platformGrossRevenue: Number((platformGrossRevenue || 0).toFixed(2)),
-        totalAsaasPixCosts: Number((totalAsaasPixCosts || 0).toFixed(2)),
+        totalAsaasPixCosts: Number(
+          (totalPlatformAbsorbedCosts || 0).toFixed(2),
+        ),
         platformNetProfit: Number((platformNetProfit || 0).toFixed(2)),
         gmv: Number((gmv || 0).toFixed(2)),
       },
