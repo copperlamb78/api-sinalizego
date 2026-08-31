@@ -20,3 +20,8 @@
 **Vulnerability:** Use of raw `console.error` and uncontrolled logging in integration points (`AsaasService`), potentially leaking sensitive data like API keys, secrets, or causing circular reference crashes when dealing with complex Error objects (e.g., from Axios).
 **Learning:** `console.error` lacks context, doesn't format well in production log aggregators, and using `JSON.stringify` on raw error objects without sanitization can expose headers/tokens or crash due to circular references.
 **Prevention:** Use the application's structured logger (`this.logger.error`). Always sanitize error objects by selectively extracting safe properties (`response.data`, `message`, etc.). When logging exceptions in NestJS, always pass the message as the first parameter and the `error.stack` as the second parameter to retain standard formatting.
+
+## 2026-08-29 - [Information Disclosure] Secure Error Messages for HttpExceptions with 500 Status
+**Vulnerability:** The global exception handler (`AllExceptionsFilter`) returned raw exception messages for `HttpException` instances with status 500 (such as `InternalServerErrorException`), which could leak sensitive internal database or application error details.
+**Learning:** `HttpException` instances with status 500 might have raw messages passed to them directly during internal system failures. Unlike generic unhandled errors, the previous configuration exposed these strings by passing the message down to the response.
+**Prevention:** Ensured the filter catches `HttpException` instances with a 500 status code, logs the sensitive internal error, and replaces the message returned to the client with a generic fallback message.
