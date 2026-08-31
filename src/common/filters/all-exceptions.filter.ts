@@ -27,6 +27,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const res = exception.getResponse();
 
       if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
+        message = 'Ocorreu um erro interno no servidor.';
+        error = 'Internal Server Error';
+        this.logger.error(
+          `[UnhandledException] ${exception.message}`,
         this.logger.error(
           `[HttpException] ${exception.message}`,
           exception.stack,

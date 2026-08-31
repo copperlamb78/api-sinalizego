@@ -106,6 +106,22 @@ describe('AllExceptionsFilter', () => {
     );
   });
 
+  it('should handle InternalServerErrorException without leaking details', () => {
+    const exception = new HttpException('Detailed secure system information here', HttpStatus.INTERNAL_SERVER_ERROR);
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Ocorreu um erro interno no servidor.',
+        error: 'Internal Server Error',
+        path: '/api/v1/test',
+      }),
+    );
+  });
+
   it('should handle generic unhandled Error as 500', () => {
     const exception = new Error('Unexpected database failure');
 
