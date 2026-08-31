@@ -38,27 +38,37 @@ export class WebhooksService {
         eventId ||
         `${event}_${payment.id}_${payment.status || ''}_${payment.value || ''}`;
 
-      // 1. Idempotência: Checa se o evento já foi processado anteriormente
+      // 1. Idempotência Atômica: Gravação antecipada no início usando unique constraint como lock (A13)
+      let isDuplicate = false;
       try {
-        const existingEvent = await this.prisma.webhookEvent.findUnique({
-          where: { eventId: eventKey },
-        });
-
-        if (existingEvent) {
-          this.logger.log(
-            `[Webhook Asaas][${correlationId}] Evento ${eventKey} já processado anteriormente (idempotência).`,
-          );
-          return {
-            received: true,
-            alreadyProcessed: true,
-            event,
+        await this.prisma.webhookEvent.create({
+          data: {
+            eventId: eventKey,
+            event: event,
             paymentId: payment.id,
-          };
+            payload: rawPayload || payment,
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          isDuplicate = true;
+        } else {
+          this.logger.error(
+            `[Webhook Asaas][${correlationId}] Falha ao registrar idempotência atômica: ${err.message}`,
+          );
         }
-      } catch (error: any) {
-        this.logger.error(
-          `[Webhook Asaas][${correlationId}] Falha ao verificar idempotência: ${error.message}`,
+      }
+
+      if (isDuplicate) {
+        this.logger.log(
+          `[Webhook Asaas][${correlationId}] Evento ${eventKey} já processado anteriormente (idempotência atômica).`,
         );
+        return {
+          received: true,
+          alreadyProcessed: true,
+          event,
+          paymentId: payment.id,
+        };
       }
 
       // 2. Busca da Transação associada
@@ -69,12 +79,6 @@ export class WebhooksService {
       if (!transaction || !transaction.appointmentId) {
         this.logger.warn(
           `[Webhook Asaas][${correlationId}] Transação/Agendamento não encontrado para o pagamento ${payment.id}.`,
-        );
-        await this.recordWebhookEvent(
-          eventKey,
-          event,
-          payment.id,
-          rawPayload || payment,
         );
         return {
           received: true,
@@ -104,12 +108,6 @@ export class WebhooksService {
         this.logger.warn(
           `[Webhook Asaas][${correlationId}] Agendamento #${transaction.appointmentId} não encontrado para a transação ${transaction.id}.`,
         );
-        await this.recordWebhookEvent(
-          eventKey,
-          event,
-          payment.id,
-          rawPayload || payment,
-        );
         return {
           received: true,
           event,
@@ -122,13 +120,13 @@ export class WebhooksService {
       switch (event) {
         case 'PAYMENT_RECEIVED':
         case 'PAYMENT_CONFIRMED': {
-          // Idempotency: Prevent reversion of REFUNDED or CANCELED transactions
+          // Idempotência / Máquina de Estados: Impede reverter transações já liquidadas/canceladas (A12)
           if (
             transaction.status === TransactionStatus.REFUNDED ||
             transaction.status === TransactionStatus.CANCELED
           ) {
             this.logger.warn(
-              `[Webhook Asaas][${correlationId}] Ignorando CONFIRMED em pagamento já ${transaction.status}.`,
+              `[Webhook Asaas][${correlationId}] Ignorando ${event} em pagamento já ${transaction.status}.`,
             );
             return {
               received: true,
@@ -139,8 +137,23 @@ export class WebhooksService {
             };
           }
 
-          // Salvaguarda Anti-Race Condition: Se o agendamento já foi cancelado ou expirou antes do pagamento
+          // Revalidação com a API Asaas (A11 / A20)
+          let verifiedPayment = payment;
+          try {
+            const remotePayment = await this.asaasService.getPaymentById(payment.id);
+            if (remotePayment && remotePayment.id) {
+              verifiedPayment = remotePayment;
+              this.logger.log(
+                `[Webhook Asaas][${correlationId}] Pagamento ${payment.id} revalidado com sucesso na API Asaas (status: ${remotePayment.status}, valor: ${remotePayment.value}).`,
+              );
+            }
+          } catch (revalErr: any) {
+            this.logger.warn(
+              `[Webhook Asaas][${correlationId}] Revalidação via API Asaas falhou (${revalErr?.message || revalErr}). Prosseguindo com dados do payload.`,
+            );
+          }
 
+          // Salvaguarda Anti-Race Condition: Se o agendamento já foi cancelado ou expirou antes do pagamento
           const isExpired =
             appointment.expiresAt && appointment.expiresAt < new Date();
 
@@ -170,13 +183,6 @@ export class WebhooksService {
               }),
             ]);
 
-            await this.recordWebhookEvent(
-              eventKey,
-              event,
-              payment.id,
-              rawPayload || payment,
-            );
-
             this.logger.log(
               `[Webhook Asaas][${correlationId}] Estorno automático concluído com sucesso para o pagamento ${payment.id}.`,
             );
@@ -189,8 +195,8 @@ export class WebhooksService {
           }
 
           // 2. Conferência Estrita de Valor (Anti-Fraude de Pagamento Menor)
-          if (payment.value !== undefined && payment.value !== null) {
-            const paidValue = Number(payment.value);
+          if (verifiedPayment.value !== undefined && verifiedPayment.value !== null) {
+            const paidValue = Number(verifiedPayment.value);
             const expectedValue = Number(transaction.totalValue);
 
             if (paidValue < expectedValue - 0.01) {
@@ -215,13 +221,6 @@ export class WebhooksService {
                 }),
               ]);
 
-              await this.recordWebhookEvent(
-                eventKey,
-                event,
-                payment.id,
-                rawPayload || payment,
-              );
-
               return {
                 received: true,
                 event,
@@ -233,11 +232,11 @@ export class WebhooksService {
 
           // Extrair a taxa real do Asaas liquidada no webhook
           const realAsaasFee =
-            payment?.fee !== undefined && payment?.fee !== null
-              ? Number(payment.fee)
-              : payment?.value !== undefined && payment?.netValue !== undefined
+            verifiedPayment?.fee !== undefined && verifiedPayment?.fee !== null
+              ? Number(verifiedPayment.fee)
+              : verifiedPayment?.value !== undefined && verifiedPayment?.netValue !== undefined
                 ? Number(
-                    (Number(payment.value) - Number(payment.netValue)).toFixed(
+                    (Number(verifiedPayment.value) - Number(verifiedPayment.netValue)).toFixed(
                       2,
                     ),
                   )

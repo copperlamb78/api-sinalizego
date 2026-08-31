@@ -72,11 +72,10 @@ describe('WebhooksService', () => {
   });
 
   describe('Idempotency', () => {
-    it('should skip execution and return alreadyProcessed: true when eventId was already stored', async () => {
-      mockPrisma.webhookEvent.findUnique.mockResolvedValue({
-        id: 'ev-1',
-        eventId: 'evt_test_123',
-        event: 'PAYMENT_CONFIRMED',
+    it('should skip execution and return alreadyProcessed: true when eventId was already stored (atomic P2002)', async () => {
+      mockPrisma.webhookEvent.create.mockRejectedValueOnce({
+        code: 'P2002',
+        message: 'Unique constraint failed on the fields: (`eventId`)',
       });
 
       const result = await service.handleAsaasEvent(
@@ -135,6 +134,38 @@ describe('WebhooksService', () => {
         received: true,
         event: 'PAYMENT_CONFIRMED',
         paymentId: 'pay_12345',
+      });
+    });
+
+    it('should use revalidated values from Asaas API when getPaymentById succeeds', async () => {
+      const activeAppt = {
+        id: 'appt-1',
+        status: ApptStatus.PENDING_PAYMENT,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      };
+
+      mockAsaasService.getPaymentById.mockResolvedValueOnce({
+        id: 'pay_12345',
+        status: 'RECEIVED',
+        value: 50.0,
+        fee: 0.99,
+        netValue: 49.01,
+      });
+
+      mockPrisma.transaction.findUnique.mockResolvedValue(mockTransaction);
+      mockPrisma.appointment.findUnique.mockResolvedValue(activeAppt);
+
+      await service.handleAsaasEvent('PAYMENT_CONFIRMED', mockPayment);
+
+      expect(mockAsaasService.getPaymentById).toHaveBeenCalledWith('pay_12345');
+      expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
+        where: { id: 'tx-1' },
+        data: expect.objectContaining({
+          status: TransactionStatus.CONFIRMED,
+          asaasFee: 0.99,
+          platformAbsorbedFee: 0,
+        }),
       });
     });
 

@@ -6,17 +6,19 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AsaasWebhookGuard } from './guard/asaas-webhook.guard';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { WebhooksService } from './webhooks.service';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Webhooks')
-@SkipThrottle()
+@Throttle({ default: { limit: 1000, ttl: 60000 } })
 @Controller('webhooks')
 export class WebhooksController {
+  private readonly logger = new Logger(WebhooksController.name);
+
   constructor(private readonly webhooksService: WebhooksService) {}
 
   @Post('asaas')
@@ -28,15 +30,24 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Evento processado com sucesso' })
   @ApiResponse({ status: 401, description: 'Token de webhook inválido' })
   async handleAsaasWebhook(@Body() payload: AsaasWebhookDto) {
-    const { event, payment, id: eventId } = payload || {};
-    if (!payment?.id) {
-      return { received: true };
+    try {
+      const { event, payment, id: eventId } = payload || {};
+      if (!payment?.id) {
+        return { received: true };
+      }
+      return await this.webhooksService.handleAsaasEvent(
+        event,
+        payment,
+        eventId,
+        payload,
+      );
+    } catch (err: any) {
+      // Regra Crítica A21: Webhooks sequenciais NUNCA podem responder >= 500
+      this.logger.error(
+        `[Webhook Controller] Erro não tratado ao processar webhook do Asaas: ${err?.message || err}`,
+        err?.stack,
+      );
+      return { received: true, error: true, message: 'Processed with error recovery' };
     }
-    return this.webhooksService.handleAsaasEvent(
-      event,
-      payment,
-      eventId,
-      payload,
-    );
   }
 }
