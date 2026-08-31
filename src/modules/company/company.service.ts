@@ -341,34 +341,37 @@ export class CompanyService {
     userRole: Role,
     dto?: DashboardMetricsDto,
   ) {
-    let company: { id: string; businessName: string; slug: string } | null =
-      null;
+    let company: {
+      id: string;
+      businessName: string;
+      slug: string;
+      userId?: string;
+    } | null = null;
 
-    if (userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN) {
-      if (dto?.companyId) {
-        company = await this.prisma.company.findFirst({
-          where: { id: dto.companyId, isActive: true },
-          select: { id: true, businessName: true, slug: true },
-        });
-        if (!company) {
-          throw new NotFoundException('Estabelecimento não encontrado.');
-        }
-      } else {
-        company = await this.prisma.company.findFirst({
-          where: { userId, isActive: true },
-          select: { id: true, businessName: true, slug: true },
-        });
-        if (!company) {
-          throw new BadRequestException(
-            'Informe o companyId para consultar as métricas do estabelecimento.',
+    if (dto?.companyId) {
+      company = await this.prisma.company.findFirst({
+        where: { id: dto.companyId, isActive: true },
+        select: { id: true, businessName: true, slug: true, userId: true },
+      });
+      if (!company) {
+        throw new NotFoundException('Estabelecimento não encontrado.');
+      }
+      if (userRole !== Role.ADMIN && userRole !== Role.SUPER_ADMIN) {
+        if (company.userId !== userId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para acessar os dados deste estabelecimento.',
           );
         }
       }
     } else {
-      // Dono de estabelecimento (COMPANY_OWNER)
+      if (userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN) {
+        throw new BadRequestException(
+          'Informe o companyId para consultar as métricas do estabelecimento.',
+        );
+      }
       company = await this.prisma.company.findFirst({
         where: { userId, isActive: true },
-        select: { id: true, businessName: true, slug: true },
+        select: { id: true, businessName: true, slug: true, userId: true },
       });
       if (!company) {
         throw new NotFoundException(
@@ -478,13 +481,13 @@ export class CompanyService {
           totalRevenue += price;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
-          completedDepositsNet += downPayment; // Bolt optimization
+          // completedDepositsNet sum removed
           break;
         case ApptStatus.CONFIRMED:
           confirmedCount++;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
-          escrowLockedBalance += downPayment; // Bolt optimization
+          // escrowLockedBalance sum removed
           break;
         case ApptStatus.CANCELED:
           canceledCount++;
@@ -513,6 +516,35 @@ export class CompanyService {
     }
 
     const totalAppointments = appointments.length;
+
+    const completedTxAgg = await this.prisma.transaction.aggregate({
+      where: {
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.COMPLETED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
+      },
+      _sum: { netValue: true },
+    });
+    completedDepositsNet = Number(completedTxAgg._sum.netValue || 0);
+
+    const escrowTxAgg = await this.prisma.transaction.aggregate({
+      where: {
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.CONFIRMED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
+      },
+      _sum: { netValue: true },
+    });
+    escrowLockedBalance = Number(escrowTxAgg._sum.netValue || 0);
+
     const validCount = completedCount + confirmedCount + canceledCount;
     const completionRate =
       validCount > 0
@@ -601,7 +633,12 @@ export class CompanyService {
         OR: [{ userId }, { companies: { some: { id: company.id } } }],
         isActive: true,
       },
-      select: { id: true, walletId: true },
+      select: {
+        id: true,
+        walletId: true,
+        pixAddressKey: true,
+        pixAddressKeyType: true,
+      },
     });
 
     if (companyProfile?.walletId) {
@@ -681,36 +718,51 @@ export class CompanyService {
         ],
         isActive: true,
       },
-      select: { id: true, walletId: true },
+      select: {
+        id: true,
+        walletId: true,
+        pixAddressKey: true,
+        pixAddressKeyType: true,
+      },
     });
 
-    if (!financialProfile?.walletId) {
+    if (
+      !financialProfile?.walletId ||
+      !financialProfile?.pixAddressKey ||
+      !financialProfile?.pixAddressKeyType
+    ) {
       throw new BadRequestException(
         'Estabelecimento não possui perfil financeiro ou subconta Asaas configurada.',
       );
     }
 
-    const completedAgg = await this.prisma.appointment.aggregate({
+    const completedAgg = await this.prisma.transaction.aggregate({
       where: {
-        companyId: company.id,
-        isActive: true,
-        status: ApptStatus.COMPLETED,
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.COMPLETED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
       },
-      _sum: { downPaymentAmount: true },
+      _sum: { netValue: true },
     });
-    const completedNetRevenue = Number(
-      completedAgg._sum.downPaymentAmount || 0,
-    );
+    const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
 
-    const escrowAgg = await this.prisma.appointment.aggregate({
+    const escrowAgg = await this.prisma.transaction.aggregate({
       where: {
-        companyId: company.id,
-        isActive: true,
-        status: ApptStatus.CONFIRMED,
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.CONFIRMED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
       },
-      _sum: { downPaymentAmount: true },
+      _sum: { netValue: true },
     });
-    const escrowLockedBalance = Number(escrowAgg._sum.downPaymentAmount || 0);
+    const escrowLockedBalance = Number(escrowAgg._sum.netValue || 0);
 
     const withdrawalsAgg = await this.prisma.transaction.aggregate({
       where: {
@@ -744,7 +796,7 @@ export class CompanyService {
       completedNetRevenue: Number(completedNetRevenue.toFixed(2)),
       totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
       nextFreeWithdrawalDate: nextMonday.toISOString(),
-      instantTransferFee: ASAAS_TRANSFER_FEE,
+      instantTransferFee: await this.asaasService.getTransferFee(),
       minFreeWeeklyPayoutThreshold: MIN_FREE_WEEKLY_PAYOUT,
       eligibleForFreeWeeklyPayout: availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
     };
@@ -774,16 +826,25 @@ export class CompanyService {
         ],
         isActive: true,
       },
-      select: { id: true, walletId: true },
+      select: {
+        id: true,
+        walletId: true,
+        pixAddressKey: true,
+        pixAddressKeyType: true,
+      },
     });
 
-    if (!financialProfile?.walletId) {
+    if (
+      !financialProfile?.walletId ||
+      !financialProfile?.pixAddressKey ||
+      !financialProfile?.pixAddressKeyType
+    ) {
       throw new BadRequestException(
         'Estabelecimento não possui perfil financeiro ou subconta Asaas configurada.',
       );
     }
 
-    const transferFee = ASAAS_TRANSFER_FEE;
+    const transferFee = await this.asaasService.getTransferFee();
 
     // 1. Transação Interativa Atômica com Reserva Imediata de Saldo (Anti-Race Condition Lock)
     const {
@@ -809,27 +870,34 @@ export class CompanyService {
       }
 
       // Busca agendamentos ativos da empresa para apuração de saldo
-      const completedAgg = await tx.appointment.aggregate({
-        where: {
-          companyId: company.id,
-          isActive: true,
-          status: ApptStatus.COMPLETED,
-        },
-        _sum: { downPaymentAmount: true },
-      });
-      const completedNetRevenue = Number(
-        completedAgg._sum.downPaymentAmount || 0,
-      );
 
-      const escrowAgg = await tx.appointment.aggregate({
+      const completedAgg = await tx.transaction.aggregate({
         where: {
-          companyId: company.id,
-          isActive: true,
-          status: ApptStatus.CONFIRMED,
+          appointment: {
+            companyId: company.id,
+            isActive: true,
+            status: ApptStatus.COMPLETED,
+          },
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.CONFIRMED,
         },
-        _sum: { downPaymentAmount: true },
+        _sum: { netValue: true },
       });
-      const escrowLocked = Number(escrowAgg._sum.downPaymentAmount || 0);
+      const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
+
+      const escrowAgg = await tx.transaction.aggregate({
+        where: {
+          appointment: {
+            companyId: company.id,
+            isActive: true,
+            status: ApptStatus.CONFIRMED,
+          },
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.CONFIRMED,
+        },
+        _sum: { netValue: true },
+      });
+      const escrowLocked = Number(escrowAgg._sum.netValue || 0);
 
       // Saques já realizados ou em processamento (CONFIRMED ou PENDING)
       const withdrawalsAgg = await tx.transaction.aggregate({
@@ -904,7 +972,11 @@ export class CompanyService {
       asaasResult = await this.asaasService.transferSubaccountBalance(
         financialProfile.id,
         netAmountTransferred,
-        { isFreeWeekly: false },
+        {
+          isFreeWeekly: false,
+          pixAddressKey: financialProfile.pixAddressKey,
+          pixAddressKeyType: financialProfile.pixAddressKeyType,
+        },
       );
     } catch (err: any) {
       this.logger.error(
@@ -970,7 +1042,11 @@ export class CompanyService {
       select: { walletId: true },
     });
 
-    if (!financialProfile?.walletId) {
+    if (
+      !financialProfile?.walletId ||
+      !financialProfile?.pixAddressKey ||
+      !financialProfile?.pixAddressKeyType
+    ) {
       return [];
     }
 
@@ -1041,7 +1117,12 @@ export class CompanyService {
                 ],
                 isActive: true,
               },
-              select: { id: true, walletId: true },
+              select: {
+                id: true,
+                walletId: true,
+                pixAddressKey: true,
+                pixAddressKeyType: true,
+              },
             },
           );
 
@@ -1070,7 +1151,11 @@ export class CompanyService {
               await this.asaasService.transferSubaccountBalance(
                 financialProfile.id,
                 balance.availableBalance,
-                { isFreeWeekly: true },
+                {
+                  isFreeWeekly: true,
+                  pixAddressKey: financialProfile.pixAddressKey,
+                  pixAddressKeyType: financialProfile.pixAddressKeyType,
+                },
               );
 
             await this.prisma.transaction.create({

@@ -89,4 +89,19 @@ export class CreateFinancialProfileDto {
   })
   @IsString()
   postalCode: string;
+
+  @ApiProperty({
+    example: '12345678909',
+    description: 'Chave PIX para recebimento',
+  })
+  @IsString()
+  pixAddressKey: string;
+
+  @ApiProperty({
+    example: 'CPF',
+    description: 'Tipo da chave PIX (CPF, EMAIL, PHONE, RANDOM)',
+  })
+  @IsString()
+  @IsIn(['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'RANDOM'])
+  pixAddressKeyType: string;
 }

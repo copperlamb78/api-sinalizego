@@ -31,6 +31,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
         error = 'Internal Server Error';
         this.logger.error(
           `[UnhandledException] ${exception.message}`,
+        this.logger.error(
+          `[HttpException] ${exception.message}`,
+          exception.stack,
+        );
+      } else if (typeof res === 'string') {
+        message = res;
+        error = exception.name.replace(/Exception$/, '') || 'Http Error';
+      } else if (typeof res === 'object' && res !== null) {
+        const resObj = res as Record<string, any>;
+        message = resObj.message || exception.message;
+        error = resObj.error || exception.name.replace(/Exception$/, '');
         // Fallback message for 500
         message = 'Ocorreu um erro interno no servidor.';
         error = 'Internal Server Error';

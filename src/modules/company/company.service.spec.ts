@@ -454,7 +454,7 @@ describe('CompanyService', () => {
 
       expect(mockPrisma.company.findFirst).toHaveBeenCalledWith({
         where: { id: 'comp-1', isActive: true },
-        select: { id: true, businessName: true, slug: true },
+        select: { id: true, businessName: true, slug: true, userId: true },
       });
       expect(result.financial.totalRevenue).toBe(0);
       expect(result.volume.total).toBe(0);

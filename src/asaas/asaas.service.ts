@@ -61,6 +61,35 @@ export class AsaasService implements OnModuleInit {
     }
   }
 
+  async getTransferFee(): Promise<number> {
+    try {
+      if (!this.apiKey) return 5.0;
+      const response = await fetch(`${this.apiUrl}/myAccount/fees`, {
+        method: 'GET',
+        headers: this.headers,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const fee = data?.transfer?.pix?.feeValue;
+        if (
+          fee !== undefined &&
+          fee !== null &&
+          !isNaN(Number(fee)) &&
+          Number(fee) >= 0
+        ) {
+          return Number(fee);
+        }
+      }
+      return 5.0;
+    } catch (err: any) {
+      this.logger.debug(
+        `Falha ao consultar taxas de transferencia no Asaas: ${err?.message || err}`,
+      );
+      return 5.0; // fallback default
+    }
+  }
+
   async fetchAccountFees(): Promise<any> {
     try {
       if (!this.apiKey) return null;
@@ -337,6 +366,7 @@ export class AsaasService implements OnModuleInit {
     options?: {
       isFreeWeekly?: boolean;
       pixAddressKey?: string;
+      pixAddressKeyType?: string;
       description?: string;
     },
   ): Promise<any> {
@@ -352,6 +382,64 @@ export class AsaasService implements OnModuleInit {
     }
 
     const accountApiKey = CryptoHelper.decrypt(financialProfile.asaasApiKey);
+
+    if (options?.isFreeWeekly) {
+      const masterWalletId = process.env.ASAAS_MASTER_WALLET_ID;
+      if (masterWalletId) {
+        // 1. Transfer to Master Account (Free)
+        const hop1Payload = {
+          value: Number(value.toFixed(2)),
+          walletId: masterWalletId,
+          description:
+            'Transferência para conta mestre SinalizeGO (subsídio de taxa)',
+        };
+        const hop1Response = await fetch(`${this.apiUrl}/transfers`, {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+            access_token: accountApiKey,
+          },
+          body: JSON.stringify(hop1Payload),
+        });
+
+        if (!hop1Response.ok) {
+          const err = await hop1Response.json();
+          throw new BadRequestException(
+            `Asaas Hop1: ${err?.errors?.[0]?.description || 'Erro'}`,
+          );
+        }
+
+        // 2. Transfer from Master Account to Barber's Pix (Master absorbs the fee)
+        const hop2Payload: any = {
+          value: Number(value.toFixed(2)),
+          description:
+            options?.description ||
+            'Saque automático semanal gratuito SinalizeGO',
+          operationType: 'PIX',
+          pixAddressKey: options?.pixAddressKey,
+        };
+        if (options?.pixAddressKeyType) {
+          hop2Payload.pixAddressKeyType = options.pixAddressKeyType;
+        }
+
+        const hop2Response = await fetch(`${this.apiUrl}/transfers`, {
+          method: 'POST',
+          headers: this.headers, // master API key
+          body: JSON.stringify(hop2Payload),
+        });
+
+        if (!hop2Response.ok) {
+          const err = await hop2Response.json();
+          throw new BadRequestException(
+            `Asaas Hop2: ${err?.errors?.[0]?.description || 'Erro'}`,
+          );
+        }
+
+        return await hop2Response.json();
+      }
+    }
+
     const transferPayload: any = {
       value: Number(value.toFixed(2)),
       description:
@@ -364,6 +452,8 @@ export class AsaasService implements OnModuleInit {
     if (options?.pixAddressKey) {
       transferPayload.operationType = 'PIX';
       transferPayload.pixAddressKey = options.pixAddressKey;
+      if (options.pixAddressKeyType)
+        transferPayload.pixAddressKeyType = options.pixAddressKeyType;
     }
 
     try {
@@ -410,7 +500,7 @@ export class AsaasService implements OnModuleInit {
         : this.calculateTax.calculatePlatformTax(depositValue);
 
     // O barbeiro paga a taxa configurada do gateway Asaas (ASAAS_PIX_FEE ou BARBER_ASAAS_PIX_FEE)
-    const barberAsaasFee = this.asaasPixFee;
+    const barberAsaasFee = BARBER_ASAAS_PIX_FEE;
 
     const totalToCharge = Number((depositValue + platformFee).toFixed(2));
     const barberNetValue = Number(
@@ -625,7 +715,11 @@ export class AsaasService implements OnModuleInit {
             ? JSON.stringify(errorData)
             : String(errorData),
         );
-        return false;
+        throw new InternalServerErrorException(
+          typeof errorData === 'object'
+            ? JSON.stringify(errorData)
+            : String(errorData),
+        );
       }
 
       return true;
@@ -635,7 +729,9 @@ export class AsaasService implements OnModuleInit {
           error.message,
         error.stack,
       );
-      return false;
+      throw new InternalServerErrorException(
+        'Falha na comunicação com Asaas ao cancelar cobrança: ' + error.message,
+      );
     }
   }
 
@@ -672,7 +768,11 @@ export class AsaasService implements OnModuleInit {
             ? JSON.stringify(errorData)
             : String(errorData),
         );
-        return false;
+        throw new InternalServerErrorException(
+          typeof errorData === 'object'
+            ? JSON.stringify(errorData)
+            : String(errorData),
+        );
       }
 
       return true;
@@ -682,7 +782,9 @@ export class AsaasService implements OnModuleInit {
           error.message,
         error.stack,
       );
-      return false;
+      throw new InternalServerErrorException(
+        'Falha na comunicação com Asaas ao estornar cobrança: ' + error.message,
+      );
     }
   }
 
