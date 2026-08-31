@@ -24,3 +24,8 @@
 **Vulnerability:** Global exception handler (`AllExceptionsFilter`) returned raw error messages from `HttpException` instances throwing 500 status codes (e.g. `InternalServerErrorException`) straight to the client, leading to potential sensitive internal application/system information disclosure.
 **Learning:** Global error handlers must explicitly catch and obscure 500 errors separately from standard HTTP status overrides, even if the error originates from standard framework exceptions.
 **Prevention:** Ensured the exception filter traps `HttpStatus.INTERNAL_SERVER_ERROR`, safely logs the original error details server-side via logger, and returns a generic obfuscated fallback message client-side.
+
+## 2026-08-29 - [Information Disclosure] Secure Error Messages for HttpExceptions with 500 Status
+**Vulnerability:** The global exception handler (`AllExceptionsFilter`) returned raw exception messages for `HttpException` instances with status 500 (such as `InternalServerErrorException`), which could leak sensitive internal database or application error details.
+**Learning:** `HttpException` instances with status 500 might have raw messages passed to them directly during internal system failures. Unlike generic unhandled errors, the previous configuration exposed these strings by passing the message down to the response.
+**Prevention:** Ensured the filter catches `HttpException` instances with a 500 status code, logs the sensitive internal error, and replaces the message returned to the client with a generic fallback message.
