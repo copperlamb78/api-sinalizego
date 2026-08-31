@@ -126,6 +126,9 @@ describe('AllExceptionsFilter', () => {
   it('should handle HttpException with 500 status code', () => {
     const exception = new HttpException(
       'DB Connection Failed',
+  it('should handle HttpException with 500 status securely without leaking details', () => {
+    const exception = new HttpException(
+      'Sensitive internal database error message that should not be exposed',
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
 
@@ -139,6 +142,7 @@ describe('AllExceptionsFilter', () => {
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Ocorreu um erro interno no servidor.',
         error: 'Internal Server Error',
+        path: '/api/v1/test',
       }),
     );
   });
