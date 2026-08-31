@@ -75,6 +75,8 @@ model Company {
   serviceGroups      ServiceGroup[]
   workingHours       WorkingHour[]
   scheduleExceptions ScheduleException[]
+
+  @@index([userId])
 }
 
 // Grupo de serviços
@@ -90,6 +92,8 @@ model ServiceGroup {
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   services Service[]
+
+  @@index([companyId])
 }
 
 // 3. OS SERVIÇOS
@@ -110,6 +114,9 @@ model Service {
   serviceGroup ServiceGroup  @relation(fields: [serviceGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   appointments Appointment[]
+
+  @@index([companyId])
+  @@index([serviceGroupId])
 }
 
 // 4. OS AGENDAMENTOS
@@ -140,6 +147,8 @@ model Appointment {
 
   @@index([companyId])
   @@index([clientId])
+  @@index([serviceId])
+  @@index([companyId, appointmentDate])
   @@index([appointmentDate, appointmentEndDate])
   @@index([status])
   @@index([expiresAt])
@@ -189,6 +198,8 @@ model ScheduleException {
   disabledAt DateTime?
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([companyId, date])
 }
 
 model FinancialProfile {
@@ -230,6 +241,8 @@ model FinancialProfile {
 
   isActive   Boolean   @default(true)
   disabledAt DateTime?
+
+  @@index([userId])
 }
 
 // Toda lógica de transações
@@ -284,8 +297,8 @@ model Transaction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([asaasPaymentId])
-  @@index([appointmentId])
+  @@index([barberWalletId])
+  @@index([customerId])
   @@index([status])
   @@map("transactions")
 }
@@ -298,6 +311,5 @@ model WebhookEvent {
   payload     Json?
   processedAt DateTime @default(now())
 
-  @@index([eventId])
   @@map("webhook_events")
 }
