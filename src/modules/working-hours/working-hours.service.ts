@@ -64,17 +64,25 @@ export class WorkingHoursService {
   /**
    * Resolve e valida a empresa pertencente ao usuário autenticado (Anti-IDOR).
    */
-  private async resolveCompany(userId: string, companyId?: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+  private async resolveCompany(
+    userId: string,
+    companyId?: string,
+    role?: Role | string,
+  ) {
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
-
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
 
     if (companyId) {
       const company = await this.prisma.company.findUnique({
@@ -110,8 +118,12 @@ export class WorkingHoursService {
   /**
    * Atualiza ou cadastra os horários de funcionamento semanais da empresa.
    */
-  async updateWorkingHours(userId: string, dto: UpdateWorkingHoursDto) {
-    const company = await this.resolveCompany(userId, dto.companyId);
+  async updateWorkingHours(
+    userId: string,
+    dto: UpdateWorkingHoursDto,
+    role?: Role | string,
+  ) {
+    const company = await this.resolveCompany(userId, dto.companyId, role);
 
     // Valida todos os itens antes de persistir
     for (const item of dto.hours) {
@@ -162,8 +174,12 @@ export class WorkingHoursService {
   /**
    * Lista a grade semanal de funcionamento da empresa autenticada.
    */
-  async getWorkingHours(userId: string, companyId?: string) {
-    const company = await this.resolveCompany(userId, companyId);
+  async getWorkingHours(
+    userId: string,
+    companyId?: string,
+    role?: Role | string,
+  ) {
+    const company = await this.resolveCompany(userId, companyId, role);
 
     return this.prisma.workingHour.findMany({
       where: { companyId: company.id },
@@ -195,8 +211,9 @@ export class WorkingHoursService {
   async createScheduleException(
     userId: string,
     dto: CreateScheduleExceptionDto,
+    role?: Role | string,
   ) {
-    const company = await this.resolveCompany(userId, dto.companyId);
+    const company = await this.resolveCompany(userId, dto.companyId, role);
 
     const isClosed = dto.isClosed ?? true;
 
@@ -234,8 +251,12 @@ export class WorkingHoursService {
   /**
    * Lista exceções ativas da empresa autenticada.
    */
-  async getScheduleExceptions(userId: string, companyId?: string) {
-    const company = await this.resolveCompany(userId, companyId);
+  async getScheduleExceptions(
+    userId: string,
+    companyId?: string,
+    role?: Role | string,
+  ) {
+    const company = await this.resolveCompany(userId, companyId, role);
 
     const now = new Date();
     const startOfTodayUTC = new Date(
@@ -263,7 +284,11 @@ export class WorkingHoursService {
   /**
    * Remove/desativa uma exceção de agenda com proteção Anti-IDOR.
    */
-  async deleteScheduleException(exceptionId: string, userId: string) {
+  async deleteScheduleException(
+    exceptionId: string,
+    userId: string,
+    role?: Role | string,
+  ) {
     const exception = await this.prisma.scheduleException.findUnique({
       where: { id: exceptionId },
       include: { company: true },
@@ -273,16 +298,20 @@ export class WorkingHoursService {
       throw new NotFoundException('Exceção de agenda não encontrada.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
-
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
 
     if (!isSystemManager && exception.company?.userId !== userId) {
       throw new ForbiddenException(

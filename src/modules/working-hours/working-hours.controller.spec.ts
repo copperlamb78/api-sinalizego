@@ -37,7 +37,7 @@ describe('WorkingHoursController', () => {
 
   describe('updateWorkingHours', () => {
     it('should call workingHoursService.updateWorkingHours with req.user.sub', async () => {
-      const req = { user: { sub: 'user-1' } } as any;
+      const req = { user: { sub: 'user-1', role: 'COMPANY_OWNER' } } as any;
       const dto = {
         hours: [
           {
@@ -52,19 +52,27 @@ describe('WorkingHoursController', () => {
       mockWorkingHoursService.updateWorkingHours.mockResolvedValue(expected);
 
       const result = await controller.updateWorkingHours(dto, req);
-      expect(service.updateWorkingHours).toHaveBeenCalledWith('user-1', dto);
+      expect(service.updateWorkingHours).toHaveBeenCalledWith(
+        'user-1',
+        dto,
+        'COMPANY_OWNER',
+      );
       expect(result).toEqual(expected);
     });
   });
 
   describe('getWorkingHours', () => {
     it('should call workingHoursService.getWorkingHours with req.user.sub and companyId query', async () => {
-      const req = { user: { sub: 'user-1' } } as any;
+      const req = { user: { sub: 'user-1', role: 'COMPANY_OWNER' } } as any;
       const expected = [{ dayOfWeek: 1, isClosed: false }];
       mockWorkingHoursService.getWorkingHours.mockResolvedValue(expected);
 
       const result = await controller.getWorkingHours(req, 'comp-1');
-      expect(service.getWorkingHours).toHaveBeenCalledWith('user-1', 'comp-1');
+      expect(service.getWorkingHours).toHaveBeenCalledWith(
+        'user-1',
+        'comp-1',
+        'COMPANY_OWNER',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -84,7 +92,7 @@ describe('WorkingHoursController', () => {
 
   describe('createScheduleException', () => {
     it('should call workingHoursService.createScheduleException with req.user.sub and dto', async () => {
-      const req = { user: { sub: 'user-1' } } as any;
+      const req = { user: { sub: 'user-1', role: 'COMPANY_OWNER' } } as any;
       const dto = { date: '2026-12-25', isClosed: true };
       const expected = { id: 'exc-1', ...dto };
       mockWorkingHoursService.createScheduleException.mockResolvedValue(
@@ -95,6 +103,7 @@ describe('WorkingHoursController', () => {
       expect(service.createScheduleException).toHaveBeenCalledWith(
         'user-1',
         dto,
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -102,7 +111,7 @@ describe('WorkingHoursController', () => {
 
   describe('getScheduleExceptions', () => {
     it('should call workingHoursService.getScheduleExceptions with req.user.sub', async () => {
-      const req = { user: { sub: 'user-1' } } as any;
+      const req = { user: { sub: 'user-1', role: 'COMPANY_OWNER' } } as any;
       const expected = [{ id: 'exc-1', date: new Date() }];
       mockWorkingHoursService.getScheduleExceptions.mockResolvedValue(expected);
 
@@ -110,6 +119,7 @@ describe('WorkingHoursController', () => {
       expect(service.getScheduleExceptions).toHaveBeenCalledWith(
         'user-1',
         undefined,
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -117,7 +127,7 @@ describe('WorkingHoursController', () => {
 
   describe('deleteScheduleException', () => {
     it('should call workingHoursService.deleteScheduleException with id and req.user.sub', async () => {
-      const req = { user: { sub: 'user-1' } } as any;
+      const req = { user: { sub: 'user-1', role: 'COMPANY_OWNER' } } as any;
       const expected = { id: 'exc-1', isActive: false };
       mockWorkingHoursService.deleteScheduleException.mockResolvedValue(
         expected,
@@ -127,6 +137,7 @@ describe('WorkingHoursController', () => {
       expect(service.deleteScheduleException).toHaveBeenCalledWith(
         'exc-1',
         'user-1',
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });

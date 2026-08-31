@@ -147,7 +147,7 @@ describe('AppointmentsController', () => {
 
   describe('complete', () => {
     it('should complete a confirmed appointment with authenticated owner', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const expected = { id: 'appointment-1', status: ApptStatus.COMPLETED };
       mockAppointmentsService.completeAppointment.mockResolvedValue(expected);
 
@@ -158,6 +158,7 @@ describe('AppointmentsController', () => {
       expect(appointmentsService.completeAppointment).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -165,7 +166,7 @@ describe('AppointmentsController', () => {
 
   describe('markNoShow', () => {
     it('should mark appointment as no-show with authenticated owner', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const expected = {
         id: 'appointment-1',
         status: ApptStatus.NO_SHOW,
@@ -180,6 +181,7 @@ describe('AppointmentsController', () => {
       expect(appointmentsService.markAsNoShow).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -187,7 +189,7 @@ describe('AppointmentsController', () => {
 
   describe('updateStatus', () => {
     it('should update appointment status with authenticated owner', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const dto = { status: ApptStatus.COMPLETED };
       const expected = { id: 'appointment-1', status: ApptStatus.COMPLETED };
       mockAppointmentsService.updateAppointmentStatus.mockResolvedValue(
@@ -203,6 +205,7 @@ describe('AppointmentsController', () => {
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
         dto,
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -210,7 +213,7 @@ describe('AppointmentsController', () => {
 
   describe('cancelByClient', () => {
     it('should cancel appointment requested by client', async () => {
-      const req = { user: { sub: 'client-1' } } as any;
+      const req = { user: { sub: 'client-1', role: 'CLIENT' } } as any;
       const expected = {
         id: 'appointment-1',
         isActive: false,
@@ -225,6 +228,7 @@ describe('AppointmentsController', () => {
       expect(appointmentsService.deactivateAppointment).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'client-1',
+        'CLIENT',
       );
       expect(result).toEqual(expected);
     });
@@ -232,7 +236,7 @@ describe('AppointmentsController', () => {
 
   describe('deactivate', () => {
     it('should deactivate / cancel appointment', async () => {
-      const req = { user: { sub: 'client-1' } } as any;
+      const req = { user: { sub: 'client-1', role: 'CLIENT' } } as any;
       const expected = {
         id: 'appointment-1',
         isActive: false,
@@ -247,6 +251,7 @@ describe('AppointmentsController', () => {
       expect(appointmentsService.deactivateAppointment).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'client-1',
+        'CLIENT',
       );
       expect(result).toEqual(expected);
     });

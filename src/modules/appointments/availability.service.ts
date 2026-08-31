@@ -54,18 +54,29 @@ export class AvailabilityService {
     const endOfDayUTC = new Date(
       Date.UTC(year, month - 1, day, 23, 59, 59, 999),
     );
+    const dayOfWeek = this.getDayOfWeekFromDateString(dateStr);
 
-    // 1. Checa se existe exceção/feriado cadastrado para a data
-    const exception = await this.prisma.scheduleException.findFirst({
-      where: {
-        companyId,
-        isActive: true,
-        date: {
-          gte: startOfDayUTC,
-          lte: endOfDayUTC,
+    // ⚡ O-09: Paraleliza a busca de exceção e expediente padrão semanal
+    const [exception, workingHour] = await Promise.all([
+      this.prisma.scheduleException.findFirst({
+        where: {
+          companyId,
+          isActive: true,
+          date: {
+            gte: startOfDayUTC,
+            lte: endOfDayUTC,
+          },
         },
-      },
-    });
+      }),
+      this.prisma.workingHour.findUnique({
+        where: {
+          companyId_dayOfWeek: {
+            companyId,
+            dayOfWeek,
+          },
+        },
+      }),
+    ]);
 
     if (exception) {
       if (exception.isClosed) {
@@ -80,17 +91,6 @@ export class AvailabilityService {
         };
       }
     }
-
-    // 2. Busca o expediente padrão do dia da semana
-    const dayOfWeek = this.getDayOfWeekFromDateString(dateStr);
-    const workingHour = await this.prisma.workingHour.findUnique({
-      where: {
-        companyId_dayOfWeek: {
-          companyId,
-          dayOfWeek,
-        },
-      },
-    });
 
     if (!workingHour || workingHour.isClosed) {
       return null; // Fechado por padrão no dia da semana
@@ -112,20 +112,32 @@ export class AvailabilityService {
     serviceId: string,
     dateStr: string,
   ): Promise<AvailableSlotsResponse> {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId, isActive: true },
-    });
+    // ⚡ O-09: Paraleliza a verificação de empresa, serviço e horário de funcionamento
+    const [company, service, schedule] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id: companyId, isActive: true },
+        select: { id: true },
+      }),
+      this.prisma.service.findUnique({
+        where: { id: serviceId, isActive: true },
+        select: {
+          id: true,
+          companyId: true,
+          durationMinutes: true,
+          serviceGroupId: true,
+          serviceGroup: {
+            select: {
+              capacity: true,
+            },
+          },
+        },
+      }),
+      this.resolveWorkingHoursForDate(companyId, dateStr),
+    ]);
 
     if (!company) {
       throw new NotFoundException('Empresa não encontrada ou inativa.');
     }
-
-    const service = await this.prisma.service.findUnique({
-      where: { id: serviceId, isActive: true },
-      include: {
-        serviceGroup: true,
-      },
-    });
 
     if (!service) {
       throw new NotFoundException('Serviço não encontrado ou inativo.');
@@ -134,8 +146,6 @@ export class AvailabilityService {
     if (service.companyId !== company.id) {
       throw new BadRequestException('O serviço não pertence a esta empresa.');
     }
-
-    const schedule = await this.resolveWorkingHoursForDate(company.id, dateStr);
 
     if (!schedule) {
       return {

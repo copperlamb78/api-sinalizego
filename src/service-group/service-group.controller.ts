@@ -68,7 +68,12 @@ export class ServiceGroupController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.serviceGroupService.create(createServiceGroupDto, userId);
+    const role = req.user?.['role'];
+    return this.serviceGroupService.create(
+      createServiceGroupDto,
+      userId,
+      role,
+    );
   }
 
   @ApiBearerAuth()
@@ -134,10 +139,12 @@ export class ServiceGroupController {
     @Query() filters?: FiltersServiceGroupDto,
   ) {
     const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
     return this.serviceGroupService.findAllByCompanyId(
       companyId,
       userId,
       filters,
+      role,
     );
   }
 
@@ -221,7 +228,13 @@ export class ServiceGroupController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.serviceGroupService.update(id, userId, updateServiceGroupDto);
+    const role = req.user?.['role'];
+    return this.serviceGroupService.update(
+      id,
+      userId,
+      updateServiceGroupDto,
+      role,
+    );
   }
 
   @ApiBearerAuth()
@@ -272,11 +285,13 @@ export class ServiceGroupController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
     return this.serviceGroupService.updateByCompanyId(
       id,
       companyId,
       userId,
       updateServiceGroupDto,
+      role,
     );
   }
 
@@ -320,6 +335,7 @@ export class ServiceGroupController {
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const userId = req.user?.['sub'];
-    return this.serviceGroupService.remove(id, userId);
+    const role = req.user?.['role'];
+    return this.serviceGroupService.remove(id, userId, role);
   }
 }

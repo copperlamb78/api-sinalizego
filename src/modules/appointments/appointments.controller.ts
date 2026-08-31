@@ -197,7 +197,12 @@ export class AppointmentsController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.appointmentsService.completeAppointment(appointmentId, userId);
+    const role = req.user?.['role'];
+    return this.appointmentsService.completeAppointment(
+      appointmentId,
+      userId,
+      role,
+    );
   }
 
   @ApiBearerAuth()
@@ -233,7 +238,8 @@ export class AppointmentsController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.appointmentsService.markAsNoShow(appointmentId, userId);
+    const role = req.user?.['role'];
+    return this.appointmentsService.markAsNoShow(appointmentId, userId, role);
   }
 
   @ApiBearerAuth()
@@ -273,10 +279,12 @@ export class AppointmentsController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
     return this.appointmentsService.updateAppointmentStatus(
       appointmentId,
       userId,
       dto,
+      role,
     );
   }
 
@@ -285,7 +293,7 @@ export class AppointmentsController {
   @Delete(':id/client')
   @ApiOperation({
     summary:
-      'Cancela um agendamento solicitado pelo cliente (com estorno integral se > 24h ou estorno do excedente se <= 24h)',
+      'Cancela um agendamento solicitado pelo cliente (com estorno integral se > 24h ou retenção integral de 100% do sinal se <= 24h)',
   })
   @ApiParam({
     name: 'id',
@@ -303,9 +311,11 @@ export class AppointmentsController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
     return this.appointmentsService.deactivateAppointment(
       appointmentId,
       userId,
+      role,
     );
   }
 
@@ -329,9 +339,11 @@ export class AppointmentsController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
     return this.appointmentsService.deactivateAppointment(
       appointmentId,
       userId,
+      role,
     );
   }
 }

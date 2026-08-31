@@ -14,7 +14,11 @@ import { Role } from '@prisma/client';
 export class ServiceGroupService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: CreateServiceGroupDto, userId: string) {
+  async create(
+    data: CreateServiceGroupDto,
+    userId: string,
+    role?: Role | string,
+  ) {
     const company = await this.prisma.company.findUnique({
       where: { id: data.companyId },
     });
@@ -23,16 +27,20 @@ export class ServiceGroupService {
       throw new NotFoundException('Empresa não encontrada.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
-
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
 
     if (!isSystemManager && company.userId !== userId) {
       throw new ForbiddenException(
@@ -119,6 +127,7 @@ export class ServiceGroupService {
     companyId: string,
     userId: string,
     filters?: FiltersServiceGroupDto,
+    role?: Role | string,
   ) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -128,16 +137,20 @@ export class ServiceGroupService {
       throw new NotFoundException('Empresa não encontrada.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
-
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
 
     if (!isSystemManager && company.userId !== userId) {
       throw new ForbiddenException(
@@ -162,6 +175,7 @@ export class ServiceGroupService {
     companyId: string,
     userId: string,
     data: UpdateServiceGroupDto,
+    role?: Role | string,
   ) {
     const serviceGroup = await this.prisma.serviceGroup.findFirst({
       where: { id, companyId },
@@ -176,16 +190,20 @@ export class ServiceGroupService {
       );
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
-
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
 
     if (!isSystemManager && serviceGroup.company?.userId !== userId) {
       throw new ForbiddenException(
@@ -199,7 +217,12 @@ export class ServiceGroupService {
     });
   }
 
-  async update(id: string, userId: string, data: UpdateServiceGroupDto) {
+  async update(
+    id: string,
+    userId: string,
+    data: UpdateServiceGroupDto,
+    role?: Role | string,
+  ) {
     const serviceGroup = await this.prisma.serviceGroup.findUnique({
       where: { id },
       include: {
@@ -211,16 +234,20 @@ export class ServiceGroupService {
       throw new NotFoundException('Grupo de serviços não encontrado.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
-
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
 
     if (!isSystemManager && serviceGroup.company?.userId !== userId) {
       throw new ForbiddenException(
@@ -234,7 +261,7 @@ export class ServiceGroupService {
     });
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, userId: string, role?: Role | string) {
     const serviceGroup = await this.prisma.serviceGroup.findUnique({
       where: { id },
       include: {
@@ -249,16 +276,20 @@ export class ServiceGroupService {
       throw new NotFoundException('Grupo de serviços não encontrado.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
-
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
 
     if (!isSystemManager && serviceGroup.company?.userId !== userId) {
       throw new ForbiddenException(

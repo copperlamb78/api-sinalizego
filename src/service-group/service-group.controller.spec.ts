@@ -38,7 +38,7 @@ describe('ServiceGroupController', () => {
 
   describe('create', () => {
     it('should create a service group for the authenticated user company', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const dto = {
         name: 'Cabeleireiros',
         capacity: 3,
@@ -48,7 +48,11 @@ describe('ServiceGroupController', () => {
       mockServiceGroupService.create.mockResolvedValue(expected);
 
       const result = await controller.create(dto, req);
-      expect(service.create).toHaveBeenCalledWith(dto, 'owner-1');
+      expect(service.create).toHaveBeenCalledWith(
+        dto,
+        'owner-1',
+        'COMPANY_OWNER',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -71,7 +75,7 @@ describe('ServiceGroupController', () => {
 
   describe('findAllByCompanyId', () => {
     it('should return list of service groups for a specific company if owner', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const expected = [
         {
           id: 'group-1',
@@ -91,6 +95,7 @@ describe('ServiceGroupController', () => {
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
         undefined,
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -121,7 +126,7 @@ describe('ServiceGroupController', () => {
 
   describe('update', () => {
     it('should update service group details with user auth check', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const updateDto = { name: 'Cabeleireiros & Barbeiros', capacity: 4 };
       const expected = {
         id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
@@ -138,6 +143,7 @@ describe('ServiceGroupController', () => {
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
         updateDto,
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -145,7 +151,7 @@ describe('ServiceGroupController', () => {
 
   describe('updateByCompanyId', () => {
     it('should update service group verifying companyId and user auth', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const updateDto = { capacity: 5 };
       const expected = {
         id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
@@ -165,6 +171,7 @@ describe('ServiceGroupController', () => {
         'f1e2d3c4-b5a6-0987-6543-210fedcba988',
         'owner-1',
         updateDto,
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -172,7 +179,7 @@ describe('ServiceGroupController', () => {
 
   describe('remove', () => {
     it('should deactivate service group with user auth check', async () => {
-      const req = { user: { sub: 'owner-1' } } as any;
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const expected = {
         id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         name: 'Cabeleireiros',
@@ -187,6 +194,7 @@ describe('ServiceGroupController', () => {
       expect(service.remove).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'owner-1',
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });

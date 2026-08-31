@@ -158,7 +158,7 @@ export class AppointmentsService {
       // Consulta de sobreposição canônica de intervalos:
       // Intervalo A colide com B se (A.start < B.end) E (A.end > B.start)
       // Agrupado pelo serviceGroupId para compartilhar capacidade entre serviços da mesma categoria/cadeira
-      const existingAppointments = await tx.appointment.findMany({
+      const existingAppointmentsCount = await tx.appointment.count({
         where: {
           companyId: data.companyId,
           isActive: true,
@@ -175,7 +175,7 @@ export class AppointmentsService {
         },
       });
 
-      if (existingAppointments.length >= maxCapacity) {
+      if (existingAppointmentsCount >= maxCapacity) {
         throw new ConflictException(
           'Não há vagas disponíveis para este serviço neste horário',
         );
@@ -397,6 +397,7 @@ export class AppointmentsService {
     appointmentId: string,
     userId: string,
     dto: AppointmentsStatusUpdateDto,
+    role?: Role | string,
   ) {
     if (
       dto.status === ApptStatus.CONFIRMED ||
@@ -427,16 +428,21 @@ export class AppointmentsService {
       throw new NotFoundException('Agendamento não encontrado.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
 
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     const isCompanyOwner = appointment.company.userId === userId;
 
     if (!isSystemManager && !isCompanyOwner) {
@@ -471,7 +477,7 @@ export class AppointmentsService {
           status: ApptStatus.CANCELED,
           isActive: false,
           disabledAt: new Date(),
-          disabledBy: user.id,
+          disabledBy: userId,
         },
       });
     }
@@ -482,7 +488,11 @@ export class AppointmentsService {
     });
   }
 
-  async deactivateAppointment(appointmentId: string, userId: string) {
+  async deactivateAppointment(
+    appointmentId: string,
+    userId: string,
+    role?: Role | string,
+  ) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
       include: {
@@ -505,16 +515,21 @@ export class AppointmentsService {
       throw new NotFoundException('Agendamento não encontrado.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
 
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     const isCompanyOwner = appointment.company?.userId === userId;
     const isClientOwner = appointment.clientId === userId;
 
@@ -617,7 +632,7 @@ export class AppointmentsService {
           retainedDeposit !== undefined ? retainedDeposit : null,
         isActive: false,
         disabledAt: new Date(),
-        disabledBy: user.id,
+        disabledBy: userId,
       },
     });
 
@@ -639,7 +654,11 @@ export class AppointmentsService {
     return canceledAppointment;
   }
 
-  async completeAppointment(appointmentId: string, userId: string) {
+  async completeAppointment(
+    appointmentId: string,
+    userId: string,
+    role?: Role | string,
+  ) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
       include: {
@@ -651,16 +670,21 @@ export class AppointmentsService {
       throw new NotFoundException('Agendamento não encontrado.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
 
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     const isCompanyOwner = appointment.company?.userId === userId;
 
     if (!isSystemManager && !isCompanyOwner) {
@@ -740,7 +764,11 @@ export class AppointmentsService {
   /**
    * Registra a falta do cliente (No-Show) com retenção legal do sinal de garantia para o estabelecimento.
    */
-  async markAsNoShow(appointmentId: string, userId: string) {
+  async markAsNoShow(
+    appointmentId: string,
+    userId: string,
+    role?: Role | string,
+  ) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
       include: {
@@ -761,16 +789,21 @@ export class AppointmentsService {
       throw new NotFoundException('Agendamento não encontrado.');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     }
 
-    const isSystemManager =
-      user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
     const isCompanyOwner = appointment.company?.userId === userId;
 
     if (!isSystemManager && !isCompanyOwner) {
@@ -828,7 +861,7 @@ export class AppointmentsService {
         status: ApptStatus.NO_SHOW,
         retainedDepositAmount: retainedDeposit,
         disabledAt: now,
-        disabledBy: user.id,
+        disabledBy: userId,
       },
       include: {
         company: {

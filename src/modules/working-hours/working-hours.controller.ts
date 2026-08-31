@@ -61,7 +61,8 @@ export class WorkingHoursController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.workingHoursService.updateWorkingHours(userId, dto);
+    const role = req.user?.['role'];
+    return this.workingHoursService.updateWorkingHours(userId, dto, role);
   }
 
   @ApiBearerAuth()
@@ -87,7 +88,8 @@ export class WorkingHoursController {
     @Query('companyId') companyId?: string,
   ) {
     const userId = req.user?.['sub'];
-    return this.workingHoursService.getWorkingHours(userId, companyId);
+    const role = req.user?.['role'];
+    return this.workingHoursService.getWorkingHours(userId, companyId, role);
   }
 
   @Get('company/:companyId')
@@ -134,7 +136,8 @@ export class WorkingHoursController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.workingHoursService.createScheduleException(userId, dto);
+    const role = req.user?.['role'];
+    return this.workingHoursService.createScheduleException(userId, dto, role);
   }
 
   @ApiBearerAuth()
@@ -159,7 +162,12 @@ export class WorkingHoursController {
     @Query('companyId') companyId?: string,
   ) {
     const userId = req.user?.['sub'];
-    return this.workingHoursService.getScheduleExceptions(userId, companyId);
+    const role = req.user?.['role'];
+    return this.workingHoursService.getScheduleExceptions(
+      userId,
+      companyId,
+      role,
+    );
   }
 
   @ApiBearerAuth()
@@ -186,6 +194,7 @@ export class WorkingHoursController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.workingHoursService.deleteScheduleException(id, userId);
+    const role = req.user?.['role'];
+    return this.workingHoursService.deleteScheduleException(id, userId, role);
   }
 }

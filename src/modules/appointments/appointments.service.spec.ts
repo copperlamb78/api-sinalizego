@@ -346,7 +346,7 @@ describe('AppointmentsService', () => {
         'user-1',
       );
 
-      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith(
+      expect(mockPrisma.appointment.count).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             companyId: 'company-1',
@@ -368,20 +368,17 @@ describe('AppointmentsService', () => {
 
     it('should throw ConflictException if group capacity is reached due to overlapping appointments', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
-      mockPrisma.appointment.count.mockResolvedValue(0);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue({
         ...mockService,
         serviceGroupId: 'group-1',
         serviceGroup: { capacity: 1 }, // Capacidade de apenas 1 atendimento simultâneo
       });
-      // 1 agendamento já sobrepondo o horário
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        {
-          id: 'appt-existing-overlap',
-          appointmentDate: new Date('2026-09-01T10:15:00Z'),
-        },
-      ]);
+      // 1. Cancelamentos semanais = 0; 2. Limite por cliente = 0; 3. Sobreposição de capacidade = 1 (capacidade atingida)
+      mockPrisma.appointment.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(1);
 
       await expect(
         service.createAppointment(
