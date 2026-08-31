@@ -98,6 +98,8 @@ export class FinancialProfileService {
         province: data.province,
         postalCode: data.postalCode.replace(/\D/g, ''),
         walletId: assasWalletId.walletId,
+        pixAddressKey: data.pixAddressKey,
+        pixAddressKeyType: data.pixAddressKeyType,
         asaasApiKey: encryptedApiKey,
         userId: userId,
       },

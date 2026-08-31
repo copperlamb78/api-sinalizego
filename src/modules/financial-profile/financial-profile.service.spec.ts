@@ -83,6 +83,8 @@ describe('FinancialProfileService', () => {
       addressNumber: '100',
       province: 'Centro',
       postalCode: '44000000',
+      pixAddressKey: '12345678000195',
+      pixAddressKeyType: 'CNPJ',
     };
 
     it('should create subaccount in Asaas, encrypt apiKey at rest and return safe fields', async () => {
@@ -112,6 +114,8 @@ describe('FinancialProfileService', () => {
       expect(mockPrisma.financialProfile.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           walletId: 'wallet-asaas-123',
+          pixAddressKey: '12345678000195',
+          pixAddressKeyType: 'CNPJ',
           asaasApiKey: expect.stringMatching(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/), // encrypted
           userId: 'user-1',
         }),

@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from '../asaas.service';
 import { ApptStatus, TransactionStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { BARBER_ASAAS_PIX_FEE } from 'src/common/constants/billing.constant';
 
 import { MailService } from 'src/modules/mail/mail.service';
 
@@ -242,6 +243,22 @@ export class WebhooksService {
                   )
                 : undefined;
 
+          const platformAbsorbedFee =
+            realAsaasFee !== undefined &&
+            !isNaN(realAsaasFee) &&
+            realAsaasFee > BARBER_ASAAS_PIX_FEE
+              ? Number((realAsaasFee - BARBER_ASAAS_PIX_FEE).toFixed(2))
+              : 0;
+
+          if (
+            realAsaasFee !== undefined &&
+            realAsaasFee > BARBER_ASAAS_PIX_FEE
+          ) {
+            this.logger.warn(
+              `[MARGEM][${correlationId}] Tarifa Asaas real R$ ${realAsaasFee.toFixed(2)} excede a parte fixa do barbeiro (R$ ${BARBER_ASAAS_PIX_FEE.toFixed(2)}). Plataforma absorvendo R$ ${platformAbsorbedFee.toFixed(2)} em ${payment.id}.`,
+            );
+          }
+
           // Fluxo regular: Confirmação atômica de agendamento e transação
           await this.prisma.$transaction([
             this.prisma.transaction.update({
@@ -251,7 +268,10 @@ export class WebhooksService {
                 ...(realAsaasFee !== undefined &&
                 !isNaN(realAsaasFee) &&
                 realAsaasFee >= 0
-                  ? { asaasFee: realAsaasFee }
+                  ? {
+                      asaasFee: realAsaasFee,
+                      platformAbsorbedFee: platformAbsorbedFee,
+                    }
                   : {}),
               },
             }),
@@ -269,10 +289,62 @@ export class WebhooksService {
           );
 
           this.logger.log(
-            `[Webhook Asaas][${correlationId}] Pagamento ${payment.id} CONFIRMADO. Agendamento #${transaction.appointmentId} atualizado para CONFIRMED.${realAsaasFee !== undefined ? ` Taxa Asaas liquidada: R$ ${realAsaasFee.toFixed(2)}.` : ''}`,
+            `[Webhook Asaas][${correlationId}] Pagamento ${payment.id} CONFIRMADO. Agendamento #${transaction.appointmentId} atualizado para CONFIRMED.${realAsaasFee !== undefined ? ` Taxa Asaas liquidada: R$ ${realAsaasFee.toFixed(2)} (absorvida: R$ ${platformAbsorbedFee.toFixed(2)}).` : ''}`,
           );
 
           // Disparo resiliente de e-mail de confirmação de agendamento
+          if (appointment.client?.email) {
+            this.mailService
+              .sendAppointmentConfirmationEmail(appointment.client.email, {
+                customerName: appointment.client.name,
+                companyName:
+                  appointment.company?.businessName || 'Estabelecimento',
+                serviceName: appointment.service?.name || 'Serviço',
+                appointmentDate: appointment.appointmentDate,
+                amountPaid: transaction.totalValue,
+                timezone: appointment.company?.timezone,
+              })
+              .catch((err) => {
+                this.logger.error(
+                  `[Webhook Asaas] Falha ao enviar e-mail de confirmação para ${appointment.client.email}: ${err?.message || err}`,
+                );
+              });
+          }
+
+          break;
+        }
+
+        case 'PAYMENT_RECEIVED_IN_CASH': {
+          // Refinamento de Segurança: Pagamento presencial em dinheiro não transita pelo gateway.
+          // O agendamento é confirmado, mas o split eletrônico é zerado para evitar provisionamento indevido de saldo sacável.
+          await this.prisma.$transaction([
+            this.prisma.transaction.update({
+              where: { id: transaction.id },
+              data: {
+                status: TransactionStatus.CONFIRMED,
+                netValue: 0,
+                platformFee: 0,
+                asaasFee: 0,
+                platformAbsorbedFee: 0,
+              },
+            }),
+            this.prisma.appointment.update({
+              where: { id: transaction.appointmentId },
+              data: { status: ApptStatus.CONFIRMED },
+            }),
+          ]);
+
+          await this.recordWebhookEvent(
+            eventKey,
+            event,
+            payment.id,
+            rawPayload || payment,
+          );
+
+          this.logger.log(
+            `[Webhook Asaas][${correlationId}] Pagamento em dinheiro (${payment.id}) recebido presencialmente. Agendamento #${transaction.appointmentId} confirmado. Split financeiro eletrônico ignorado.`,
+          );
+
           if (appointment.client?.email) {
             this.mailService
               .sendAppointmentConfirmationEmail(appointment.client.email, {

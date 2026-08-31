@@ -224,7 +224,50 @@ describe('WebhooksService', () => {
 
       expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
         where: { id: 'tx-1' },
-        data: { status: TransactionStatus.CONFIRMED, asaasFee: 1.49 },
+        data: {
+          status: TransactionStatus.CONFIRMED,
+          asaasFee: 1.49,
+          platformAbsorbedFee: 0.5,
+        },
+      });
+    });
+
+    it('should handle PAYMENT_RECEIVED_IN_CASH by confirming appointment and zeroing electronic split in transaction', async () => {
+      const activeAppt = {
+        id: 'appt-1',
+        status: ApptStatus.PENDING_PAYMENT,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      };
+
+      mockPrisma.webhookEvent.findUnique.mockResolvedValue(null);
+      mockPrisma.transaction.findUnique.mockResolvedValue(mockTransaction);
+      mockPrisma.appointment.findUnique.mockResolvedValue(activeAppt);
+
+      const cashPayment = { id: 'pay_12345', value: 50.0 };
+      const result = await service.handleAsaasEvent(
+        'PAYMENT_RECEIVED_IN_CASH',
+        cashPayment,
+      );
+
+      expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
+        where: { id: 'tx-1' },
+        data: {
+          status: TransactionStatus.CONFIRMED,
+          netValue: 0,
+          platformFee: 0,
+          asaasFee: 0,
+          platformAbsorbedFee: 0,
+        },
+      });
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: 'appt-1' },
+        data: { status: ApptStatus.CONFIRMED },
+      });
+      expect(result).toEqual({
+        received: true,
+        event: 'PAYMENT_RECEIVED_IN_CASH',
+        paymentId: 'pay_12345',
       });
     });
   });

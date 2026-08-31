@@ -42,7 +42,7 @@ export interface AsaasAccountResponse {
 @Injectable()
 export class AsaasService implements OnModuleInit {
   private readonly logger = new Logger(AsaasService.name);
-  public asaasPixFee: number;
+  public gatewayPixCost: number;
   private readonly apiUrl =
     process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
   private readonly apiKey = process.env.ASAAS_API_KEY;
@@ -51,7 +51,7 @@ export class AsaasService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly calculateTax: CalculateTax,
   ) {
-    this.asaasPixFee = DEFAULT_ASAAS_GATEWAY_COST;
+    this.gatewayPixCost = DEFAULT_ASAAS_GATEWAY_COST;
   }
 
   async getTransferFee(): Promise<number> {
@@ -121,9 +121,9 @@ export class AsaasService implements OnModuleInit {
           !isNaN(Number(dynamicFee)) &&
           Number(dynamicFee) >= 0
         ) {
-          this.asaasPixFee = Number(dynamicFee);
+          this.gatewayPixCost = Number(dynamicFee);
           this.logger.log(
-            `[AsaasService] Taxa Pix sincronizada dinamicamente da conta Asaas: R$ ${this.asaasPixFee.toFixed(2)}`,
+            `[AsaasService] Custo Pix de referência sincronizado dinamicamente da conta Asaas: R$ ${this.gatewayPixCost.toFixed(2)}`,
           );
           return;
         }
@@ -135,7 +135,7 @@ export class AsaasService implements OnModuleInit {
     }
 
     this.logger.log(
-      `[AsaasService] Utilizando taxa padrão de fallback para Pix: R$ ${this.asaasPixFee.toFixed(2)}`,
+      `[AsaasService] Utilizando custo padrão de fallback para Pix: R$ ${this.gatewayPixCost.toFixed(2)}`,
     );
   }
 
@@ -195,12 +195,14 @@ export class AsaasService implements OnModuleInit {
             'PAYMENT_UPDATED',
             'PAYMENT_CONFIRMED',
             'PAYMENT_RECEIVED',
+            'PAYMENT_RECEIVED_IN_CASH',
             'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED',
             'PAYMENT_ANTICIPATED',
             'PAYMENT_OVERDUE',
             'PAYMENT_DELETED',
             'PAYMENT_RESTORED',
             'PAYMENT_REFUNDED',
+            'PAYMENT_PARTIALLY_REFUNDED',
             'PAYMENT_REFUND_IN_PROGRESS',
             'PAYMENT_DUNNING_RECEIVED',
             'PAYMENT_CHARGEBACK_REQUESTED',
@@ -605,7 +607,7 @@ export class AsaasService implements OnModuleInit {
           (Number(paymentData.value) - Number(paymentData.netValue)).toFixed(2),
         );
       } else {
-        actualAsaasFee = this.asaasPixFee;
+        actualAsaasFee = this.gatewayPixCost;
       }
 
       return {

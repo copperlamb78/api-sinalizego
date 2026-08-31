@@ -10,14 +10,16 @@
 export const MIN_MICROTRANSACTION_DEPOSIT = 15.0;
 
 /**
- * Taxa fixa Asaas repassada/cobrada do Barbeiro no split (R$ 0,99).
+ * Taxa fixa Asaas repassada/cobrada do Barbeiro no split (R$ 0,99 fixos para sempre — Regra N2).
+ * NUNCA sincronizar da API: o excedente da tarifa real é absorvido pela plataforma.
  */
 export const BARBER_ASAAS_PIX_FEE = 0.99;
 
 /**
- * Custo padrão do gateway Asaas (R$ 0,99 inicial / R$ 1,99 pós-promoção).
+ * Custo padrão de referência do gateway Asaas (R$ 1,99 pós-promoção / R$ 0,99 promocional).
+ * Métrica de CUSTO apenas — NUNCA usar no cálculo do split do barbeiro.
  */
-export const DEFAULT_ASAAS_GATEWAY_COST = 0.99;
+export const DEFAULT_ASAAS_GATEWAY_COST = 1.99;
 
 /**
  * Piso mínimo de taxa da plataforma (R$ 2,00).

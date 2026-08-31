@@ -273,10 +273,11 @@ model Transaction {
   asaasPaymentId String? @unique
 
   // Controle de Valores
-  totalValue  Decimal @db.Decimal(10, 2) // Valor total que o cliente pagou (ex: 12.00)
-  netValue    Decimal @db.Decimal(10, 2) // O que realmente vai pro barbeiro (ex: 9.01)
-  platformFee Decimal @db.Decimal(10, 2) // A sua parte da grana (ex: 2.00)
-  asaasFee    Decimal @db.Decimal(10, 2) // Parte do asaas (ex: 0,99)
+  totalValue          Decimal @db.Decimal(10, 2) // Valor total que o cliente pagou (ex: 12.00)
+  netValue            Decimal @db.Decimal(10, 2) // O que realmente vai pro barbeiro (ex: 9.01)
+  platformFee         Decimal @db.Decimal(10, 2) // A sua parte da grana (ex: 2.00)
+  asaasFee            Decimal @db.Decimal(10, 2) // Parte do asaas (ex: 0,99)
+  platformAbsorbedFee Decimal @default(0) @db.Decimal(10, 2) // Parcela da tarifa Asaas absorvida pela plataforma (tarifaReal - parte do barbeiro)
 
   // Status e Tipo
   status      TransactionStatus @default(PENDING)

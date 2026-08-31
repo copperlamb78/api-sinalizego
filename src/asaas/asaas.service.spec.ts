@@ -67,8 +67,8 @@ describe('AsaasService', () => {
   });
 
   describe('Initialization and Dynamic Fee Discovery', () => {
-    it('should initialize with DEFAULT_ASAAS_GATEWAY_COST fallback', () => {
-      expect(service.asaasPixFee).toBe(0.99);
+    it('should initialize with DEFAULT_ASAAS_GATEWAY_COST fallback (1.99)', () => {
+      expect(service.gatewayPixCost).toBe(1.99);
     });
 
     it('should dynamically update fee during onModuleInit from fetchAccountFees', async () => {
@@ -81,7 +81,7 @@ describe('AsaasService', () => {
       });
 
       await service.onModuleInit();
-      expect(service.asaasPixFee).toBe(1.49);
+      expect(service.gatewayPixCost).toBe(1.49);
     });
 
     it('should maintain fallback fee when fetchAccountFees returns null or fails', async () => {
@@ -92,7 +92,7 @@ describe('AsaasService', () => {
       jest.spyOn(instance, 'fetchAccountFees').mockResolvedValue(null);
 
       await instance.onModuleInit();
-      expect(instance.asaasPixFee).toBe(0.99);
+      expect(instance.gatewayPixCost).toBe(1.99);
     });
   });
 
