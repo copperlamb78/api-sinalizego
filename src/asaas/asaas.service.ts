@@ -60,6 +60,7 @@ export class AsaasService implements OnModuleInit {
       const response = await fetch(`${this.apiUrl}/myAccount/fees`, {
         method: 'GET',
         headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (response.ok) {
@@ -89,6 +90,7 @@ export class AsaasService implements OnModuleInit {
       const response = await fetch(`${this.apiUrl}/myAccount/fees`, {
         method: 'GET',
         headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (response.ok) {
@@ -156,11 +158,13 @@ export class AsaasService implements OnModuleInit {
    */
   async createSubAccount(
     data: CreateFinancialProfileDto,
+    email?: string,
   ): Promise<AsaasAccountResponse> {
+    const contactEmail = email || data.email;
     const payload = {
       name: data.name,
-      email: data.email,
-      cpfCnpj: data.cpfCnpj.replace(/\D/g, ''), // Remove pontuações se houver
+      email: contactEmail,
+      cpfCnpj: data.cpfCnpj.replace(/\D/g, ''),
       birthDate: data.birthDate || undefined,
       companyType: data.companyType || undefined,
       mobilePhone: data.mobilePhone.replace(/\D/g, ''),
@@ -172,9 +176,11 @@ export class AsaasService implements OnModuleInit {
 
       webhooks: [
         {
-          name: 'Webhook Plataforma SinalizeGo',
-          url: process.env.ASAAS_WEBHOOK_URL,
-          email: process.env.ASAAS_WEBHOOK_EMAIL,
+          name: 'SinalizeGo Webhook Geral',
+          url:
+            process.env.ASAAS_WEBHOOK_URL ||
+            'https://api.sinalizego.com/webhooks/asaas',
+          email: contactEmail,
           enabled: true,
           interrupted: false,
           apiVersion: 3,
@@ -182,17 +188,23 @@ export class AsaasService implements OnModuleInit {
           sendType: 'SEQUENTIALLY',
           events: [
             'PAYMENT_CREATED',
+            'PAYMENT_AWAITING_RISK_ANALYSIS',
+            'PAYMENT_APPROVED_BY_RISK_ANALYSIS',
+            'PAYMENT_REPROVED_BY_RISK_ANALYSIS',
+            'PAYMENT_AUTHORIZED',
             'PAYMENT_UPDATED',
             'PAYMENT_CONFIRMED',
             'PAYMENT_RECEIVED',
+            'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED',
+            'PAYMENT_ANTICIPATED',
             'PAYMENT_OVERDUE',
             'PAYMENT_DELETED',
+            'PAYMENT_RESTORED',
             'PAYMENT_REFUNDED',
             'PAYMENT_REFUND_IN_PROGRESS',
             'PAYMENT_DUNNING_RECEIVED',
             'PAYMENT_CHARGEBACK_REQUESTED',
             'PAYMENT_CHARGEBACK_DISPUTE',
-            'PAYMENT_AWAITING_CHARGEBACK_REVERSAL',
           ],
         },
       ],
@@ -203,15 +215,18 @@ export class AsaasService implements OnModuleInit {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10_000),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        const errorMessage =
-          responseData?.errors?.[0]?.description ||
-          'Erro desconhecido ao criar subconta no Asaas.';
-        throw new BadRequestException(`Asaas: ${errorMessage}`);
+        this.logger.error(
+          `[Asaas] Falha ao criar subconta: ${JSON.stringify(responseData)}`,
+        );
+        throw new BadRequestException(
+          'Não foi possível criar a subconta no gateway de pagamentos.',
+        );
       }
 
       return responseData as AsaasAccountResponse;
@@ -220,7 +235,7 @@ export class AsaasService implements OnModuleInit {
         throw error;
       }
       throw new InternalServerErrorException(
-        `Falha na comunicação com a API do Asaas: ${error.message}`,
+        `Falha na comunicação com a API do Asaas`,
       );
     }
   }
@@ -230,15 +245,18 @@ export class AsaasService implements OnModuleInit {
       const response = await fetch(`${this.apiUrl}/accounts/${id}`, {
         method: 'GET',
         headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        const errorMessage =
-          responseData?.errors?.[0]?.description ||
-          'Erro desconhecido ao buscar subconta no Asaas.';
-        throw new BadRequestException(`Asaas: ${errorMessage}`);
+        this.logger.error(
+          `[Asaas] Subconta #${id} não encontrada: ${JSON.stringify(responseData)}`,
+        );
+        throw new BadRequestException(
+          'Subconta não encontrada no gateway de pagamentos.',
+        );
       }
 
       const { apiKey, ...safeSubAccount } = (responseData as any) || {};
@@ -248,7 +266,7 @@ export class AsaasService implements OnModuleInit {
         throw error;
       }
       throw new InternalServerErrorException(
-        `Falha na comunicação com a API do Asaas: ${error.message}`,
+        `Falha na comunicação com a API do Asaas`,
       );
     }
   }
@@ -258,15 +276,18 @@ export class AsaasService implements OnModuleInit {
       const response = await fetch(`${this.apiUrl}/accounts`, {
         method: 'GET',
         headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        const errorMessage =
-          responseData?.errors?.[0]?.description ||
-          'Erro desconhecido ao listar subcontas no Asaas.';
-        throw new BadRequestException(`Asaas: ${errorMessage}`);
+        this.logger.error(
+          `[Asaas] Falha ao listar subcontas: ${JSON.stringify(responseData)}`,
+        );
+        throw new BadRequestException(
+          'Não foi possível listar subcontas no gateway de pagamentos.',
+        );
       }
 
       const { cpfCnpj, walletId, incomeValue, ...safeValues } = responseData;
@@ -277,7 +298,7 @@ export class AsaasService implements OnModuleInit {
         throw error;
       }
       throw new InternalServerErrorException(
-        `Falha na comunicação com a API do Asaas: ${error.message}`,
+        `Falha na comunicação com a API do Asaas`,
       );
     }
   }
@@ -315,24 +336,30 @@ export class AsaasService implements OnModuleInit {
           'content-type': 'application/json',
           access_token: accountApiKey,
         },
+        signal: AbortSignal.timeout(10_000),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        const errorMessage =
-          responseData?.errors?.[0]?.description ||
-          'Erro desconhecido ao buscar saldo da subconta no Asaas.';
-        throw new BadRequestException(`Asaas: ${errorMessage}`);
+        this.logger.error(
+          `[Asaas] Erro ao buscar saldo da subconta: ${JSON.stringify(responseData)}`,
+        );
+        throw new BadRequestException(
+          'Não foi possível consultar o saldo no gateway de pagamentos.',
+        );
       }
 
       return responseData;
     } catch (error: any) {
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException(
-        `Falha na comunicação com a API do Asaas ao buscar saldo: ${error.message}`,
+        `Falha na comunicação com a API do Asaas`,
       );
     }
   }
@@ -381,12 +408,14 @@ export class AsaasService implements OnModuleInit {
             access_token: accountApiKey,
           },
           body: JSON.stringify(hop1Payload),
+          signal: AbortSignal.timeout(10_000),
         });
 
         if (!hop1Response.ok) {
           const err = await hop1Response.json();
+          this.logger.error(`[Asaas] Erro Hop1: ${JSON.stringify(err)}`);
           throw new BadRequestException(
-            `Asaas Hop1: ${err?.errors?.[0]?.description || 'Erro'}`,
+            'Falha ao processar primeira etapa de transferência no gateway de pagamentos.',
           );
         }
 
@@ -407,12 +436,14 @@ export class AsaasService implements OnModuleInit {
           method: 'POST',
           headers: this.headers, // master API key
           body: JSON.stringify(hop2Payload),
+          signal: AbortSignal.timeout(10_000),
         });
 
         if (!hop2Response.ok) {
           const err = await hop2Response.json();
+          this.logger.error(`[Asaas] Erro Hop2: ${JSON.stringify(err)}`);
           throw new BadRequestException(
-            `Asaas Hop2: ${err?.errors?.[0]?.description || 'Erro'}`,
+            'Falha ao processar envio de Pix no gateway de pagamentos.',
           );
         }
 
@@ -445,14 +476,17 @@ export class AsaasService implements OnModuleInit {
           access_token: accountApiKey,
         },
         body: JSON.stringify(transferPayload),
+        signal: AbortSignal.timeout(10_000),
       });
 
       const responseData = await response.json();
       if (!response.ok) {
-        const errorMsg =
-          responseData?.errors?.[0]?.description ||
-          'Falha ao processar transferência no Asaas.';
-        throw new BadRequestException(`Asaas: ${errorMsg}`);
+        this.logger.error(
+          `[Asaas] Erro de transferência: ${JSON.stringify(responseData)}`,
+        );
+        throw new BadRequestException(
+          'Falha ao processar transferência no gateway de pagamentos.',
+        );
       }
 
       return responseData;
@@ -462,7 +496,7 @@ export class AsaasService implements OnModuleInit {
       }
       this.logger.error(`Erro ao transferir saldo no Asaas: ${error.message}`);
       throw new InternalServerErrorException(
-        `Falha na comunicação com Asaas ao realizar transferência: ${error.message}`,
+        `Falha na comunicação com Asaas ao realizar transferência`,
       );
     }
   }
@@ -508,15 +542,18 @@ export class AsaasService implements OnModuleInit {
             },
           ],
         }),
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         this.logger.error(
-          'Erro Asaas',
+          'Erro Asaas ao criar cobrança:',
           typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
         );
-        throw new BadRequestException(errorData.errors[0].description);
+        throw new BadRequestException(
+          'Não foi possível gerar a cobrança no gateway de pagamentos.',
+        );
       }
 
       const paymentData = await response.json();
@@ -527,16 +564,19 @@ export class AsaasService implements OnModuleInit {
         {
           method: 'GET',
           headers: this.headers,
+          signal: AbortSignal.timeout(10_000),
         },
       );
 
       if (!pixResponse.ok) {
         const errorData = await pixResponse.json();
         this.logger.error(
-          'Erro Asaas',
+          'Erro Asaas ao obter QR Code:',
           typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
         );
-        throw new BadRequestException(errorData.errors[0].description);
+        throw new BadRequestException(
+          'Não foi possível obter o QR Code Pix no gateway de pagamentos.',
+        );
       }
 
       const {
@@ -549,18 +589,24 @@ export class AsaasService implements OnModuleInit {
         expirationDate: Date;
       } = await pixResponse.json();
 
-      // Ler a taxa real retornada pelo Asaas (fee ou value - netValue), com fallback para a taxa configurada
-      const realAsaasFee =
-        paymentData?.fee !== undefined && paymentData?.fee !== null
-          ? Number(paymentData.fee)
-          : paymentData?.value !== undefined &&
-              paymentData?.netValue !== undefined
-            ? Number(
-                (
-                  Number(paymentData.value) - Number(paymentData.netValue)
-                ).toFixed(2),
-              )
-            : barberAsaasFee;
+      // Utiliza a taxa real retornada pelo Asaas se disponível, caso contrário calcula a diferença
+      let actualAsaasFee: number;
+      if (
+        paymentData.fee !== undefined &&
+        paymentData.fee !== null &&
+        !isNaN(Number(paymentData.fee))
+      ) {
+        actualAsaasFee = Number(paymentData.fee);
+      } else if (
+        paymentData.value !== undefined &&
+        paymentData.netValue !== undefined
+      ) {
+        actualAsaasFee = Number(
+          (Number(paymentData.value) - Number(paymentData.netValue)).toFixed(2),
+        );
+      } else {
+        actualAsaasFee = this.asaasPixFee;
+      }
 
       return {
         paymentId: paymentId,
@@ -570,11 +616,10 @@ export class AsaasService implements OnModuleInit {
         expirationDate: expirationDate,
         barberNetValue: barberNetValue,
         platformFee: platformFee,
-        asaasFee: realAsaasFee,
+        asaasFee: actualAsaasFee,
       };
     } catch (error: any) {
-      // O error.response?.data ajuda a ver se o Asaas reclamou de algo
-      if (error instanceof HttpException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
       this.logger.error(
@@ -595,18 +640,18 @@ export class AsaasService implements OnModuleInit {
         {
           method: 'GET',
           headers: this.headers,
+          signal: AbortSignal.timeout(10_000),
         },
       );
 
       if (!pixResponse.ok) {
         const errorData = await pixResponse.json();
         this.logger.error(
-          'Erro Asaas',
+          'Erro Asaas ao obter QR Code:',
           typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
         );
         throw new BadRequestException(
-          errorData?.errors?.[0]?.description ||
-            'Falha ao obter QR Code do Pix no Asaas.',
+          'Falha ao obter QR Code do Pix no gateway de pagamentos.',
         );
       }
 
@@ -651,14 +696,17 @@ export class AsaasService implements OnModuleInit {
           cpfCnpj: cpfCnpj,
           name: name,
         }),
+        signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) {
         const errorData = await response.json();
         this.logger.error(
-          'Erro Asaas',
+          'Erro Asaas ao criar cliente:',
           typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
         );
-        throw new BadRequestException(errorData.errors[0].description);
+        throw new BadRequestException(
+          'Não foi possível cadastrar o cliente no gateway de pagamentos.',
+        );
       }
       const { id: customerId } = await response.json();
       return customerId;
@@ -685,6 +733,7 @@ export class AsaasService implements OnModuleInit {
       const response = await fetch(`${this.apiUrl}/payments/${paymentId}`, {
         method: 'DELETE',
         headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
@@ -696,9 +745,7 @@ export class AsaasService implements OnModuleInit {
             : String(errorData),
         );
         throw new InternalServerErrorException(
-          typeof errorData === 'object'
-            ? JSON.stringify(errorData)
-            : String(errorData),
+          'Erro ao cancelar cobrança no gateway de pagamentos.',
         );
       }
 
@@ -710,7 +757,7 @@ export class AsaasService implements OnModuleInit {
         error.stack,
       );
       throw new InternalServerErrorException(
-        'Falha na comunicação com Asaas ao cancelar cobrança: ' + error.message,
+        'Falha na comunicação com Asaas ao cancelar cobrança',
       );
     }
   }
@@ -737,6 +784,7 @@ export class AsaasService implements OnModuleInit {
             Object.keys(payload).length > 0
               ? JSON.stringify(payload)
               : undefined,
+          signal: AbortSignal.timeout(10_000),
         },
       );
 
@@ -749,9 +797,7 @@ export class AsaasService implements OnModuleInit {
             : String(errorData),
         );
         throw new InternalServerErrorException(
-          typeof errorData === 'object'
-            ? JSON.stringify(errorData)
-            : String(errorData),
+          'Erro ao estornar cobrança no gateway de pagamentos.',
         );
       }
 
@@ -763,7 +809,7 @@ export class AsaasService implements OnModuleInit {
         error.stack,
       );
       throw new InternalServerErrorException(
-        'Falha na comunicação com Asaas ao estornar cobrança: ' + error.message,
+        'Falha na comunicação com Asaas ao estornar cobrança',
       );
     }
   }
@@ -776,6 +822,7 @@ export class AsaasService implements OnModuleInit {
       const response = await fetch(`${this.apiUrl}/payments/${paymentId}`, {
         method: 'GET',
         headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {

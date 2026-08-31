@@ -510,6 +510,7 @@ export class WebhooksService {
       include: {
         appointment: true,
       },
+      orderBy: { createdAt: 'asc' },
       take: 50,
     });
 

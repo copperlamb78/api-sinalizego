@@ -1267,6 +1267,7 @@ describe('AppointmentsService', () => {
             lte: expect.any(Date),
           },
         },
+        orderBy: { appointmentDate: 'asc' },
         include: expect.any(Object),
       });
       expect(
@@ -1310,25 +1311,15 @@ describe('AppointmentsService', () => {
 
   describe('autoCompletePastConfirmedAppointments (Cron Auto-Complete & Escrow Release)', () => {
     it('should mark past confirmed appointments as COMPLETED releasing escrow', async () => {
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        { id: 'appt-past-1' },
-        { id: 'appt-past-2' },
-      ]);
       mockPrisma.appointment.updateMany.mockResolvedValue({ count: 2 });
 
       const result = await service.autoCompletePastConfirmedAppointments();
 
-      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
+      expect(mockPrisma.appointment.updateMany).toHaveBeenCalledWith({
         where: {
           status: ApptStatus.CONFIRMED,
           isActive: true,
           appointmentEndDate: { lte: expect.any(Date) },
-        },
-        select: { id: true },
-      });
-      expect(mockPrisma.appointment.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: { in: ['appt-past-1', 'appt-past-2'] },
         },
         data: {
           status: ApptStatus.COMPLETED,
@@ -1338,13 +1329,12 @@ describe('AppointmentsService', () => {
       expect(result).toBe(2);
     });
 
-    it('should return 0 if no past confirmed appointments are found', async () => {
-      mockPrisma.appointment.findMany.mockResolvedValue([]);
+    it('should return 0 when updateMany completes with count 0', async () => {
+      mockPrisma.appointment.updateMany.mockResolvedValue({ count: 0 });
 
       const result = await service.autoCompletePastConfirmedAppointments();
 
       expect(result).toBe(0);
-      expect(mockPrisma.appointment.updateMany).not.toHaveBeenCalled();
     });
   });
 });

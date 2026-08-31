@@ -213,9 +213,15 @@ export class AppointmentsService {
           isActive: true,
           expiresAt: { lt: now },
         },
-        include: {
-          transactions: true,
+        select: {
+          id: true,
+          transactions: {
+            where: { status: TransactionStatus.PENDING },
+            select: { id: true, asaasPaymentId: true, status: true },
+          },
         },
+        orderBy: { expiresAt: 'asc' },
+        take: 50,
       });
 
       if (expiredAppointments.length === 0) {
@@ -891,6 +897,7 @@ export class AppointmentsService {
             lte: tomorrowEnd,
           },
         },
+        orderBy: { appointmentDate: 'asc' },
         include: {
           client: {
             select: {
@@ -962,22 +969,11 @@ export class AppointmentsService {
     try {
       const pastThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-      const pastConfirmedAppointments = await this.prisma.appointment.findMany({
+      const updateResult = await this.prisma.appointment.updateMany({
         where: {
           status: ApptStatus.CONFIRMED,
           isActive: true,
           appointmentEndDate: { lte: pastThreshold },
-        },
-        select: { id: true },
-      });
-
-      if (pastConfirmedAppointments.length === 0) {
-        return 0;
-      }
-
-      const updateResult = await this.prisma.appointment.updateMany({
-        where: {
-          id: { in: pastConfirmedAppointments.map((a) => a.id) },
         },
         data: {
           status: ApptStatus.COMPLETED,
