@@ -19,6 +19,7 @@ import { AuthService } from '../auth/auth.service';
 import {
   ApptStatus,
   BillingType,
+  Prisma,
   Role,
   TransactionStatus,
   TransactionType,
@@ -730,57 +731,18 @@ export class CompanyService {
       ),
     }));
 
-    // Busca saques realizados da empresa para deduzir do saldo disponível
+    // Busca saldo oficial consolidado da empresa (harmonizado com getCompanyBalance)
+    let availableBalance = 0;
     let totalWithdrawn = 0;
-    const companyProfile = await this.prisma.financialProfile.findFirst({
-      where: {
-        OR: [{ userId }, { companies: { some: { id: company.id } } }],
-        isActive: true,
-      },
-      select: {
-        id: true,
-        walletId: true,
-        pixAddressKey: true,
-        pixAddressKeyType: true,
-      },
-    });
-
-    if (companyProfile?.walletId) {
-      const withdrawalsAgg = await this.prisma.transaction.aggregate({
-        where: {
-          barberWalletId: companyProfile.walletId,
-          type: TransactionType.WITHDRAWAL,
-          status: {
-            in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
-          },
-        },
-        _sum: { totalValue: true },
-      });
-      totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
+    try {
+      const balanceData = await this.getCompanyBalance(userId);
+      availableBalance = balanceData.availableBalance;
+      escrowLockedBalance = balanceData.escrowLockedBalance;
+      totalWithdrawn = balanceData.totalWithdrawn;
+    } catch {
+      // Se não possui perfil financeiro configurado, saldos permanecem 0
+      availableBalance = 0;
     }
-
-    const noShowDeposits = appointments
-      .filter((a) => a.status === ApptStatus.NO_SHOW)
-      .reduce(
-        (acc, a) =>
-          acc + Number(a.retainedDepositAmount || a.downPaymentAmount || 0),
-        0,
-      );
-
-    const canceledRetainedDeposits = appointments
-      .filter(
-        (a) =>
-          a.status === ApptStatus.CANCELED &&
-          Number(a.retainedDepositAmount || 0) > 0,
-      )
-      .reduce((acc, a) => acc + Number(a.retainedDepositAmount || 0), 0);
-
-    const totalEarnedDeposits =
-      completedDepositsNet + noShowDeposits + canceledRetainedDeposits;
-    const availableBalance = Math.max(
-      0,
-      Number((totalEarnedDeposits - totalWithdrawn).toFixed(2)),
-    );
 
     return {
       company: {
@@ -833,13 +795,17 @@ export class CompanyService {
       );
     }
 
+    const orConditions: Prisma.FinancialProfileWhereInput[] = [
+      { userId },
+      { companies: { some: { id: company.id } } },
+    ];
+    if (company.financialProfileId) {
+      orConditions.push({ id: company.financialProfileId });
+    }
+
     const financialProfile = await this.prisma.financialProfile.findFirst({
       where: {
-        OR: [
-          { userId },
-          { id: company.financialProfileId || undefined },
-          { companies: { some: { id: company.id } } },
-        ],
+        OR: orConditions,
         isActive: true,
       },
       select: {
@@ -941,13 +907,17 @@ export class CompanyService {
       );
     }
 
+    const orConditions: Prisma.FinancialProfileWhereInput[] = [
+      { userId },
+      { companies: { some: { id: company.id } } },
+    ];
+    if (company.financialProfileId) {
+      orConditions.push({ id: company.financialProfileId });
+    }
+
     const financialProfile = await this.prisma.financialProfile.findFirst({
       where: {
-        OR: [
-          { userId },
-          { id: company.financialProfileId || undefined },
-          { companies: { some: { id: company.id } } },
-        ],
+        OR: orConditions,
         isActive: true,
       },
       select: {
@@ -1154,13 +1124,17 @@ export class CompanyService {
       );
     }
 
+    const orConditions: Prisma.FinancialProfileWhereInput[] = [
+      { userId },
+      { companies: { some: { id: company.id } } },
+    ];
+    if (company.financialProfileId) {
+      orConditions.push({ id: company.financialProfileId });
+    }
+
     const financialProfile = await this.prisma.financialProfile.findFirst({
       where: {
-        OR: [
-          { userId },
-          { id: company.financialProfileId || undefined },
-          { companies: { some: { id: company.id } } },
-        ],
+        OR: orConditions,
         isActive: true,
       },
       select: {
@@ -1224,35 +1198,54 @@ export class CompanyService {
           businessName: true,
           userId: true,
           financialProfileId: true,
+          financialProfile: {
+            select: {
+              id: true,
+              walletId: true,
+              pixAddressKey: true,
+              pixAddressKeyType: true,
+              isActive: true,
+            },
+          },
         },
       });
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const todayStart = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          0,
+          0,
+          0,
+          0,
+        ),
+      );
 
       let payoutsExecuted = 0;
       for (const company of activeCompanies) {
         if (!company.userId) continue;
 
         try {
-          const financialProfile = await this.prisma.financialProfile.findFirst(
-            {
-              where: {
-                OR: [
-                  { userId: company.userId },
-                  { id: company.financialProfileId || undefined },
-                  { companies: { some: { id: company.id } } },
-                ],
-                isActive: true,
-              },
-              select: {
-                id: true,
-                walletId: true,
-                pixAddressKey: true,
-                pixAddressKeyType: true,
-              },
-            },
-          );
+          const financialProfile =
+            company.financialProfile && company.financialProfile.isActive
+              ? company.financialProfile
+              : await this.prisma.financialProfile.findFirst({
+                  where: {
+                    OR: [
+                      { userId: company.userId },
+                      { companies: { some: { id: company.id } } },
+                    ],
+                    isActive: true,
+                  },
+                  select: {
+                    id: true,
+                    walletId: true,
+                    pixAddressKey: true,
+                    pixAddressKeyType: true,
+                  },
+                });
 
           if (!financialProfile?.walletId) continue;
 

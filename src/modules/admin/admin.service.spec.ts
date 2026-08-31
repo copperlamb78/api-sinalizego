@@ -11,6 +11,8 @@ describe('AdminService', () => {
   const mockPrisma = {
     appointment: {
       findMany: jest.fn(),
+      groupBy: jest.fn(),
+      aggregate: jest.fn(),
     },
     transaction: {
       findMany: jest.fn(),
@@ -58,69 +60,72 @@ describe('AdminService', () => {
     });
 
     it('should calculate global metrics, SaaS revenue, Asaas costs, GMV and top tenants', async () => {
-      const mockAppointments = [
-        {
-          id: 'appt-1',
-          status: ApptStatus.COMPLETED,
-          servicePrice: '100.00',
-          downPaymentAmount: '50.00',
-          platformFeeAmount: '5.00',
-          companyId: 'comp-1',
-          company: {
-            id: 'comp-1',
-            businessName: 'Barbearia VIP',
-            slug: 'barbearia-vip',
+      mockPrisma.appointment.groupBy
+        .mockResolvedValueOnce([
+          { status: ApptStatus.COMPLETED, _count: { _all: 1 } },
+          { status: ApptStatus.CONFIRMED, _count: { _all: 1 } },
+          { status: ApptStatus.CANCELED, _count: { _all: 1 } },
+          { status: ApptStatus.PENDING_PAYMENT, _count: { _all: 1 } },
+        ]) // statusGroup
+        .mockResolvedValueOnce([
+          {
+            companyId: 'comp-1',
+            _count: { _all: 2 },
+            _sum: {
+              servicePrice: '100.00',
+              downPaymentAmount: '0.00',
+              platformFeeAmount: '5.00',
+            },
           },
-        },
-        {
-          id: 'appt-2',
-          status: ApptStatus.CONFIRMED,
-          servicePrice: '80.00',
-          downPaymentAmount: '40.00',
-          platformFeeAmount: '4.00',
-          companyId: 'comp-2',
-          company: {
-            id: 'comp-2',
-            businessName: 'Studio Beleza',
-            slug: 'studio-beleza',
+          {
+            companyId: 'comp-2',
+            _count: { _all: 2 },
+            _sum: {
+              servicePrice: '0.00',
+              downPaymentAmount: '40.00',
+              platformFeeAmount: '4.00',
+            },
           },
-        },
-        {
-          id: 'appt-3',
-          status: ApptStatus.CANCELED,
-          servicePrice: '50.00',
-          downPaymentAmount: '25.00',
-          platformFeeAmount: '2.50',
-          companyId: 'comp-1',
-          company: {
-            id: 'comp-1',
-            businessName: 'Barbearia VIP',
-            slug: 'barbearia-vip',
+        ]); // topTenantsGroupBy
+
+      mockPrisma.appointment.aggregate
+        .mockResolvedValueOnce({
+          _sum: { servicePrice: '100.00', platformFeeAmount: '5.00' },
+        }) // completedAgg
+        .mockResolvedValueOnce({
+          _sum: { downPaymentAmount: '40.00', platformFeeAmount: '4.00' },
+        }) // confirmedAgg
+        .mockResolvedValueOnce({
+          _sum: {
+            servicePrice: '0.00',
+            downPaymentAmount: '0.00',
+            retainedDepositAmount: '0.00',
+            platformFeeAmount: '0.00',
           },
-        },
-        {
-          id: 'appt-4',
-          status: ApptStatus.PENDING_PAYMENT,
-          servicePrice: '60.00',
-          downPaymentAmount: '30.00',
-          platformFeeAmount: '3.00',
-          companyId: 'comp-2',
-          company: {
-            id: 'comp-2',
-            businessName: 'Studio Beleza',
-            slug: 'studio-beleza',
-          },
-        },
-      ];
+        }) // noShowAgg
+        .mockResolvedValueOnce({
+          _sum: { servicePrice: '50.00', retainedDepositAmount: '0.00' },
+        }); // canceledAgg
 
       const mockTransactionsAgg = {
         _sum: {
           asaasFee: '1.98',
         },
       };
-
-      mockPrisma.appointment.findMany.mockResolvedValue(mockAppointments);
       mockPrisma.transaction.aggregate.mockResolvedValue(mockTransactionsAgg);
+
+      mockPrisma.company.findMany.mockResolvedValue([
+        {
+          id: 'comp-1',
+          businessName: 'Barbearia VIP',
+          slug: 'barbearia-vip',
+        },
+        {
+          id: 'comp-2',
+          businessName: 'Studio Beleza',
+          slug: 'studio-beleza',
+        },
+      ]);
 
       // Counts mocks
       mockPrisma.user.count
@@ -186,24 +191,36 @@ describe('AdminService', () => {
     });
 
     it('should fallback to default asaas fee calculation if no confirmed transactions exist', async () => {
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        {
-          id: 'appt-1',
-          status: ApptStatus.COMPLETED,
-          servicePrice: '50.00',
-          downPaymentAmount: '25.00',
-          platformFeeAmount: '2.50',
-          companyId: 'comp-1',
-          company: {
-            id: 'comp-1',
-            businessName: 'Barbearia VIP',
-            slug: 'barbearia-vip',
+      mockPrisma.appointment.groupBy
+        .mockResolvedValueOnce([
+          { status: ApptStatus.COMPLETED, _count: { _all: 1 } },
+        ])
+        .mockResolvedValueOnce([]); // topTenants
+
+      mockPrisma.appointment.aggregate
+        .mockResolvedValueOnce({
+          _sum: { servicePrice: '50.00', platformFeeAmount: '2.50' },
+        }) // completedAgg
+        .mockResolvedValueOnce({
+          _sum: { downPaymentAmount: '0.00', platformFeeAmount: '0.00' },
+        }) // confirmedAgg
+        .mockResolvedValueOnce({
+          _sum: {
+            servicePrice: '0.00',
+            downPaymentAmount: '0.00',
+            retainedDepositAmount: '0.00',
+            platformFeeAmount: '0.00',
           },
-        },
-      ]);
+        }) // noShowAgg
+        .mockResolvedValueOnce({
+          _sum: { servicePrice: '0.00', retainedDepositAmount: '0.00' },
+        }); // canceledAgg
+
       mockPrisma.transaction.aggregate.mockResolvedValue({
         _sum: { asaasFee: null },
       });
+
+      mockPrisma.company.findMany.mockResolvedValue([]);
 
       mockPrisma.user.count
         .mockResolvedValueOnce(10)

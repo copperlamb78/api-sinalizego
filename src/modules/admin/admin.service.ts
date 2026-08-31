@@ -58,9 +58,13 @@ export class AdminService {
       );
     }
 
-    // Consultas paralelas de alto desempenho
+    // Consultas paralelas de alto desempenho via agregações nativas em banco (O-10)
     const [
-      appointments,
+      statusGroup,
+      completedAgg,
+      confirmedAgg,
+      noShowAgg,
+      canceledAgg,
       confirmedTransactions,
       totalUsers,
       clientsCount,
@@ -68,29 +72,60 @@ export class AdminService {
       totalCompanies,
       activeCompanies,
       inactiveCompanies,
+      topTenantsGroupBy,
     ] = await Promise.all([
-      this.prisma.appointment.findMany({
+      this.prisma.appointment.groupBy({
+        by: ['status'],
         where: {
           appointmentDate: {
             gte: startDate,
             lte: endDate,
           },
         },
-        select: {
-          id: true,
-          status: true,
+        _count: {
+          _all: true,
+        },
+      }),
+      this.prisma.appointment.aggregate({
+        where: {
+          status: ApptStatus.COMPLETED,
+          appointmentDate: { gte: startDate, lte: endDate },
+        },
+        _sum: {
           servicePrice: true,
+          platformFeeAmount: true,
+        },
+      }),
+      this.prisma.appointment.aggregate({
+        where: {
+          status: ApptStatus.CONFIRMED,
+          appointmentDate: { gte: startDate, lte: endDate },
+        },
+        _sum: {
           downPaymentAmount: true,
           platformFeeAmount: true,
+        },
+      }),
+      this.prisma.appointment.aggregate({
+        where: {
+          status: ApptStatus.NO_SHOW,
+          appointmentDate: { gte: startDate, lte: endDate },
+        },
+        _sum: {
+          servicePrice: true,
+          downPaymentAmount: true,
           retainedDepositAmount: true,
-          companyId: true,
-          company: {
-            select: {
-              id: true,
-              businessName: true,
-              slug: true,
-            },
-          },
+          platformFeeAmount: true,
+        },
+      }),
+      this.prisma.appointment.aggregate({
+        where: {
+          status: ApptStatus.CANCELED,
+          appointmentDate: { gte: startDate, lte: endDate },
+        },
+        _sum: {
+          servicePrice: true,
+          retainedDepositAmount: true,
         },
       }),
       this.prisma.transaction.aggregate({
@@ -113,20 +148,34 @@ export class AdminService {
       this.prisma.company.count(),
       this.prisma.company.count({ where: { isActive: true } }),
       this.prisma.company.count({ where: { isActive: false } }),
+      this.prisma.appointment.groupBy({
+        by: ['companyId'],
+        where: {
+          appointmentDate: { gte: startDate, lte: endDate },
+          status: {
+            in: [
+              ApptStatus.COMPLETED,
+              ApptStatus.CONFIRMED,
+              ApptStatus.NO_SHOW,
+            ],
+          },
+        },
+        _count: {
+          _all: true,
+        },
+        _sum: {
+          servicePrice: true,
+          downPaymentAmount: true,
+          platformFeeAmount: true,
+        },
+        orderBy: {
+          _sum: {
+            platformFeeAmount: 'desc',
+          },
+        },
+        take: 5,
+      }),
     ]);
-
-    let platformGrossRevenue = 0;
-    let gmv = 0;
-
-    let completedCount = 0;
-    let confirmedCount = 0;
-    let canceledCount = 0;
-    let noShowCount = 0;
-    let pendingPaymentCount = 0;
-
-    let totalRetainedLossPrevented = 0;
-    let totalPotentialLostRevenue = 0;
-    let retainedAppointmentsCount = 0;
 
     // Pré-população estrita de status para garantir resiliência e evitar undefined
     const appointmentsByStatus: Record<string, number> = {
@@ -140,89 +189,77 @@ export class AdminService {
       CANCELLED_BY_COMPANY: 0,
     };
 
-    const tenantsMap = new Map<
-      string,
-      {
-        companyId: string;
-        businessName: string;
-        slug: string;
-        appointmentsCount: number;
-        totalRevenue: number;
-        platformFeeGenerated: number;
-      }
-    >();
-
-    for (const appt of appointments) {
-      const price = Number(appt.servicePrice || 0);
-      const downPayment = Number(appt.downPaymentAmount || 0);
-      const platformFee = Number(appt.platformFeeAmount || 0);
-
-      appointmentsByStatus[appt.status] =
-        (appointmentsByStatus[appt.status] || 0) + 1;
-
-      switch (appt.status) {
-        case ApptStatus.COMPLETED:
-          completedCount++;
-          gmv += price;
-          platformGrossRevenue += platformFee;
-          break;
-        case ApptStatus.CONFIRMED:
-          confirmedCount++;
-          gmv += downPayment;
-          platformGrossRevenue += platformFee;
-          break;
-        case ApptStatus.NO_SHOW: {
-          noShowCount++;
-          const noShowRetained = Number(
-            appt.retainedDepositAmount || appt.downPaymentAmount || 0,
-          );
-          gmv += noShowRetained;
-          platformGrossRevenue += platformFee;
-          totalRetainedLossPrevented += noShowRetained;
-          totalPotentialLostRevenue += price;
-          retainedAppointmentsCount++;
-          break;
-        }
-        case ApptStatus.CANCELED: {
-          canceledCount++;
-          const canceledRetained = Number(appt.retainedDepositAmount || 0);
-          if (canceledRetained > 0) {
-            gmv += canceledRetained;
-            totalRetainedLossPrevented += canceledRetained;
-            totalPotentialLostRevenue += price;
-            retainedAppointmentsCount++;
-          }
-          break;
-        }
-        case ApptStatus.PENDING_PAYMENT:
-          pendingPaymentCount++;
-          appointmentsByStatus.PENDING = pendingPaymentCount;
-          break;
-      }
-
-      // Agrupamento por Empresa (Top Tenants)
-      if (
-        (appt.status === ApptStatus.COMPLETED ||
-          appt.status === ApptStatus.CONFIRMED ||
-          appt.status === ApptStatus.NO_SHOW) &&
-        appt.company
-      ) {
-        const existing = tenantsMap.get(appt.companyId) || {
-          companyId: appt.company.id,
-          businessName: appt.company.businessName,
-          slug: appt.company.slug,
-          appointmentsCount: 0,
-          totalRevenue: 0,
-          platformFeeGenerated: 0,
-        };
-
-        existing.appointmentsCount += 1;
-        existing.totalRevenue +=
-          appt.status === ApptStatus.COMPLETED ? price : downPayment;
-        existing.platformFeeGenerated += platformFee;
-        tenantsMap.set(appt.companyId, existing);
-      }
+    let totalAppointments = 0;
+    for (const item of statusGroup) {
+      appointmentsByStatus[item.status] = item._count._all;
+      totalAppointments += item._count._all;
     }
+    appointmentsByStatus.PENDING =
+      appointmentsByStatus[ApptStatus.PENDING_PAYMENT];
+
+    const completedCount = appointmentsByStatus[ApptStatus.COMPLETED];
+    const confirmedCount = appointmentsByStatus[ApptStatus.CONFIRMED];
+    const canceledCount = appointmentsByStatus[ApptStatus.CANCELED];
+    const noShowCount = appointmentsByStatus[ApptStatus.NO_SHOW];
+    const pendingPaymentCount =
+      appointmentsByStatus[ApptStatus.PENDING_PAYMENT];
+
+    const completedPrice = Number(completedAgg._sum.servicePrice || 0);
+    const completedFee = Number(completedAgg._sum.platformFeeAmount || 0);
+
+    const confirmedDeposit = Number(confirmedAgg._sum.downPaymentAmount || 0);
+    const confirmedFee = Number(confirmedAgg._sum.platformFeeAmount || 0);
+
+    const noShowRetained = Number(
+      noShowAgg._sum.retainedDepositAmount ||
+        noShowAgg._sum.downPaymentAmount ||
+        0,
+    );
+    const noShowFee = Number(noShowAgg._sum.platformFeeAmount || 0);
+    const noShowPotential = Number(noShowAgg._sum.servicePrice || 0);
+
+    const canceledRetained = Number(
+      canceledAgg._sum.retainedDepositAmount || 0,
+    );
+    const canceledPotential =
+      canceledRetained > 0 ? Number(canceledAgg._sum.servicePrice || 0) : 0;
+
+    const gmv =
+      completedPrice + confirmedDeposit + noShowRetained + canceledRetained;
+    const platformGrossRevenue = completedFee + confirmedFee + noShowFee;
+
+    const totalRetainedLossPrevented = noShowRetained + canceledRetained;
+    const totalPotentialLostRevenue = noShowPotential + canceledPotential;
+    const retainedAppointmentsCount =
+      noShowCount + (canceledRetained > 0 ? canceledCount : 0);
+
+    // Top Tenants
+    const topCompanyIds = topTenantsGroupBy.map((t) => t.companyId);
+    const topCompanies =
+      topCompanyIds.length > 0
+        ? await this.prisma.company.findMany({
+            where: { id: { in: topCompanyIds } },
+            select: { id: true, businessName: true, slug: true },
+          })
+        : [];
+    const companyMap = new Map(topCompanies.map((c) => [c.id, c]));
+
+    const topTenants = topTenantsGroupBy.map((t) => {
+      const comp = companyMap.get(t.companyId);
+      const totalRevenue =
+        Number(t._sum.servicePrice || 0) +
+        Number(t._sum.downPaymentAmount || 0);
+      const platformFeeGenerated = Number(t._sum.platformFeeAmount || 0);
+
+      return {
+        companyId: t.companyId,
+        businessName: comp?.businessName || 'Desconhecido',
+        slug: comp?.slug || '',
+        appointmentsCount: t._count._all,
+        totalRevenue: Number(totalRevenue.toFixed(2)),
+        platformFeeGenerated: Number(platformFeeGenerated.toFixed(2)),
+      };
+    });
 
     // Cálculo das taxas Asaas Pix
     let totalAsaasPixCosts = 0;
@@ -262,19 +299,6 @@ export class AdminService {
       protectionEfficiencyRate,
     };
 
-    const topTenants = Array.from(tenantsMap.values())
-      .sort(
-        (a, b) =>
-          b.platformFeeGenerated - a.platformFeeGenerated ||
-          b.totalRevenue - a.totalRevenue,
-      )
-      .slice(0, 5)
-      .map((tenant) => ({
-        ...tenant,
-        totalRevenue: Number(tenant.totalRevenue.toFixed(2)),
-        platformFeeGenerated: Number(tenant.platformFeeGenerated.toFixed(2)),
-      }));
-
     return {
       period: {
         startDate: startDate.toISOString(),
@@ -298,7 +322,7 @@ export class AdminService {
           inactive: inactiveCompanies ?? 0,
         },
         appointments: {
-          total: appointments.length ?? 0,
+          total: totalAppointments,
           completed: completedCount ?? 0,
           confirmed: confirmedCount ?? 0,
           canceled: canceledCount ?? 0,
