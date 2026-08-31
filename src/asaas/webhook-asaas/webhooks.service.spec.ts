@@ -17,6 +17,7 @@ describe('WebhooksService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     appointment: {
       findUnique: jest.fn(),
@@ -423,6 +424,7 @@ describe('WebhooksService', () => {
 
   describe('Active Reconciliation Cron Job (reconcilePendingTransactions)', () => {
     it('should return 0 when there are no pending transactions older than 5 minutes', async () => {
+      mockPrisma.transaction.count.mockResolvedValue(0);
       mockPrisma.transaction.findMany.mockResolvedValue([]);
 
       const result = await service.reconcilePendingTransactions();
@@ -439,6 +441,7 @@ describe('WebhooksService', () => {
         totalValue: 50.0,
       };
 
+      mockPrisma.transaction.count.mockResolvedValue(1);
       mockPrisma.transaction.findMany.mockResolvedValue([pendingTx]);
       mockAsaasService.getPaymentById.mockResolvedValue({
         id: 'pay_pending_1',

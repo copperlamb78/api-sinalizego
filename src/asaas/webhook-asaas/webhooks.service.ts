@@ -569,6 +569,21 @@ export class WebhooksService {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
+    const totalPendingCount = await this.prisma.transaction.count({
+      where: {
+        status: TransactionStatus.PENDING,
+        createdAt: {
+          lt: fiveMinutesAgo,
+          gt: twoDaysAgo,
+        },
+        asaasPaymentId: { not: null },
+      },
+    });
+
+    if (totalPendingCount === 0) {
+      return 0;
+    }
+
     const pendingTransactions = await this.prisma.transaction.findMany({
       where: {
         status: TransactionStatus.PENDING,
@@ -585,13 +600,15 @@ export class WebhooksService {
       take: 50,
     });
 
-    if (pendingTransactions.length === 0) {
-      return 0;
-    }
-
     this.logger.log(
-      `[Conciliação Ativa] Iniciando reconciliação de ${pendingTransactions.length} transação(ões) pendente(s)...`,
+      `[Conciliação Ativa] Processando ${pendingTransactions.length} de ${totalPendingCount} transações pendentes no backlog...`,
     );
+
+    if (totalPendingCount > pendingTransactions.length) {
+      this.logger.warn(
+        `[Conciliação Ativa] Backlog com ${totalPendingCount - pendingTransactions.length} transações remanescentes que serão processadas nos próximos ciclos.`,
+      );
+    }
 
     let reconciledCount = 0;
 

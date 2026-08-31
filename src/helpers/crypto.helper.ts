@@ -39,14 +39,16 @@ export class CryptoHelper {
   /**
    * Decriptografa uma string usando AES-256-GCM.
    * Valida a tag de autenticação para garantir integridade.
+   * Lança exceção explícita de segurança em caso de falha de formato ou violação de integridade (A18).
    */
   static decrypt(ciphertext: string): string {
     if (!ciphertext) return '';
 
     const parts = ciphertext.split(':');
     if (parts.length !== 3) {
-      // Retorna o valor original caso seja dado legado não criptografado
-      return ciphertext;
+      throw new Error(
+        'Falha de integridade criptográfica: Formato de credencial criptografada inválido.',
+      );
     }
 
     try {
@@ -62,8 +64,10 @@ export class CryptoHelper {
       decrypted += decipher.final('utf8');
 
       return decrypted;
-    } catch {
-      return ciphertext;
+    } catch (err: any) {
+      throw new Error(
+        `Falha de segurança ao descriptografar credencial (chave corrompida ou adulterada): ${err.message}`,
+      );
     }
   }
 }

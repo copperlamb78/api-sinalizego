@@ -698,7 +698,8 @@ export class AppointmentsService {
         );
 
         if (hoursDifference > 24) {
-          // 1. Cancelamento com antecedência (> 24h): Estorno integral (100% do valor pago online)
+          // 1. Cancelamento com antecedência (> 24h): Estorno integral (100% do valor pago online: sinal + taxa)
+          const totalOnlinePaid = Number(transaction.totalValue);
           try {
             await this.asaasService.refundPayment(
               transaction.asaasPaymentId,
@@ -710,42 +711,17 @@ export class AppointmentsService {
               data: { status: TransactionStatus.REFUNDED },
             });
             isRefunded = true;
-            refundAmount = paidAmount;
+            refundAmount = totalOnlinePaid;
           } catch (err: any) {
             this.logger.error(
               `Falha ao processar estorno integral Asaas no cancelamento do agendamento #${appointment.id}: ${err?.message || err}`,
             );
           }
         } else {
-          // 2. Cancelamento tardio (<= 24h):
-          // O sinal mínimo de garantia é retido para compensação de vacância.
-          retainedDeposit = guaranteedDepositAmount;
-
-          // Se o cliente adiantou valor superior ao sinal mínimo (ex: 50%, 75% ou 100%), o excedente é estornado.
-          if (paidAmount > guaranteedDepositAmount) {
-            const excessToRefund = Number(
-              (paidAmount - guaranteedDepositAmount).toFixed(2),
-            );
-            if (excessToRefund > 0) {
-              try {
-                await this.asaasService.refundPayment(
-                  transaction.asaasPaymentId,
-                  excessToRefund,
-                  'Cancelamento tardio (<= 24h): estorno parcial do valor excedente ao sinal mínimo de garantia.',
-                );
-                await this.prisma.transaction.update({
-                  where: { id: transaction.id },
-                  data: { status: TransactionStatus.REFUNDED },
-                });
-                isRefunded = true;
-                refundAmount = excessToRefund;
-              } catch (err: any) {
-                this.logger.error(
-                  `Falha ao processar estorno parcial Asaas no cancelamento tardio do agendamento #${appointment.id}: ${err?.message || err}`,
-                );
-              }
-            }
-          }
+          // 2. Cancelamento tardio (<= 24h): Retenção de 100% do sinal pago para compensação de vacância (Regra N6)
+          retainedDeposit = paidAmount;
+          isRefunded = false;
+          refundAmount = undefined;
         }
       }
     }

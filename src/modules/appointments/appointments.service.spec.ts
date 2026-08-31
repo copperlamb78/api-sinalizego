@@ -1069,6 +1069,7 @@ describe('AppointmentsService', () => {
         id: 'tx-1',
         appointmentId: 'appt-1',
         asaasPaymentId: 'pay_123',
+        totalValue: 55.0, // R$ 50 sinal + R$ 5 taxa plataforma
         status: TransactionStatus.CONFIRMED,
       });
       mockPrisma.appointment.update.mockResolvedValue({
@@ -1092,13 +1093,13 @@ describe('AppointmentsService', () => {
           customerName: 'Cliente Teste',
           companyName: 'Barbearia VIP',
           isRefunded: true,
-          refundAmount: 50.0,
+          refundAmount: 55.0,
         }),
       );
       expect(result.status).toBe(ApptStatus.CANCELED);
     });
 
-    it('should NOT trigger Asaas refund when canceled <= 24h before appointment if client paid only minimum deposit', async () => {
+    it('should NOT trigger Asaas refund when canceled <= 24h before appointment, retaining 100% of deposit (Regra N6)', async () => {
       const nearFutureDate = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h no futuro
       const apptMock = {
         id: 'appt-1',
@@ -1106,65 +1107,7 @@ describe('AppointmentsService', () => {
         status: ApptStatus.CONFIRMED,
         isActive: true,
         servicePrice: 100.0,
-        downPaymentAmount: 25.0,
-        company: {
-          userId: 'owner-1',
-          businessName: 'Barbearia VIP',
-          timezone: 'America/Sao_Paulo',
-        },
-        client: {
-          id: 'client-1',
-          name: 'Cliente Teste',
-          email: 'cliente@test.com',
-        },
-        service: {
-          id: 'srv-1',
-          name: 'Corte Degradê',
-          totalPrice: 100,
-          downPaymentPercent: 25,
-        },
-      };
-
-      mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'owner-1',
-        role: Role.COMPANY_OWNER,
-      });
-      mockPrisma.transaction.findFirst.mockResolvedValue({
-        id: 'tx-1',
-        appointmentId: 'appt-1',
-        asaasPaymentId: 'pay_123',
-        status: TransactionStatus.CONFIRMED,
-      });
-      mockPrisma.appointment.update.mockResolvedValue({
-        ...apptMock,
-        status: ApptStatus.CANCELED,
-        isActive: false,
-      });
-
-      await service.deactivateAppointment('appt-1', 'owner-1');
-
-      expect(mockAsaasService.refundPayment).not.toHaveBeenCalled();
-      expect(
-        mockMailService.sendAppointmentCancellationEmail,
-      ).toHaveBeenCalledWith(
-        'cliente@test.com',
-        expect.objectContaining({
-          isRefunded: false,
-          refundAmount: undefined,
-        }),
-      );
-    });
-
-    it('should trigger partial Asaas refund for the excess amount when canceled <= 24h before appointment if client paid 100% upfront', async () => {
-      const nearFutureDate = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h no futuro
-      const apptMock = {
-        id: 'appt-2',
-        appointmentDate: nearFutureDate,
-        status: ApptStatus.CONFIRMED,
-        isActive: true,
-        servicePrice: 100.0,
-        downPaymentAmount: 100.0, // Pagou 100% no checkout
+        downPaymentAmount: 50.0,
         company: {
           userId: 'owner-1',
           businessName: 'Barbearia VIP',
@@ -1180,7 +1123,7 @@ describe('AppointmentsService', () => {
           name: 'Corte Degradê',
           totalPrice: 100,
           downPaymentPercent: 50,
-        }, // Sinal padrão é 50.00
+        },
       };
 
       mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
@@ -1189,32 +1132,29 @@ describe('AppointmentsService', () => {
         role: Role.COMPANY_OWNER,
       });
       mockPrisma.transaction.findFirst.mockResolvedValue({
-        id: 'tx-2',
-        appointmentId: 'appt-2',
-        asaasPaymentId: 'pay_456',
+        id: 'tx-1',
+        appointmentId: 'appt-1',
+        asaasPaymentId: 'pay_123',
+        totalValue: 55.0,
         status: TransactionStatus.CONFIRMED,
       });
       mockPrisma.appointment.update.mockResolvedValue({
         ...apptMock,
         status: ApptStatus.CANCELED,
+        retainedDepositAmount: 50.0,
         isActive: false,
       });
 
-      await service.deactivateAppointment('appt-2', 'owner-1');
+      await service.deactivateAppointment('appt-1', 'owner-1');
 
-      // Excedente a estornar: 100 - 50 = 50
-      expect(mockAsaasService.refundPayment).toHaveBeenCalledWith(
-        'pay_456',
-        50.0,
-        'Cancelamento tardio (<= 24h): estorno parcial do valor excedente ao sinal mínimo de garantia.',
-      );
+      expect(mockAsaasService.refundPayment).not.toHaveBeenCalled();
       expect(
         mockMailService.sendAppointmentCancellationEmail,
       ).toHaveBeenCalledWith(
         'cliente@test.com',
         expect.objectContaining({
-          isRefunded: true,
-          refundAmount: 50.0,
+          isRefunded: false,
+          refundAmount: undefined,
         }),
       );
     });

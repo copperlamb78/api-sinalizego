@@ -34,17 +34,21 @@ describe('CryptoHelper (AES-256-GCM)', () => {
     expect(CryptoHelper.decrypt('')).toBe('');
   });
 
-  it('should return original text if ciphertext is not in iv:authTag:data format (legacy fallback)', () => {
+  it('should throw an error if ciphertext is not in iv:authTag:data format', () => {
     const legacyPlaintext = 'legacy_plain_key';
-    expect(CryptoHelper.decrypt(legacyPlaintext)).toBe(legacyPlaintext);
+    expect(() => CryptoHelper.decrypt(legacyPlaintext)).toThrow(
+      'Falha de integridade criptográfica',
+    );
   });
 
-  it('should return original ciphertext if auth tag fails during decryption', () => {
+  it('should throw an error if auth tag fails during decryption', () => {
     const encrypted = CryptoHelper.encrypt(secretData);
     const [iv, , data] = encrypted.split(':');
     const tamperedAuthTag = '00000000000000000000000000000000';
     const tampered = `${iv}:${tamperedAuthTag}:${data}`;
 
-    expect(CryptoHelper.decrypt(tampered)).toBe(tampered);
+    expect(() => CryptoHelper.decrypt(tampered)).toThrow(
+      'Falha de segurança ao descriptografar credencial',
+    );
   });
 });
