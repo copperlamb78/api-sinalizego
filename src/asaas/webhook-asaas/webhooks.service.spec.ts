@@ -25,6 +25,7 @@ describe('WebhooksService', () => {
     webhookEvent: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     $transaction: jest.fn((promises) => Promise.all(promises)),
   };
@@ -385,6 +386,21 @@ describe('WebhooksService', () => {
       expect(mockAsaasService.getPaymentById).toHaveBeenCalledWith(
         'pay_pending_1',
       );
+    });
+  });
+
+  describe('purgeOldWebhookEvents', () => {
+    it('should delete webhook events older than 60 days', async () => {
+      mockPrisma.webhookEvent.deleteMany.mockResolvedValue({ count: 15 });
+
+      const deletedCount = await service.purgeOldWebhookEvents();
+
+      expect(deletedCount).toBe(15);
+      expect(mockPrisma.webhookEvent.deleteMany).toHaveBeenCalledWith({
+        where: {
+          processedAt: { lt: expect.any(Date) },
+        },
+      });
     });
   });
 });

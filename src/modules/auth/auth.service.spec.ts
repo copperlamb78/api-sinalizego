@@ -241,7 +241,7 @@ describe('AuthService', () => {
           email: 'desativado@test.com',
           password: 'password123',
         }),
-      ).rejects.toThrow(new UnauthorizedException('Conta desativada.'));
+      ).rejects.toThrow(new UnauthorizedException('Credenciais inválidas'));
     });
 
     it('should authenticate active user and return access and refresh tokens', async () => {

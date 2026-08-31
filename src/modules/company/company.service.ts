@@ -46,7 +46,9 @@ export class CompanyService {
 
   async createCompanyWithUser(data: CreateCompanyDto) {
     if (await this.prisma.user.findUnique({ where: { email: data.email } })) {
-      throw new ConflictException('O e-mail já está em uso');
+      throw new ConflictException(
+        'Não foi possível concluir o cadastro com os dados informados.',
+      );
     }
     const hashedPassword = await bcrypt.hash(data.password, 10);
 

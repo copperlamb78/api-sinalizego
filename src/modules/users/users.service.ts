@@ -14,6 +14,8 @@ import { USER_PUBLIC_SELECT } from './constants/user-select.constant';
 
 import { MailService } from '../mail/mail.service';
 
+import { UsersQueryDto } from './dto/users-query.dto';
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -24,7 +26,9 @@ export class UsersService {
 
   async createUser(data: CreateUserDto) {
     if (await this.prisma.user.findUnique({ where: { email: data.email } })) {
-      throw new ConflictException('O e-mail já está em uso');
+      throw new ConflictException(
+        'Não foi possível concluir o cadastro com os dados informados.',
+      );
     }
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
@@ -44,8 +48,17 @@ export class UsersService {
     return { message: 'Usuário criado com sucesso', user: user };
   }
 
-  async getAllUsers() {
+  async getAllUsers(query?: UsersQueryDto) {
+    const page = query?.page ? Math.max(1, Number(query.page)) : 1;
+    const limit = query?.limit
+      ? Math.min(100, Math.max(1, Number(query.limit)))
+      : 20;
+    const skip = (page - 1) * limit;
+
     const users = await this.prisma.user.findMany({
+      take: limit,
+      skip,
+      orderBy: { createdAt: 'desc' },
       select: USER_PUBLIC_SELECT,
     });
     return users;

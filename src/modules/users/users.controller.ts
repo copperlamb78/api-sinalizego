@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -22,6 +24,7 @@ import { CreateUserDto } from './dto/user-create.dto';
 import { UpdateUserDto } from './dto/user-update.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateCpfCnpjDto } from './dto/update-cpf-cnpj.dto';
+import { UsersQueryDto } from './dto/users-query.dto';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import type { Request } from 'express';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
@@ -98,9 +101,9 @@ export class UsersController {
   })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Acesso negado' })
-  @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getAllUsers() {
-    return this.usersService.getAllUsers();
+  @ApiQuery({ type: UsersQueryDto, required: false })
+  async getAllUsers(@Query() query?: UsersQueryDto) {
+    return this.usersService.getAllUsers(query);
   }
 
   @ApiBearerAuth()

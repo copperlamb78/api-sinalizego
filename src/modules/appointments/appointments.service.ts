@@ -280,6 +280,12 @@ export class AppointmentsService {
   async getAppointments(filters?: AppointmentsSuperFiltersDto) {
     const whereClause: any = {};
     let orderByClause: any = { createdAt: 'desc' };
+    const page = filters?.page ? Math.max(1, Number(filters.page)) : 1;
+    const limit = filters?.limit
+      ? Math.min(100, Math.max(1, Number(filters.limit)))
+      : 20;
+    const skip = (page - 1) * limit;
+
     if (filters) {
       if (filters.companyId) whereClause.companyId = filters.companyId;
       if (filters.clientId) whereClause.clientId = filters.clientId;
@@ -305,6 +311,46 @@ export class AppointmentsService {
     const appointments = await this.prisma.appointment.findMany({
       where: whereClause,
       orderBy: orderByClause,
+      take: limit,
+      skip,
+      select: {
+        id: true,
+        appointmentDate: true,
+        appointmentEndDate: true,
+        servicePrice: true,
+        downPaymentAmount: true,
+        platformFeeAmount: true,
+        retainedDepositAmount: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        companyId: true,
+        clientId: true,
+        serviceId: true,
+        company: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            name: true,
+            durationMinutes: true,
+          },
+        },
+      },
     });
 
     if (!appointments) {
@@ -343,6 +389,12 @@ export class AppointmentsService {
     }
 
     let orderByClause: any = { createdAt: 'desc' };
+    const page = filters?.page ? Math.max(1, Number(filters.page)) : 1;
+    const limit = filters?.limit
+      ? Math.min(100, Math.max(1, Number(filters.limit)))
+      : 20;
+    const skip = (page - 1) * limit;
+
     if (filters) {
       if (filters.clientId) whereClause.clientId = filters.clientId;
       if (filters.serviceId) whereClause.serviceId = filters.serviceId;
@@ -365,6 +417,45 @@ export class AppointmentsService {
     const appointments = await this.prisma.appointment.findMany({
       where: whereClause,
       orderBy: orderByClause,
+      take: limit,
+      skip,
+      select: {
+        id: true,
+        appointmentDate: true,
+        appointmentEndDate: true,
+        servicePrice: true,
+        downPaymentAmount: true,
+        retainedDepositAmount: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        companyId: true,
+        clientId: true,
+        serviceId: true,
+        company: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            name: true,
+            durationMinutes: true,
+          },
+        },
+      },
     });
 
     return appointments;
@@ -376,6 +467,12 @@ export class AppointmentsService {
   ) {
     const whereClause: any = { clientId: userId };
     let orderByClause: any = { createdAt: 'desc' };
+    const page = filters?.page ? Math.max(1, Number(filters.page)) : 1;
+    const limit = filters?.limit
+      ? Math.min(100, Math.max(1, Number(filters.limit)))
+      : 20;
+    const skip = (page - 1) * limit;
+
     if (filters) {
       if (filters.serviceId) whereClause.serviceId = filters.serviceId;
       if (filters.startDate)
@@ -388,6 +485,35 @@ export class AppointmentsService {
     const appointments = await this.prisma.appointment.findMany({
       where: whereClause,
       orderBy: orderByClause,
+      take: limit,
+      skip,
+      select: {
+        id: true,
+        appointmentDate: true,
+        appointmentEndDate: true,
+        servicePrice: true,
+        downPaymentAmount: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        companyId: true,
+        serviceId: true,
+        company: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            name: true,
+            durationMinutes: true,
+          },
+        },
+      },
     });
 
     return appointments;

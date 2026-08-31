@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -8,9 +9,12 @@ import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // 0. Aumentar limite de payload para suportar uploads de imagem em base64
+  // 0. Configurar Trust Proxy para resolução precisa de IP em rate limiters / Throttler
+  app.set('trust proxy', 1);
+
+  // 0.1 Aumentar limite de payload para suportar uploads de imagem em base64
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
 

@@ -499,6 +499,9 @@ describe('AppointmentsService', () => {
       expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
         where: { clientId: 'client-123' },
         orderBy: { createdAt: 'desc' },
+        take: 20,
+        skip: 0,
+        select: expect.any(Object),
       });
       expect(result).toEqual(expected);
     });
@@ -532,6 +535,9 @@ describe('AppointmentsService', () => {
       expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
         where: { companyId: { in: ['company-1', 'company-2'] } },
         orderBy: { createdAt: 'desc' },
+        take: 20,
+        skip: 0,
+        select: expect.any(Object),
       });
       expect(result).toEqual(expected);
     });
@@ -561,6 +567,9 @@ describe('AppointmentsService', () => {
       expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
         where: { companyId: 'company-1' },
         orderBy: { createdAt: 'desc' },
+        take: 20,
+        skip: 0,
+        select: expect.any(Object),
       });
       expect(result).toEqual(expected);
     });

@@ -50,12 +50,8 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email: data.email },
     });
-    if (!user) {
+    if (!user || !user.isActive) {
       throw new UnauthorizedException('Credenciais inválidas');
-    }
-
-    if (!user.isActive) {
-      throw new UnauthorizedException('Conta desativada.');
     }
 
     const isPasswordValid = await bcrypt.compare(data.password, user.password);

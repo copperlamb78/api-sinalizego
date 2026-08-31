@@ -573,4 +573,27 @@ export class WebhooksService {
 
     return reconciledCount;
   }
+
+  /**
+   * Rotina diária às 03:00 UTC para purga de eventos de webhook antigos (> 60 dias) (O-22).
+   */
+  @Cron('0 3 * * *', { timeZone: 'UTC' })
+  async purgeOldWebhookEvents() {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 60);
+
+    const deleted = await this.prisma.webhookEvent.deleteMany({
+      where: {
+        processedAt: { lt: cutoffDate },
+      },
+    });
+
+    if (deleted.count > 0) {
+      this.logger.log(
+        `[Webhook Cleanup] Purgados ${deleted.count} eventos de webhook anteriores a ${cutoffDate.toISOString()}.`,
+      );
+    }
+
+    return deleted.count;
+  }
 }

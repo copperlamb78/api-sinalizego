@@ -120,6 +120,9 @@ describe('UsersService', () => {
       const result = await service.getAllUsers();
 
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        take: 20,
+        skip: 0,
+        orderBy: { createdAt: 'desc' },
         select: USER_PUBLIC_SELECT,
       });
       expect(result).toEqual(usersMock);
