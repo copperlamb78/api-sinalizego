@@ -500,7 +500,7 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
     "street": "Av. Getúlio Vargas",
     "zipCode": "44000000",
     "number": "123",
-    "chairsCount": 3
+    "chairsCount": 1
   }
   ```
 - **Responses**:
@@ -666,12 +666,12 @@ A API responde com **HTTP 429 Too Many Requests** se os limites forem ultrapassa
   ```json
   {
     "name": "Barba Terapia & Cuidados",
-    "capacity": 2,
+    "capacity": 1,
     "companyId": "uuid-company"
   }
   ```
 - **Responses**:
-  - `201 Created`: `{ "id": "uuid-group", "name": "Barba Terapia & Cuidados", "capacity": 2 }`
+  - `201 Created`: `{ "id": "uuid-group", "name": "Barba Terapia & Cuidados", "capacity": 1 }`
 
 ---
 

@@ -1,25 +1,25 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { CreateCompanyDto } from './company-create.dto';
-import { IsOptional, IsUrl } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class UpdateCompanyDto extends PartialType(CreateCompanyDto) {
   @ApiProperty({
     example:
       'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/companyId/banner/public_id.jpg',
-    description: 'URL do banner da empresa',
+    description: 'URL ou Data URL (base64) do banner da empresa',
     required: false,
   })
   @IsOptional()
-  @IsUrl({}, { message: 'A URL do banner é inválida' })
-  banner?: string;
+  @IsString({ message: 'O banner deve ser uma string válida' })
+  bannerPhoto?: string;
 
   @ApiProperty({
     example:
       'https://res.cloudinary.com/sinalizego/image/upload/v1700000000/sinalizego/companyId/logo/public_id.jpg',
-    description: 'URL da logo da empresa',
+    description: 'URL ou Data URL (base64) da logo da empresa',
     required: false,
   })
   @IsOptional()
-  @IsUrl({}, { message: 'A URL da logo é inválida' })
-  logo?: string;
+  @IsString({ message: 'A logo deve ser uma string válida' })
+  logoPhoto?: string;
 }

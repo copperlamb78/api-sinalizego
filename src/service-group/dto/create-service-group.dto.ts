@@ -11,7 +11,7 @@ export class CreateServiceGroupDto {
   name: string;
 
   @ApiProperty({
-    example: 2,
+    example: 1,
     description:
       'Quantidade de profissionais disponíveis para o grupo de serviços',
   })

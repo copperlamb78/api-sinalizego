@@ -1,175 +1,369 @@
-# SinalizeGO - AI Agent Rules & Codebase Guidelines
+# SinalizeGO — AI Agent Rules & Codebase Guidelines
 
-Welcome, Antigravity Agent. This document outlines the core architectural patterns, folder structures, and existing functionalities you **must** adhere to and utilize when working on this NestJS API.
-
-### Database Schema & TypeScript Synchronization (MANDATORY)
-
-*   **Prisma Client Generation on Schema Changes:**
-    *   Whenever `prisma/schema.prisma` is modified, you **MUST** immediately run `npx prisma generate` so that TypeScript and the Prisma Client types reflect the updated models, enums, and relations.
-    *   Never proceed to writing service logic or running tests after a schema edit without regenerating the Prisma client first.
-
-## 1. Architectural Patterns & Strengths to Maintain
-
-*   **Framework:** NestJS (v11). Always follow NestJS conventions: use Dependency Injection, Modules, Controllers, and Services.
-*   **Database ORM:** Prisma (v7). Use Prisma for all database interactions. Ensure schema changes are reflected correctly in `prisma/schema.prisma` and migrations are managed.
-*   **Modularity:** The application is highly modular. Every distinct domain/feature has its own module under `src/modules/` or in the root `src/` (like `asaas`, `cloudinary`, `service-group`). Do not create monolithic services.
-*   **Validation:** Use `class-validator` and `class-transformer` in DTOs (Data Transfer Objects) for all incoming requests. The `ValidationPipe` is set up globally.
-*   **Security & RBAC:** Role-Based Access Control is enforced. Roles include `CLIENT`, `COMPANY_OWNER`, `EMPLOYEE`, `ADMIN`, `SUPER_ADMIN`.
-*   **Error Handling:** A global Prisma exception filter handles database errors gracefully (e.g., conflicts, not found).
-
-## 2. Folder Structure Guidelines
-
-*   `src/modules/`: Contains business logic modules (Auth, Users, Company, Appointments, etc.). When creating a new domain, put it here.
-*   `src/common/`: Shared resources like Constants (`src/common/constants/`) and Filters (`src/common/filters/`).
-*   `src/helpers/`: Utility functions and isolated business logic helpers.
-*   `prisma/`: Contains `schema.prisma` (Database models) and `migrations`.
-
-## 3. Existing Functions & Helpers to Re-use
-
-You must reuse existing code instead of rewriting functionality. Pay special attention to these existing components:
-
-*   **`CalculateTax` (Helper - `src/helpers/calculate-tax.helper.ts`)**:
-    *   **Purpose**: Use this for any logic involving platform fees and tax calculations based on service prices (cumulative progressive brackets: 10% up to R$ 250.00 and 5% above with R$ 0.25 ceiling rounding and R$ 2.00 minimum floor).
-    *   **Methods**: `calculatePlatformTaxPercentage(totalPrice)` and `calculatePlatformTax(totalPrice)`.
-
-*   **`CalculateDeposit` (Helper - `src/helpers/calculate-deposit.helper.ts`)**:
-    *   **Purpose**: Use this for deposit calculation applying the automated 50% default (with R$ 15.00 Safety Gate or 100% if < R$ 15.00) and 30% high-ticket option for services >= R$ 400.00.
-    *   **Methods**: `calculateDeposit(totalPrice, serviceDepositPercent?)`, `calculateDepositDetails(totalPrice, serviceDepositPercent?)` and `getAvailableBlocks(totalPrice, serviceDepositPercent?)`.
-
-*   **`ValidateImage` (Helper - `src/helpers/validate-image.helper.ts`)**:
-    *   **Purpose**: Validates real binary file signatures (Magic Bytes) for image uploads (JPEG, PNG, WEBP) to prevent malicious or forged MIME uploads.
-    *   **Methods**: `isValidImageMagicBytes(buffer: Buffer): boolean`.
-
-*   **`CryptoHelper` (Helper - `src/helpers/crypto.helper.ts`)**:
-    *   **Purpose**: Symmetric encryption and decryption at rest (AES-256-GCM) with authentication tags for sensitive credentials (e.g. `asaasApiKey`).
-    *   **Methods**: `CryptoHelper.encrypt(plaintext: string): string` and `CryptoHelper.decrypt(ciphertext: string): string`.
-
-*   **`AllExceptionsFilter` (Filter - `src/common/filters/all-exceptions.filter.ts`)**:
-    *   **Purpose**: Global unified exception filter registered in `main.ts`. Standardizes all error payloads (HttpException, Prisma errors, Unhandled errors) into a structured JSON payload with `statusCode`, `message`, `error`, `timestamp`, and `path`.
-
-*   **`PrismaClientExceptionFilter` (Filter - `src/common/filters/prisma-client-exception.filter.ts`)**:
-    *   **Purpose**: Maps Prisma errors (`P2002` Conflict, `P2025` Not Found) to proper HTTP responses. Do not write manual try-catch blocks in controllers just to return 404 or 409 for these Prisma errors. Rely on the global filter.
-
-*   **`RolesGuard` (Guard - `src/modules/auth/roles/guard/roles.guard.ts`)**:
-    *   **Purpose**: Use this guard alongside the `@Roles()` decorator to protect routes based on user roles.
-    *   **Usage**: Check `src/common/constants/role-groups.constant.ts` (if it exists) or use individual roles from the `Role` enum in Prisma.
-
-*   **Authentication**: The app uses JWT via Passport. Routes are typically protected by a JwtAuthGuard (implied, verify per module). User data is extracted from the request (`req.user`).
-
-## 4. Coding Standards
-
-*   **Language:** TypeScript strictly. Avoid `any`. Use proper types or interfaces.
-*   **Formatting:** Prettier and ESLint are configured. Ensure all code generated respects these rules.
-*   **Testing:** The project boasts high test coverage. When adding features, write or update corresponding unit tests (`.spec.ts`) using Jest.
-*   **Soft Deletes:** Notice in the Prisma schema that entities like `User`, `Company`, `Appointment` have `isActive` and `disabledAt` fields. Implement soft deletes rather than hard `DELETE` operations unless strictly necessary.
-*   **New Reusable Functions Registry (STRICT):** Whenever you (or the agent) create a new reusable function or helper, it **must** be placed in the appropriate directory (e.g., `src/helpers/` or `src/common/`). Immediately after creation, you **must document it in this rules file** under section `3. Existing Functions & Helpers to Re-use`, following the exact same pattern as `CalculateTax`.
-*   **Prisma Performance & N+1 Prevention:** When fetching data via Prisma, never blindly include heavy relations (`include: { all: true }`). Always explicitly select (`select`) or include (`include`) only the fields strictly required for the specific task to prevent performance bottlenecks.
-*   **DTO and Validation Rigidity:** Every new endpoint must have a dedicated DTO. Do not bypass `class-validator` decorators. If an ID is passed, ensure it validates against the correct type (e.g., `@IsUUID()` or `@IsInt()`).
-*   **Idiomatic NestJS Exception Handling:** Never throw generic `Error` objects. Always throw semantic NestJS Built-in HTTP Exceptions (e.g., `BadRequestException`, `UnauthorizedException`, `InternalServerErrorException`) when business rules are violated outside of Prisma's automatic scope.
+> Prescriptive rules for any AI agent working on this repository. This file is
+> self-contained on purpose: agents that run in the cloud (Jules) only see what
+> is committed to git, so it must never depend on unversioned files.
+>
+> Stack: NestJS 11 · Prisma ORM 7 · PostgreSQL · Asaas (Pix, split, subaccounts)
+> · Brevo (transactional e-mail) · Cloudinary (images).
 
 ---
 
-> ⚠️ **Antigravity Agent Warning:** If you create a helper/utility and forget to update this rules document, you are violating the SinalizeGO ecosystem maintenance protocol.
+## 1. Escalation protocol — ask first, never assume
 
-## 5. Git & Version Control Guidelines
+This gate outranks speed and completeness.
 
-*   **Commits:** You are allowed to commit changes (`git commit`) when appropriate. Commit messages **must be written strictly in Portuguese**, following Conventional Commits (ex: `feat(agendamentos): adicionar validacao de sinal`, `fix(seguranca): corrigir vazamento de idor`).
-*   **Push / Remote Operations:** Always ask the user for confirmation **before** executing any `git push`. Never push to remote branches without explicit user authorization.
+- **Doubt gate.** Any uncertainty about a business rule, a monetary value, which
+  rule wins, or the scope of the request: **stop and ask.** Do not infer, do not
+  pick a "reasonable default", do not proceed on an assumption you plan to
+  disclose afterwards. Uncertainty about *what to build or what the rule is*
+  always escalates; mechanical execution of an already-decided instruction does
+  not.
+- **Possible-error gate.** When you spot something that looks wrong — a bug, a
+  security flaw, code contradicting a documented rule, dead code — report it
+  prominently, say where it is and why it matters, and offer **numbered options
+  with trade-offs**. Never apply the fix without explicit approval. This applies
+  to code you wrote yourself earlier in the same session.
+- **Divergence gate.** When the request replaces, contradicts or undoes code
+  that already exists **and is technically correct**, do not comply silently and
+  do not refuse. Show what is there — where it lives, what it does today, why it
+  is that way — state concretely what the request would change, and ask whether
+  that is intentional. Triggers: reimplementing what a registered helper already
+  does, changing a business-rule constant without framing it as a rule change,
+  replacing a pattern used consistently elsewhere, removing a deliberate guard,
+  lock, validation or ownership check. It does **not** trigger on genuinely new
+  behavior, on a user who says they already know, or on fixing something
+  documented as broken. Ask **once**, then carry out the decision without
+  re-litigating — the purpose is to catch a change made out of confusion, not to
+  gatekeep.
+- **Never bundle an unrelated fix into the task at hand.** One concern per
+  change.
+- **Present work as a Pull Request.** Never commit to `main` directly. Never
+  `git push` without consent. Commit messages in **Portuguese**, Conventional
+  Commits: `feat(modulo): …`, `fix(seguranca): …`.
 
-## 6. Development Workflow & Safety Protocols
+## 2. Workflow & safety
 
-*   **Pull Request (PR) Simulation:** Whenever you modify or write new code, do not commit it immediately. You **must** present the changes in the chat formatted as a Pull Request (including description and code diff/blocks). You are only allowed to execute a `git commit` **after** the user explicitly reviews and accepts the PR.
-*   **PR Simulation Output Format:**
-    *   Always present Pull Request summaries and diffs directly in the chat as standard Markdown text.
-*   **Comprehensive Documentation Synchronization (MANDATORY & STRICT):** Whenever any code, endpoint, DTO, entity, helper, test suite, or business rule is created, updated, or modified, you **MUST** simultaneously review and update all corresponding sections of `README.md` within the exact same PR:
-    1. **Tabelas de Endpoints por Módulo:** Incluir novos endpoints, atualizar parâmetros, roles e autenticação.
-    2. **Árvore Estrutural de Arquivos (`src/`):** Adicionar novos módulos, arquivos, DTOs e helpers criados.
-    3. **Diagrama do Banco de Dados (Mermaid):** Refletir novos campos, tipos (`Decimal`) ou relações.
-    4. **Métricas de Testes Unitários:** Atualizar a contagem exata de suítes e testes unitários automatizados em todas as seções (Destaques e Seção de Testes).
-    5. **Descrições de Regras e Cobertura:** Documentar o comportamento e as garantias de segurança recém-implementadas.
-*   **Refactoring & Divergence Check:** If you have doubts, want to diverge from the original request, or notice an opportunity for refactoring while executing a task, stop immediately. Ask the user in a simple, direct manner what you intend to do, and **only** proceed if the user grants explicit approval.
-*   **Security Vulnerability Protocol:** If you encounter a potential security flaw while reading or exploring the codebase, you must:
-    1. Analyze and understand why it exists.
-    2. Determine how it could be exploited.
-    3. Plan a clean architectural fix.
-    4. Report this entire analysis directly in the chat.
-    *Do not patch, fix, or modify the security flaw until the user explicitly commands you to do so.*
-*   **Mocking Third-Party Services in Tests:** When writing unit or integration tests (`.spec.ts`), you must completely mock external APIs (like Asaas, Cloudinary, or SMTP). Never allow actual network calls during test execution.
+- Run `npx prisma generate` immediately after touching `prisma/schema.prisma`.
+  Never write service logic or tests before regenerating types.
+- **Never assume the database matches `prisma/schema.prisma`.** This project was
+  provisioned with `db push` and `migrate deploy` at different times. Before any
+  work that depends on a column or a type existing, verify the real state. If a
+  task requires generating a migration, **stop and escalate** — a migration
+  authored against a divergent database can emit an unintended `DROP`.
+- Mock every third-party API (Asaas, Cloudinary, Brevo) in `*.spec.ts`. Zero
+  real external calls in tests.
+- Any PR that changes code, endpoints, DTOs, entities, helpers, tests or
+  business rules MUST update `README.md` in the same PR: endpoint tables, the
+  `src/` file tree, the Mermaid database diagram, the exact test counts, and the
+  descriptions of rules and guarantees.
 
-## 7. Core Business & Billing Rules (CRITICAL)
+## 3. Architecture & structure
 
-*   **Establishment Down Payment Configuration:**
-    *   When creating or editing services, the professional/barber defines `downPaymentPercent` / `depositPercentage` as **50%** (default) or **30%** (optional for high-ticket services `>= R$ 400.00`). If `price < R$ 400.00`, it is strictly normalized to 50%.
+- NestJS 11 with strict DI and modules. TypeScript strict — **no `any`**.
+- Modules in `src/modules/`, or domain roots for cross-cutting integrations:
+  `src/asaas/`, `src/cloudinary/`, `src/service-group/`.
+- Reusable logic in `src/helpers/`. Shared constants and filters in
+  `src/common/`. Prisma access through `src/prisma/prisma.service.ts`.
+- Respect soft deletes (`isActive` / `disabledAt`, plus `disabledBy` on
+  `Appointment`). No hard deletes on auditable tables.
+- `ServiceGroup → Service` and `Service → Appointment` use `onDelete: Restrict`
+  deliberately: financial history must not cascade away.
 
-*   **Automated Server-Side Deposit Calculation:**
-    *   The deposit fraction is calculated 100% server-side based on the service rules (client manual selection removed).
+## 4. Route anatomy
 
-*   **Micro-Transaction Safety Gate (R$ 15.00 Threshold):**
-    *   The absolute minimum amount allowed for fractional/deposit payments is **R$ 15.00**.
-    *   If the total service price is below R$ 15.00, the system **must strictly enforce 100% upfront payment** at booking.
-    *   For services priced at R$ 15.00 or higher, the deposit is `Math.max(calculatedDeposit, 15.00)`.
+Decorator order, as used across the codebase:
 
-*   **Platform Margin & Floor Tax Guarantee:**
-    *   The platform minimum fee (**R$ 2.00**) is immutable and mandatory across all transactions (`MIN_PLATFORM_TAX`), guaranteeing a positive net margin regardless of the service price.
+```ts
+@ApiBearerAuth()                        // authenticated routes only
+@UseGuards(JwtAuthGuard, RolesGuard)    // RolesGuard whenever @Roles is present
+@Roles(...INTERNAL_NO_EMPLOYEE)         // always a group, never a bare role
+@Post('create')
+@ApiBody({ type: CreateServiceDto })
+@ApiResponse({ status: 201, description: '...' })
+async createService(@Body() dto: CreateServiceDto, @Req() req: Request) {
+  const userId = req.user?.['sub'];
+  return this.service.createService(dto, userId);
+}
+```
 
-*   **Platform Fee Rounding (Multiples of R$ 0.25 Ceiling):**
-    *   Platform fee calculations must never output arbitrary or broken cents (e.g., R$ 2.37 or R$ 3.42).
-    *   The calculated platform tax must always round UP (`Math.ceil`) to the nearest multiple of **R$ 0.25** (e.g., 2.00, 2.25, 2.50, 2.75, 3.00, etc.), maintaining the minimum floor of R$ 2.00.
+- `@Roles()` without `RolesGuard` in `@UseGuards` protects nothing — the
+  decorator becomes dead metadata.
+- Role groups live in `src/common/constants/role-groups.constant.ts`:
+  `SYSTEM_MANAGERS`, `INTERNAL_USERS`, `INTERNAL_NO_EMPLOYEE`. Never write
+  `Role.ADMIN` inline in a controller.
+- `userId` comes from `req.user?.['sub']` — never from the body or a query
+  param — and travels as the **first argument** to the service method.
+- `JwtStrategy.validate` already returns `{ sub, email, role }`. Do not re-query
+  the user just to read `role`.
+- Every endpoint with a body or query has a DTO with `class-validator`. The
+  global `ValidationPipe` uses `whitelist: true`, so an undeclared field is
+  silently dropped — if a field must be rejected, declare and validate it.
+- A date query parameter meaning *a day* needs `@IsDateString()` **and**
+  `@Matches(/^\d{4}-\d{2}-\d{2}$/)`. Without the second, an offset-bearing
+  string silently lands on the wrong day.
 
-*   **Financial Reporting Splits:** Every booking must explicitly calculate and persist:
-    1. `amountPaidOnline`: Processed immediately via gateway.
-    2. `amountToPayInSalon`: To be paid locally to the barber.
-    3. `platformTaxCharged`: Based on the cumulative bracket formula from `CalculateTaxHelper`.
+## 5. Errors
 
-## 8. Advanced Business Logic & Gateway Safeguards
+Throw semantic Nest exceptions. Never signal failure with a return value —
+`return false` from a method that performs external I/O gets treated by callers
+as if it threw, and the failure disappears.
 
-*   **Pix Expiration, Anti-DoS & Booking Hold Limits:** To strictly prevent schedule collisions and denial of service:
-    *   Every Pix charge created via Asaas **must** be generated with an explicit expiration timeframe of **15 minutes** (`expiresAt`).
-    *   Slot availability checks dynamically exclude expired `PENDING_PAYMENT` appointments (`OR: [{ status: { not: 'PENDING_PAYMENT' } }, { expiresAt: { gt: now } }]`).
-    *   A client is limited to a maximum of **2 concurrent active appointments** (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2`) simultaneously.
-    *   Accounts with **3 or more cancellations in the same week (7 days)** are blocked preventively from creating new appointments (`MAX_WEEKLY_CANCELLATIONS_LIMIT = 3`).
-    *   A scheduled task (Cron Job `@nestjs/schedule`) executes every minute to cancel expired pending bookings and release gateway charges.
-*   **Immutable Historical Pricing:** Once an `Appointment` is created, all financial fields (`totalAmount`, `amountPaidOnline`, `amountToPayInSalon`, `platformTaxCharged`) must be permanently frozen in that record. Never calculate real-time values based on the `Service` or `Company` tables for existing appointments, ensuring price changes do not retroactively affect past bookings.
-*   **Onboarding Strict Requirements:** A company/barber is strictly prohibited from activating booking capabilities or creating services if their Asaas subaccount integration is incomplete. The system must validate that the `walletId` exists and the account status is fully active/approved before opening the schedule.
-*   **Cancellation & Escrow Hold Rules (CDC Art. 51 / CC Arts. 417 a 420):** Funds received via split must remain locked in the ecosystem ledger until the service is successfully rendered or the cancellation window closes. 
-    *   If a client requests a cancellation *before* the 24-hour mark prior to the appointment, the system triggers the Asaas refund API for a full 100% refund.
-    *   If the cancellation request occurs *within* the 24-hour mark, the cancellation is permitted to free the calendar; the guaranteed minimum deposit (`guaranteedDepositAmount`) is retained for the barber as vacancy compensation, and any excess amount paid upfront by the client is automatically refunded partially via Asaas Pix.
-*   **No-Show Handling, Time-Gated Actions & Loss Prevention (`lossPrevented`):**
-    *   **Time-Gate on Completion (`completeAppointment`):** A booking cannot be marked as `COMPLETED` before the scheduled appointment start time (`now >= appointmentDate`).
-    *   **Time-Gate & Tolerance on No-Show (`markAsNoShow`):** Marking an appointment as `NO_SHOW` requires a mandatory 15-minute tolerance window past the start time (`now >= appointmentDate + 15 min`).
-    *   **Retained Deposit & Ledger Release:** When an appointment is marked as `NO_SHOW` or canceled with `<= 24h`, the guaranteed minimum deposit is frozen in `retainedDepositAmount` and immediately released into the company's `availableBalance`.
-    *   **Loss Prevention Intelligence:** Dashboard metrics (`GET /company/dashboard/metrics` and `GET /admin/dashboard/metrics`) provide explicit loss prevention reporting (`totalLossPrevented`, `retainedAppointmentsCount`, `totalProtectedHours`, `estimatedLossWithoutApp`, `protectionEfficiencyRate`).
-*   **Weekly Free Payout Floor & Balance Accumulation Rule:**
-    *   The weekly automatic free payout (`@Cron('0 6 * * 1')`) executes strictly for companies with `availableBalance >= R$ 100.00` (`MIN_FREE_WEEKLY_PAYOUT`).
-    *   If `availableBalance < R$ 100.00`, the balance is never lost or canceled; it remains accumulating in the company account until reaching the R$ 100.00 threshold for the next free payout cycle.
-    *   Companies wishing to withdraw balances `< R$ 100.00` immediately can use the On-Demand Instant Withdrawal endpoint (`POST /company/withdraw`) paying the standard Asaas transfer fee (`ASAAS_TRANSFER_FEE = R$ 5.00`).
+| Situation | Exception |
+|---|---|
+| invalid input, business rule violated | `BadRequestException` (400) |
+| no permission over the resource | `ForbiddenException` (403) |
+| resource does not exist | `NotFoundException` (404) |
+| state or uniqueness conflict | `ConflictException` (409) |
+| expired resource | `GoneException` (410) |
+| anti-abuse limit reached | `HttpException(msg, TOO_MANY_REQUESTS)` (429) |
 
+Standard Prisma errors (`P2002`, `P2025`) are already mapped by
+`PrismaClientExceptionFilter`. Do not write manual try/catch for them.
+Never forward a raw third-party gateway message to the end user.
 
-## 9. Cybersecurity & Data Integrity (MANDATORY)
+## 6. Prisma & database
 
-*   **Anti-IDOR & Multi-tenancy Enforcement (Zero Trust):**
-    *   Never trust `companyId`, `userId` or resource IDs passed via DTO, params, or request body for authorization.
-    *   Always validate ownership by checking `req.user.sub` against the database before querying, updating, or deleting resources.
-    *   Never create endpoints that delete or mutate records with Prisma using solely a raw `:id` parameter without scoping by tenant/owner (`userId` / `companyId`).
+**`select` and `include`.** Prisma rejects `select` and `include` as **sibling
+keys at the same level** of the same query object. Nesting `select` **inside** a
+relation listed in `include` is valid and is the recommended way to project
+relation fields:
 
-*   **Zero Trust on Financial Inputs:**
-    *   Endpoints related to payments, deposits, splits, or bookings must **NEVER** accept monetary values, fee percentages, or wallet IDs from client payloads.
-    *   All financial values must be derived strictly on the server from validated database entities (`Service`, `Appointment`, constants) and frozen in the transaction record.
+```ts
+// ✅ valid — this pattern runs on the payment-confirmation path
+include: {
+  client:  { select: { id: true, name: true, email: true } },
+  company: { select: { id: true, businessName: true } },
+}
+```
 
-*   **Credential & Secret Leak Prevention:**
-    *   Never query `User` models using wildcard selections (`findMany()` / `findUnique()` without explicit `select`). Always exclude sensitive columns (`password`, `refreshToken`, `asaasApiKey`, `cpfCnpj`).
-    *   Never return raw sub-account API keys, internal secrets, or webhook tokens in any HTTP response or Swagger documentation example.
+Prefer a top-level `select` with nested `select` for full control of the
+payload. Never fetch whole rows by default.
 
-*   **Authorization Guard Integrity:**
-    *   Every protected route must apply `JwtAuthGuard`.
-    *   When `@Roles()` is declared, ensure `RolesGuard` is explicitly included in `@UseGuards(JwtAuthGuard, RolesGuard)` at the method or controller level.
-    *   Critical business state transitions (e.g., setting an appointment to `CONFIRMED`) must **ONLY** be executable via authenticated gateway webhooks, never via manual user PATCH endpoints.
+**Money is `Decimal`, never float.** Convert explicitly on read
+(`Number(appointment.downPaymentAmount)`). Fee and deposit maths use integer
+cents arithmetic — see §9. When comparing an amount returned by the gateway, use
+an explicit tolerance (`paid < expected - 0.01`), never strict equality.
 
-### 10. External Integrations & Reference Documentation
+**Aggregate in the database.** Never `findMany` a table into memory to `reduce`
+a sum. Use `prisma.aggregate({ _sum })`.
 
-*   **Asaas Payment Gateway Reference:**
-    *   Documentation index for LLM agents: `https://docs.asaas.com/llms.txt`
-    *   To read any Asaas reference page in markdown format, append `.md` to the documentation URL (e.g., `https://docs.asaas.com/reference/criar-nova-cobranca.md`).
-    *   Always refer to official Asaas v3 schemas when constructing payloads for customer creation, Pix generation, and split processing.\n> **Prisma Rule**: NEVER use `select` inside an `include` block (Prisma throws a runtime/type validation error). Always use nested `select` blocks exclusively when projecting relation fields (e.g. `select: { id: true, relation: { select: { field: true } } }`).
+**Pagination.** Listing endpoints need `page`/`limit` in the filter DTO. Every
+`take` needs an `orderBy` — without it the order is undefined and a backlog can
+starve rows indefinitely. `findMany` without `take` inside a cron is a defect.
 
-> **Prisma Rule**: NEVER use `select` inside an `include` block (Prisma throws a runtime/type validation error). Always use nested `select` blocks exclusively when projecting relation fields (e.g. `select: { id: true, relation: { select: { field: true } } }`).
+**Indexes.** Postgres does not create an index for a foreign key automatically,
+and Prisma only creates what is declared. When adding a recurring filter, check
+whether the column has `@@index`.
+
+**Concurrency.** The established pattern is a pessimistic lock inside
+`prisma.$transaction` (`SELECT id FROM "User" WHERE id = ? FOR UPDATE`).
+External calls never go inside a transaction — reserve state in the transaction,
+call the network outside it, and roll the reservation back on failure.
+
+## 7. Timezone
+
+`Company.timezone` is the authority for wall-clock conversion.
+
+- **Never** use the local `Date` constructor or `getHours()` / `getDate()` /
+  `getDay()` / `setHours()` for business logic — they resolve in the *server's*
+  timezone. Brazil spans four offsets.
+- Every conversion between "09:00 at the shop" and an absolute instant goes
+  through `company.timezone`, via `date-fns-tz` or `Intl`. If a function did not
+  receive the timezone, it cannot decide on its own — pass it or escalate.
+- Working-hour strings (`WorkingHour.startTime = "09:00"`) are wall-clock and
+  are modelled correctly. Do not change the storage; the conversion is what
+  matters.
+- To derive a day of week from a `YYYY-MM-DD` string, use noon UTC — it is
+  immune to ±12h offsets. `availability.service.ts` has the reference
+  implementation.
+- Every `@Cron` needs an explicit `timeZone` option.
+- Run tests with `TZ=UTC`, and build dates in tests with explicit UTC
+  (`new Date('2029-08-28T10:00:00.000Z')`, never without the `Z`).
+
+## 8. Security & multi-tenancy
+
+**A role is not a tenant.** `@Roles(...INTERNAL_USERS)` answers "what kind of
+account is this?", not "may this account see this record?". Ownership is checked
+in the **service**, always, even on a route that already has `@Roles`.
+
+```ts
+// ❌ the ID came from a param and nobody asked whose it is
+findUnique({ where: { id: companyId } })
+
+// ✅ the tenant is part of the where
+findFirst({ where: { id: companyId, userId }, select: { /* explicit */ } })
+```
+
+- `findUnique({ where: { id } })` on a client-supplied ID is forbidden without
+  tenant scope. If `SYSTEM_MANAGERS` needs unrestricted access, branch on the
+  role explicitly.
+- Prefer **404 over 403** for another tenant's resource — a 403 confirms the ID
+  exists.
+- A listing is scoped by the authenticated `userId`. A `companyId` filter is an
+  *additional restriction inside that scope*, never the scope itself.
+- Beware `OR` clauses containing `undefined` — Prisma may match another owner's
+  row.
+
+**Never return in an HTTP response or a Swagger example:** `password`,
+`refreshToken`, `asaasApiKey`, `cpfCnpj`, `incomeValue`, `walletId`,
+`asaasCustomerId`, or a full residential address. Use an explicit `select`;
+destructuring away only `password` is not sanitisation. Swagger is served
+**without authentication** outside production, so a sensitive field in a
+`schema.example` documents publicly which routes return it.
+
+**Authentication.** Login failure always returns the same generic message
+regardless of whether the e-mail exists. `forgot-password` always returns a
+generic response. Never write a hardcoded fallback for a secret (`JWT_SECRET`,
+`ENCRYPTION_SECRET`) — fail explicitly at startup instead. The global exception
+filter must not overwrite the generic 500 message with `exception.message`.
+
+**Payment state machine.** The transition to `CONFIRMED` belongs exclusively to
+the authenticated Asaas webhook (and to the reconciliation job, which replays the
+same handler). No manual endpoint may set `CONFIRMED` or `PENDING_PAYMENT`. A
+late asynchronous event must not cancel an appointment already `CONFIRMED` or
+`COMPLETED`.
+
+**Webhooks never return 5xx.** Asaas webhooks are registered with
+`sendType: 'SEQUENTIALLY'`: any response `>= 500` stalls that subaccount's queue
+indefinitely and no later payment is confirmed. `POST /webhooks/asaas` always
+returns 2xx; failures are logged, queued for reconciliation and alerted. Wrap
+the whole handler — one unhandled exception is enough to stall the queue.
+
+**Uploads.** Validate real binary magic bytes with `ValidateImage`, never the
+client-declared `mimetype`, and check company ownership before writing
+`logoPhoto` / `bannerPhoto`.
+
+**Subaccount credentials.** The platform is the sole holder of each Asaas
+subaccount's `asaasApiKey`, encrypted at rest with `CryptoHelper`.
+Establishments are never granted access to the Asaas panel or API of their own
+subaccount. Changing this is a product decision, not a support convenience —
+escalate.
+
+## 9. Business & billing rules
+
+**Zero trust on financial payloads.** Monetary values, split amounts and fee
+percentages are derived **server-side**. Never read them from the request body.
+
+**Deposit — `CalculateDeposit`** (`src/helpers/calculate-deposit.helper.ts`):
+
+```
+price < R$ 15.00 ................... 100% upfront
+price >= R$ 400 and configured 30% . 30%
+otherwise .......................... 50%
+final = max(calculated, min(price, R$ 15.00))
+```
+
+The percentage is normalised at service creation: below R$ 400 it is forced to
+50%; only from R$ 400 up is 30% accepted. The client never chooses the fraction.
+
+**Platform fee — `CalculateTax`** (`src/helpers/calculate-tax.helper.ts`):
+cumulative brackets over the *deposit* — 10% up to R$ 250.00, 5% on the excess —
+with a R$ 2.00 floor (`MIN_PLATFORM_TAX`) and ceiling rounding to multiples of
+R$ 0.25, computed in integer cents. The fee is charged **on top of** the
+deposit; the Pix total is `deposit + platform fee`.
+
+**Gateway fee split is immutable.** The establishment's share of the Asaas Pix
+fee is **fixed at R$ 0.99** (`BARBER_ASAAS_PIX_FEE`). It must never be derived
+from the live Asaas fee, from `ASAAS_PIX_FEE`, or from `fetchAccountFees()`.
+`AsaasService.gatewayPixCost` is a cost metric only — using it in a split
+calculation is a regression.
+
+**Historical pricing is frozen.** `servicePrice`, `downPaymentAmount` and
+`platformFeeAmount` are persisted on the `Appointment` at creation. Never
+recompute them from the live `Service` table for an existing booking.
+
+**Onboarding gate.** Block service creation and booking when the company has no
+valid `financialProfile.walletId`.
+
+**Escrow.** Value from a `CONFIRMED` appointment is held; only `COMPLETED`
+releases it for withdrawal.
+`availableBalance = Σ deposit(COMPLETED) − Σ withdrawals(CONFIRMED + PENDING)`.
+
+**Cancellation** (CDC Art. 51 / CC Arts. 417–420):
+
+| Notice | Rule |
+|---|---|
+| `> 24h` | full refund of the amount paid online |
+| `<= 24h` | **retain 100% of the deposit** as vacancy compensation. No partial refund. |
+
+**Withdrawals.** Ad-hoc (`POST /company/withdraw`) carries the R$ 5.00 transfer
+fee (`ASAAS_TRANSFER_FEE`). The weekly automatic payout (`@Cron('0 6 * * 1')`)
+is free to the establishment and runs only for
+`availableBalance >= R$ 100.00` (`MIN_FREE_WEEKLY_PAYOUT`); smaller balances
+accumulate until they reach the floor.
+
+**Anti-abuse limits** — business rules, not technical details. Changing any of
+them requires explicit approval.
+
+| Limit | Value |
+|---|---|
+| concurrent active appointments per client | 2 (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT`) |
+| cancellations in 7 days before temporary block | 3 (`MAX_WEEKLY_CANCELLATIONS_LIMIT`) |
+| Pix reservation validity | 15 minutes (`expiresAt`) |
+
+## 10. Code style
+
+- Identifiers in English (`camelCase` / `PascalCase`). Comments, log messages,
+  user-facing exception messages and commits in **Portuguese**.
+- A monetary variable carries its semantic unit in the name —
+  `downPaymentAmount`, `platformFeeAmount`, `netAmountTransferred` — never a
+  bare `value`, `amount` or `total`.
+- Booleans start with a state verb: `isActive`, `isRefunded`, `isSystemManager`.
+- Business constants live in `src/common/constants/billing.constant.ts` in
+  `SCREAMING_SNAKE_CASE`, with a comment explaining **why** the number is what
+  it is. No magic numbers inline.
+- Guard clauses first, happy path last. One function, one job.
+- Comment the **why**, not the **what**, and match the comment density of the
+  surrounding file. A comment that misdescribes its function is a defect.
+- An empty `catch` is acceptable only for the deliberate resilient e-mail
+  dispatch (`.catch(() => {})`). Anywhere else it swallows an error.
+- One `private readonly logger = new Logger(ClassName.name)` per service that
+  logs, with a bracketed routine prefix (`[Cron Payouts]`, `[Webhook Asaas]`).
+  Never log a secret, a token or a full PII payload.
+- Before delivering: `npm run lint`, then `npm run test` (the whole suite).
+
+## 11. Registered helpers — reuse, do not reimplement
+
+| Helper | Path |
+|---|---|
+| `CalculateTax` — platform fee | `src/helpers/calculate-tax.helper.ts` |
+| `CalculateDeposit` — deposit amount | `src/helpers/calculate-deposit.helper.ts` |
+| `ValidateImage` — upload magic bytes | `src/helpers/validate-image.helper.ts` |
+| `CryptoHelper` — AES-256-GCM at rest | `src/helpers/crypto.helper.ts` |
+| `AllExceptionsFilter` — global errors | `src/common/filters/all-exceptions.filter.ts` |
+| `PrismaClientExceptionFilter` — P2002→409, P2025→404 | `src/common/filters/prisma-client-exception.filter.ts` |
+| `RolesGuard` — RBAC via `@Roles()` | `src/modules/auth/roles/guard/roles.guard.ts` |
+
+When you add a reusable helper, put it in `src/helpers/` and add a row above.
+
+## 12. Self-maintenance — keep this file true
+
+A rule that lives only in code is a rule the next session will get wrong. These
+updates ship in the **same** PR as the code, never "later".
+
+**Helpers.** When you create a helper, generalize an existing one, extract
+duplicated logic into `src/helpers/`, change a helper's formula, or remove one:
+update the registry in §11 in the same PR. If the helper encodes a business
+formula, also update where that formula is written in §9. An unregistered helper
+gets reimplemented by the next agent.
+
+**Business rules.** When a rule in §9 changes mid-development — a value, a
+threshold, a policy, who pays what:
+
+1. **Stop before writing code.** Restate the new rule in one sentence and get
+   confirmation.
+2. **Update §9 first**, then anywhere else in this file that repeats the rule.
+3. **List the contradictions** — name the places in the code that now disagree.
+   Do not fix them without approval.
+4. **Then** write the code.
+
+Documenting after the code works means not documenting: once it passes, the rule
+is forgotten and the next session inherits a stale one.
+
+## 13. External documentation
+
+Asaas gateway: LLM index at `https://docs.asaas.com/llms.txt`. Append `.md` to
+any documentation URL to read it as raw markdown.
+
+Full endpoint catalogue with payloads: `docs/llm.md`.
