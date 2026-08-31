@@ -50,6 +50,98 @@ describe('ServiceGroupService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('findAll (Tenant Scoping)', () => {
+    it('should scope list to company owned by userId for regular user', async () => {
+      const mockGroups = [{ id: 'group-1', name: 'Barba', capacity: 1, companyId: 'comp-1', isActive: true }];
+      mockPrisma.serviceGroup.findMany.mockResolvedValue(mockGroups);
+
+      const result = await service.findAll('user-1', Role.COMPANY_OWNER);
+
+      expect(mockPrisma.serviceGroup.findMany).toHaveBeenCalledWith({
+        where: {
+          isActive: true,
+          company: { userId: 'user-1', isActive: true },
+        },
+        select: {
+          id: true,
+          name: true,
+          capacity: true,
+          companyId: true,
+          isActive: true,
+        },
+      });
+      expect(result).toEqual(mockGroups);
+    });
+
+    it('should not scope to company.userId when called by ADMIN', async () => {
+      const mockGroups = [{ id: 'group-1', name: 'Barba', capacity: 1, companyId: 'comp-1', isActive: true }];
+      mockPrisma.serviceGroup.findMany.mockResolvedValue(mockGroups);
+
+      const result = await service.findAll('admin-id', Role.ADMIN);
+
+      expect(mockPrisma.serviceGroup.findMany).toHaveBeenCalledWith({
+        where: {
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          capacity: true,
+          companyId: true,
+          isActive: true,
+        },
+      });
+      expect(result).toEqual(mockGroups);
+    });
+  });
+
+  describe('findOneById (Tenant Scoping)', () => {
+    const serviceGroupMock = {
+      id: 'group-1',
+      name: 'Barba',
+      capacity: 1,
+      companyId: 'comp-1',
+      isActive: true,
+      company: {
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        userId: 'owner-1',
+      },
+    };
+
+    it('should return service group when accessed by company owner', async () => {
+      mockPrisma.serviceGroup.findUnique.mockResolvedValue(serviceGroupMock);
+
+      const result = await service.findOneById('group-1', 'owner-1', Role.COMPANY_OWNER);
+
+      expect(result).toEqual(serviceGroupMock);
+    });
+
+    it('should throw ForbiddenException when accessed by another tenant', async () => {
+      mockPrisma.serviceGroup.findUnique.mockResolvedValue(serviceGroupMock);
+
+      await expect(
+        service.findOneById('group-1', 'attacker-user', Role.COMPANY_OWNER),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow ADMIN to retrieve service group belonging to any company', async () => {
+      mockPrisma.serviceGroup.findUnique.mockResolvedValue(serviceGroupMock);
+
+      const result = await service.findOneById('group-1', 'admin-id', Role.ADMIN);
+
+      expect(result).toEqual(serviceGroupMock);
+    });
+
+    it('should throw NotFoundException if service group does not exist', async () => {
+      mockPrisma.serviceGroup.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.findOneById('non-existent', 'owner-1', Role.COMPANY_OWNER),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('create', () => {
     it('should throw NotFoundException if company does not exist', async () => {
       mockPrisma.company.findUnique.mockResolvedValue(null);

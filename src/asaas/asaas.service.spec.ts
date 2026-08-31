@@ -298,13 +298,14 @@ describe('AsaasService', () => {
       expect(result).toBe(true);
     });
 
-    it('should return false when Asaas deletion fails', async () => {
+    it('should throw InternalServerErrorException when Asaas deletion fails', async () => {
       jest.spyOn(global, 'fetch').mockResolvedValueOnce({
         ok: false,
         json: jest.fn().mockResolvedValue({ errors: [] }),
       } as any);
-      const result = await service.cancelPayment('pay_123');
-      expect(result).toBe(false);
+      await expect(service.cancelPayment('pay_123')).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
@@ -319,13 +320,35 @@ describe('AsaasService', () => {
       expect(result).toBe(true);
     });
 
-    it('should return false when refund request fails', async () => {
+    it('should throw InternalServerErrorException when refund request fails', async () => {
       jest.spyOn(global, 'fetch').mockResolvedValueOnce({
         ok: false,
         json: jest.fn().mockResolvedValue({ errors: [] }),
       } as any);
-      const result = await service.refundPayment('pay_123');
-      expect(result).toBe(false);
+      await expect(service.refundPayment('pay_123')).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
+
+  describe('listSubAccountById', () => {
+    it('should fetch subaccount and sanitize apiKey from returned object', async () => {
+      const mockAsaasResponse = {
+        id: 'acc_123',
+        name: 'Barbearia VIP',
+        email: 'barber@vip.com',
+        apiKey: 'secret_live_api_key',
+        walletId: 'wal_123',
+      };
+      jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockAsaasResponse),
+      } as any);
+
+      const result = await service.listSubAccountById('acc_123');
+
+      expect(result.id).toBe('acc_123');
+      expect(result).not.toHaveProperty('apiKey');
     });
   });
 

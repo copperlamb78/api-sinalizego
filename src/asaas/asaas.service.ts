@@ -241,7 +241,8 @@ export class AsaasService implements OnModuleInit {
         throw new BadRequestException(`Asaas: ${errorMessage}`);
       }
 
-      return responseData as AsaasAccountResponse;
+      const { apiKey, ...safeSubAccount } = (responseData as any) || {};
+      return safeSubAccount as AsaasAccountResponse;
     } catch (error: any) {
       if (error instanceof BadRequestException) {
         throw error;

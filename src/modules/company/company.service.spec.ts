@@ -72,6 +72,7 @@ describe('CompanyService', () => {
 
   const mockAsaasService = {
     transferSubaccountBalance: jest.fn(),
+    getTransferFee: jest.fn().mockResolvedValue(5.0),
   };
 
   beforeEach(async () => {
@@ -475,6 +476,58 @@ describe('CompanyService', () => {
     });
   });
 
+  describe('getCompanyByCompanyId (Tenant Scoping)', () => {
+    it('should return company when requested by its owner', async () => {
+      const mockCompany = {
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        userId: 'user-1',
+        isActive: true,
+      };
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+
+      const result = await service.getCompanyByCompanyId(
+        'comp-1',
+        'user-1',
+        'COMPANY_OWNER',
+      );
+
+      expect(mockPrisma.company.findFirst).toHaveBeenCalledWith({
+        where: { id: 'comp-1', userId: 'user-1', isActive: true },
+      });
+      expect(result).toEqual(mockCompany);
+    });
+
+    it('should allow ADMIN to retrieve company without userId scoping', async () => {
+      const mockCompany = {
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        userId: 'user-other',
+        isActive: true,
+      };
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+
+      const result = await service.getCompanyByCompanyId(
+        'comp-1',
+        'admin-id',
+        'ADMIN',
+      );
+
+      expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
+        where: { id: 'comp-1' },
+      });
+      expect(result).toEqual(mockCompany);
+    });
+
+    it('should throw NotFoundException if company does not belong to user', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getCompanyByCompanyId('comp-1', 'attacker-user', 'CLIENT'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('getCompanyBalance (Escrow Hold & Available Balance)', () => {
     it('should calculate available balance from COMPLETED appointments and escrow balance from CONFIRMED', async () => {
       mockPrisma.company.findFirst.mockResolvedValue({
@@ -485,17 +538,18 @@ describe('CompanyService', () => {
       mockPrisma.financialProfile.findFirst.mockResolvedValue({
         id: 'fp-1',
         walletId: 'wal_123',
+        pixAddressKey: '12345678900',
+        pixAddressKeyType: 'CPF',
       });
-      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
-        if (args.where.status === ApptStatus.COMPLETED) {
-          return { _sum: { downPaymentAmount: 80.0 } };
-        } else if (args.where.status === ApptStatus.CONFIRMED) {
-          return { _sum: { downPaymentAmount: 40.0 } };
+      mockPrisma.transaction.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.appointment?.status === ApptStatus.COMPLETED) {
+          return { _sum: { netValue: 80.0 } };
+        } else if (args.where.appointment?.status === ApptStatus.CONFIRMED) {
+          return { _sum: { netValue: 40.0 } };
+        } else if (args.where.type === TransactionType.WITHDRAWAL) {
+          return { _sum: { totalValue: 20.0 } };
         }
-        return { _sum: { downPaymentAmount: 0 } };
-      });
-      mockPrisma.transaction.aggregate.mockResolvedValue({
-        _sum: { totalValue: 20.0 },
+        return { _sum: { netValue: 0, totalValue: 0 } };
       });
 
       const balance = await service.getCompanyBalance('user-owner');
@@ -541,28 +595,31 @@ describe('CompanyService', () => {
       mockPrisma.financialProfile.findFirst.mockResolvedValue({
         id: 'fp-1',
         walletId: 'wal_123',
+        pixAddressKey: '12345678900',
+        pixAddressKeyType: 'CPF',
       });
-      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
-        if (args.where.status === ApptStatus.COMPLETED) {
-          return { _sum: { downPaymentAmount: 100.0 } };
-        } else if (args.where.status === ApptStatus.CONFIRMED) {
-          return { _sum: { downPaymentAmount: 50.0 } };
+      mockPrisma.transaction.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.appointment?.status === ApptStatus.COMPLETED) {
+          return { _sum: { netValue: 100.0 } };
+        } else if (args.where.appointment?.status === ApptStatus.CONFIRMED) {
+          return { _sum: { netValue: 50.0 } };
+        } else if (args.where.type === TransactionType.WITHDRAWAL) {
+          return { _sum: { totalValue: 0 } };
         }
-        return { _sum: { downPaymentAmount: 0 } };
-      });
-      mockPrisma.transaction.aggregate.mockResolvedValue({
-        _sum: { totalValue: 0 },
+        return { _sum: { netValue: 0, totalValue: 0 } };
       });
     });
 
     it('should throw BadRequestException if available balance is zero', async () => {
-      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
-        if (args.where.status === ApptStatus.COMPLETED) {
-          return { _sum: { downPaymentAmount: 0.0 } };
-        } else if (args.where.status === ApptStatus.CONFIRMED) {
-          return { _sum: { downPaymentAmount: 50.0 } };
+      mockPrisma.transaction.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.appointment?.status === ApptStatus.COMPLETED) {
+          return { _sum: { netValue: 0.0 } };
+        } else if (args.where.appointment?.status === ApptStatus.CONFIRMED) {
+          return { _sum: { netValue: 50.0 } };
+        } else if (args.where.type === TransactionType.WITHDRAWAL) {
+          return { _sum: { totalValue: 0 } };
         }
-        return { _sum: { downPaymentAmount: 0 } };
+        return { _sum: { netValue: 0, totalValue: 0 } };
       });
 
       await expect(
@@ -641,7 +698,11 @@ describe('CompanyService', () => {
       expect(mockAsaasService.transferSubaccountBalance).toHaveBeenCalledWith(
         'fp-1',
         45.0, // 50 - 5 = 45
-        { isFreeWeekly: false },
+        {
+          isFreeWeekly: false,
+          pixAddressKey: '12345678900',
+          pixAddressKeyType: 'CPF',
+        },
       );
       expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -675,7 +736,10 @@ describe('CompanyService', () => {
         financialProfileId: 'fp-1',
       });
       mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-1',
         walletId: 'wal_123',
+        pixAddressKey: '12345678900',
+        pixAddressKeyType: 'CPF',
       });
       mockPrisma.transaction.findMany.mockResolvedValue([
         {
@@ -774,7 +838,10 @@ describe('CompanyService', () => {
       mockPrisma.financialProfile.findFirst.mockResolvedValue({
         id: 'fp-1',
         walletId: 'wal_1',
+        pixAddressKey: '12345678900',
+        pixAddressKeyType: 'CPF',
       });
+      mockAsaasService.transferSubaccountBalance.mockReset();
       mockAsaasService.transferSubaccountBalance.mockResolvedValue({
         id: 'tra_payout_1',
       });
@@ -790,7 +857,11 @@ describe('CompanyService', () => {
       expect(mockAsaasService.transferSubaccountBalance).toHaveBeenCalledWith(
         'fp-1',
         150.0,
-        { isFreeWeekly: true },
+        {
+          isFreeWeekly: true,
+          pixAddressKey: '12345678900',
+          pixAddressKeyType: 'CPF',
+        },
       );
       expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
         data: expect.objectContaining({

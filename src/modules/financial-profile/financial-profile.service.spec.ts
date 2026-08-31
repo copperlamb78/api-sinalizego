@@ -7,8 +7,10 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { FINANCIAL_PROFILE_PUBLIC_SELECT } from './constants/financial-profile-select.constant';
-import { CryptoHelper } from 'src/helpers/crypto.helper';
+import {
+  FINANCIAL_PROFILE_OWNER_SELECT,
+} from './constants/financial-profile-select.constant';
+import { Role } from '@prisma/client';
 
 describe('FinancialProfileService', () => {
   let service: FinancialProfileService;
@@ -22,6 +24,7 @@ describe('FinancialProfileService', () => {
     },
     financialProfile: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -112,7 +115,7 @@ describe('FinancialProfileService', () => {
           asaasApiKey: expect.stringMatching(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/), // encrypted
           userId: 'user-1',
         }),
-        select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+        select: FINANCIAL_PROFILE_OWNER_SELECT,
       });
       expect(result).not.toHaveProperty('asaasApiKey');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
@@ -144,30 +147,30 @@ describe('FinancialProfileService', () => {
   });
 
   describe('getFinancialProfileByUserId', () => {
-    it('should query with FINANCIAL_PROFILE_PUBLIC_SELECT and return profile without asaasApiKey', async () => {
+    it('should query with FINANCIAL_PROFILE_OWNER_SELECT and return profile without asaasApiKey', async () => {
       const mockProfile = {
         id: 'fp-1',
         name: 'Barbearia VIP',
         walletId: 'wallet-123',
         userId: 'user-1',
       };
-      mockPrisma.financialProfile.findUnique.mockResolvedValue(mockProfile);
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(mockProfile);
 
       const result = await service.getFinancialProfileByUserId(
         'user-1',
         'fp-1',
       );
 
-      expect(mockPrisma.financialProfile.findUnique).toHaveBeenCalledWith({
+      expect(mockPrisma.financialProfile.findFirst).toHaveBeenCalledWith({
         where: { id: 'fp-1', userId: 'user-1' },
-        select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+        select: FINANCIAL_PROFILE_OWNER_SELECT,
       });
       expect(result).toEqual(mockProfile);
       expect(result).not.toHaveProperty('asaasApiKey');
     });
 
     it('should throw NotFoundException if profile is not found', async () => {
-      mockPrisma.financialProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
 
       await expect(
         service.getFinancialProfileByUserId('user-1', 'fp-unknown'),
@@ -175,8 +178,54 @@ describe('FinancialProfileService', () => {
     });
   });
 
+  describe('getFinancialProfileById (Tenant Security)', () => {
+    it('should restrict search to userId for regular users', async () => {
+      const mockProfile = {
+        id: 'fp-1',
+        name: 'Barbearia VIP',
+        walletId: 'wallet-123',
+        userId: 'user-1',
+      };
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(mockProfile);
+
+      const result = await service.getFinancialProfileById('fp-1', 'user-1', 'COMPANY_OWNER');
+
+      expect(mockPrisma.financialProfile.findFirst).toHaveBeenCalledWith({
+        where: { id: 'fp-1', userId: 'user-1', isActive: true },
+        select: FINANCIAL_PROFILE_OWNER_SELECT,
+      });
+      expect(result).toEqual(mockProfile);
+    });
+
+    it('should allow ADMIN to search globally without userId scoping', async () => {
+      const mockProfile = {
+        id: 'fp-1',
+        name: 'Barbearia VIP',
+        walletId: 'wallet-123',
+        userId: 'user-2',
+      };
+      mockPrisma.financialProfile.findUnique.mockResolvedValue(mockProfile);
+
+      const result = await service.getFinancialProfileById('fp-1', 'admin-id', Role.ADMIN);
+
+      expect(mockPrisma.financialProfile.findUnique).toHaveBeenCalledWith({
+        where: { id: 'fp-1' },
+        select: FINANCIAL_PROFILE_OWNER_SELECT,
+      });
+      expect(result).toEqual(mockProfile);
+    });
+
+    it('should throw NotFoundException if profile belongs to another tenant', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getFinancialProfileById('fp-1', 'attacker-user', 'CLIENT'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('getAllFinancialProfiles (Admin)', () => {
-    it('should query all profiles using FINANCIAL_PROFILE_PUBLIC_SELECT and exclude asaasApiKey even for admin', async () => {
+    it('should query all profiles using FINANCIAL_PROFILE_OWNER_SELECT and exclude asaasApiKey even for admin', async () => {
       const mockProfiles = [
         { id: 'fp-1', name: 'Barbearia A', walletId: 'w-1' },
         { id: 'fp-2', name: 'Barbearia B', walletId: 'w-2' },
@@ -187,7 +236,7 @@ describe('FinancialProfileService', () => {
 
       expect(mockPrisma.financialProfile.findMany).toHaveBeenCalledWith({
         where: {},
-        select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+        select: FINANCIAL_PROFILE_OWNER_SELECT,
         orderBy: { createdAt: 'desc' },
       });
       expect(result).toEqual(mockProfiles);
@@ -199,7 +248,7 @@ describe('FinancialProfileService', () => {
 
   describe('deactivate / activate FinancialProfile', () => {
     it('should deactivate profile and return sanitized fields', async () => {
-      mockPrisma.financialProfile.findUnique.mockResolvedValue({
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
         id: 'fp-1',
         userId: 'user-1',
         isActive: true,
@@ -214,7 +263,7 @@ describe('FinancialProfileService', () => {
       expect(mockPrisma.financialProfile.update).toHaveBeenCalledWith({
         where: { id: 'fp-1' },
         data: { isActive: false, disabledAt: expect.any(Date) },
-        select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+        select: FINANCIAL_PROFILE_OWNER_SELECT,
       });
       expect(result).not.toHaveProperty('asaasApiKey');
     });

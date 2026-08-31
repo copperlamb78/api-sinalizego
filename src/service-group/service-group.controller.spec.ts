@@ -54,12 +54,17 @@ describe('ServiceGroupController', () => {
   });
 
   describe('findAll', () => {
-    it('should return list of service groups', async () => {
+    it('should return list of service groups passing authenticated user info', async () => {
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const expected = [{ id: 'group-1', name: 'Cabeleireiros', capacity: 3 }];
       mockServiceGroupService.findAll.mockResolvedValue(expected);
 
-      const result = await controller.findAll(undefined);
-      expect(service.findAll).toHaveBeenCalledWith(undefined);
+      const result = await controller.findAll(req, undefined);
+      expect(service.findAll).toHaveBeenCalledWith(
+        'owner-1',
+        'COMPANY_OWNER',
+        undefined,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -92,7 +97,8 @@ describe('ServiceGroupController', () => {
   });
 
   describe('findOne', () => {
-    it('should return service group by ID', async () => {
+    it('should return service group by ID passing authenticated user info', async () => {
+      const req = { user: { sub: 'owner-1', role: 'COMPANY_OWNER' } } as any;
       const expected = {
         id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         name: 'Cabeleireiros',
@@ -102,9 +108,12 @@ describe('ServiceGroupController', () => {
 
       const result = await controller.findOne(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        req,
       );
       expect(service.findOneById).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        'owner-1',
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });

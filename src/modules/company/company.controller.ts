@@ -670,7 +670,12 @@ export class CompanyController {
     description: 'Nenhuma empresa encontrada para este ID.',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getCompanyById(@Param('companyId') companyId: string) {
-    return this.companyService.getCompanyByCompanyId(companyId);
+  async getCompanyById(
+    @Param('companyId') companyId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
+    return this.companyService.getCompanyByCompanyId(companyId, userId, role);
   }
 }

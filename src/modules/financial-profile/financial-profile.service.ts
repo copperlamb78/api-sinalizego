@@ -11,8 +11,11 @@ import {
   AdminFiltersFinancialProfileDto,
   FiltersFinancialProfileDto,
 } from './dto/filters-financial-profile.dto';
-import { FINANCIAL_PROFILE_PUBLIC_SELECT } from './constants/financial-profile-select.constant';
+import {
+  FINANCIAL_PROFILE_OWNER_SELECT,
+} from './constants/financial-profile-select.constant';
 import { CryptoHelper } from 'src/helpers/crypto.helper';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class FinancialProfileService {
@@ -55,7 +58,7 @@ export class FinancialProfileService {
 
     const existingDoc = await this.prisma.financialProfile.findUnique({
       where: { cpfCnpj: cleanDocument },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
     });
 
     if (existingDoc) {
@@ -98,7 +101,7 @@ export class FinancialProfileService {
         asaasApiKey: encryptedApiKey,
         userId: userId,
       },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
     });
 
     if (user.role !== 'COMPANY_OWNER') {
@@ -118,9 +121,9 @@ export class FinancialProfileService {
   }
 
   async getFinancialProfileByUserId(userId: string, id: string) {
-    const profile = await this.prisma.financialProfile.findUnique({
+    const profile = await this.prisma.financialProfile.findFirst({
       where: { id: id, userId: userId },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
     });
 
     if (!profile) {
@@ -144,7 +147,7 @@ export class FinancialProfileService {
 
     const profiles = await this.prisma.financialProfile.findMany({
       where: whereClause,
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -155,11 +158,25 @@ export class FinancialProfileService {
     return profiles;
   }
 
-  async getFinancialProfileById(id: string) {
-    const profile = await this.prisma.financialProfile.findUnique({
-      where: { id: id },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
-    });
+  async getFinancialProfileById(
+    id: string,
+    userId?: string,
+    role?: Role | string,
+  ) {
+    const isSystemManager =
+      role === Role.ADMIN || role === Role.SUPER_ADMIN;
+
+    const profile = isSystemManager
+      ? await this.prisma.financialProfile.findUnique({
+          where: { id },
+          select: FINANCIAL_PROFILE_OWNER_SELECT,
+        })
+      : userId
+        ? await this.prisma.financialProfile.findFirst({
+            where: { id, userId, isActive: true },
+            select: FINANCIAL_PROFILE_OWNER_SELECT,
+          })
+        : null;
 
     if (!profile) {
       throw new NotFoundException('Perfil não encontrado');
@@ -181,7 +198,7 @@ export class FinancialProfileService {
 
     const profiles = await this.prisma.financialProfile.findMany({
       where: whereClause,
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -194,9 +211,9 @@ export class FinancialProfileService {
 
   // Rota permitida apenas para INTERNAL_NO_EMPLOYEE
   async deactivateFinancialProfile(id: string, userId: string) {
-    const profile = await this.prisma.financialProfile.findUnique({
+    const profile = await this.prisma.financialProfile.findFirst({
       where: { id: id, userId: userId },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
     });
 
     if (!profile) {
@@ -210,7 +227,7 @@ export class FinancialProfileService {
     const updatedProfile = await this.prisma.financialProfile.update({
       where: { id: id },
       data: { isActive: false, disabledAt: new Date() },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
     });
 
     return updatedProfile;
@@ -218,9 +235,9 @@ export class FinancialProfileService {
 
   // Rota permitida apenas para INTERNAL_NO_EMPLOYEE
   async activateFinancialProfile(id: string, userId: string) {
-    const profile = await this.prisma.financialProfile.findUnique({
+    const profile = await this.prisma.financialProfile.findFirst({
       where: { id: id, userId: userId },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
     });
 
     if (!profile) {
@@ -234,14 +251,14 @@ export class FinancialProfileService {
     const updatedProfile = await this.prisma.financialProfile.update({
       where: { id: id },
       data: { isActive: true, disabledAt: null },
-      select: FINANCIAL_PROFILE_PUBLIC_SELECT,
+      select: FINANCIAL_PROFILE_OWNER_SELECT,
     });
 
     return updatedProfile;
   }
 
   async getFinancialProfileBalance(id: string, userId: string) {
-    const profile = await this.prisma.financialProfile.findUnique({
+    const profile = await this.prisma.financialProfile.findFirst({
       where: { id: id, userId: userId },
       select: { walletId: true },
     });

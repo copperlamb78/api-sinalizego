@@ -125,12 +125,15 @@ describe('CompanyController', () => {
 
   describe('getCompanyById', () => {
     it('should return company by companyId', async () => {
+      const req = { user: { sub: 'user-1', role: 'COMPANY_OWNER' } } as any;
       const expected = { id: 'company-1', businessName: 'Barbearia VIP' };
       mockCompanyService.getCompanyByCompanyId.mockResolvedValue(expected);
 
-      const result = await controller.getCompanyById('company-1');
+      const result = await controller.getCompanyById('company-1', req);
       expect(companyService.getCompanyByCompanyId).toHaveBeenCalledWith(
         'company-1',
+        'user-1',
+        'COMPANY_OWNER',
       );
       expect(result).toEqual(expected);
     });
@@ -338,4 +341,5 @@ describe('CompanyController', () => {
       expect(result).toEqual(expected);
     });
   });
+
 });

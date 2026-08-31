@@ -49,8 +49,18 @@ export class ServiceGroupService {
     });
   }
 
-  async findAll(filters?: FiltersServiceGroupDto) {
+  async findAll(
+    userId: string,
+    role?: Role | string,
+    filters?: FiltersServiceGroupDto,
+  ) {
+    const isSystemManager =
+      role === Role.ADMIN || role === Role.SUPER_ADMIN;
     const whereClause: any = { isActive: true };
+
+    if (!isSystemManager) {
+      whereClause.company = { userId, isActive: true };
+    }
 
     if (filters) {
       if (filters.name) whereClause.name = filters.name;
@@ -60,19 +70,46 @@ export class ServiceGroupService {
 
     return await this.prisma.serviceGroup.findMany({
       where: whereClause,
+      select: {
+        id: true,
+        name: true,
+        capacity: true,
+        companyId: true,
+        isActive: true,
+      },
     });
   }
 
-  async findOneById(id: string) {
+  async findOneById(id: string, userId?: string, role?: Role | string) {
     const serviceGroup = await this.prisma.serviceGroup.findUnique({
       where: { id },
-      include: {
-        company: true,
+      select: {
+        id: true,
+        name: true,
+        capacity: true,
+        companyId: true,
+        isActive: true,
+        company: {
+          select: {
+            id: true,
+            businessName: true,
+            userId: true,
+          },
+        },
       },
     });
 
     if (!serviceGroup) {
       throw new NotFoundException('Grupo de serviços não encontrado.');
+    }
+
+    const isSystemManager =
+      role === Role.ADMIN || role === Role.SUPER_ADMIN;
+
+    if (!isSystemManager && serviceGroup.company?.userId !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para acessar este grupo de serviços.',
+      );
     }
 
     return serviceGroup;

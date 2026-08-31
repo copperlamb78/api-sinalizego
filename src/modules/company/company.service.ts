@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -77,8 +78,16 @@ export class CompanyService {
         companies: true,
       },
     });
-
-    const { password, ...companyUserWithoutPassword } = companyUser;
+    const sanitizedUser = {
+      id: companyUser.id,
+      name: companyUser.name,
+      email: companyUser.email,
+      phone: companyUser.phone,
+      role: companyUser.role,
+      createdAt: companyUser.createdAt,
+      isActive: companyUser.isActive,
+      companies: companyUser.companies,
+    };
 
     const tokens = await this.authService.getTokens(
       companyUser.id,
@@ -92,10 +101,34 @@ export class CompanyService {
 
     return {
       message: 'Empresa criada com sucesso',
-      user: companyUserWithoutPassword,
+      user: sanitizedUser,
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
     };
+  }
+
+  async getCompanyByCompanyId(
+    companyId: string,
+    userId?: string,
+    role?: Role | string,
+  ) {
+    const isSystemManager =
+      role === Role.ADMIN || role === Role.SUPER_ADMIN;
+
+    const company = isSystemManager
+      ? await this.prisma.company.findUnique({
+          where: { id: companyId },
+        })
+      : userId
+        ? await this.prisma.company.findFirst({
+            where: { id: companyId, userId, isActive: true },
+          })
+        : null;
+
+    if (!company) {
+      throw new NotFoundException('Nenhuma empresa encontrada para este ID.');
+    }
+    return company;
   }
 
   async createCompany(data: CreateCompanyWithoutUserDto, userId: string) {
@@ -143,17 +176,6 @@ export class CompanyService {
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
     };
-  }
-
-  async getCompanyByCompanyId(companyId: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    });
-
-    if (!company) {
-      throw new NotFoundException('Nenhuma empresa encontrada para este ID.');
-    }
-    return company;
   }
 
   async getCompanyByUserId(userId: string) {
@@ -880,7 +902,7 @@ export class CompanyService {
 
     const availableBalance = Math.max(
       0,
-      Number((totalEarnedRevenue - totalWithdrawn).toFixed(2)),
+      Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
     );
 
     const now = new Date();
@@ -1016,7 +1038,7 @@ export class CompanyService {
 
       const currentAvailableBalance = Math.max(
         0,
-        Number((totalEarnedRevenue - totalWithdrawn).toFixed(2)),
+        Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
       );
 
       if (currentAvailableBalance <= 0) {
@@ -1141,7 +1163,11 @@ export class CompanyService {
         ],
         isActive: true,
       },
-      select: { walletId: true },
+      select: {
+        walletId: true,
+        pixAddressKey: true,
+        pixAddressKeyType: true,
+      },
     });
 
     if (
@@ -1255,8 +1281,8 @@ export class CompanyService {
                 balance.availableBalance,
                 {
                   isFreeWeekly: true,
-                  pixAddressKey: financialProfile.pixAddressKey,
-                  pixAddressKeyType: financialProfile.pixAddressKeyType,
+                  pixAddressKey: financialProfile.pixAddressKey || undefined,
+                  pixAddressKeyType: financialProfile.pixAddressKeyType || undefined,
                 },
               );
 

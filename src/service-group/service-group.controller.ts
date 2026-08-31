@@ -84,7 +84,7 @@ export class ServiceGroupController {
         {
           id: 'clsw0s98x000013z81z8z8z8z',
           name: 'Cabeleireiros',
-          capacity: 2,
+          capacity: 1,
           companyId: '6e463255-9c3e-47e1-b417-60382e3d2223',
         },
       ],
@@ -92,8 +92,10 @@ export class ServiceGroupController {
   })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async findAll(@Query() filters?: FiltersServiceGroupDto) {
-    return this.serviceGroupService.findAll(filters);
+  async findAll(@Req() req: Request, @Query() filters?: FiltersServiceGroupDto) {
+    const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
+    return this.serviceGroupService.findAll(userId, role, filters);
   }
 
   @ApiBearerAuth()
@@ -116,7 +118,7 @@ export class ServiceGroupController {
         {
           id: 'clsw0s98x000013z81z8z8z8z',
           name: 'Cabeleireiros',
-          capacity: 2,
+          capacity: 1,
           companyId: '6e463255-9c3e-47e1-b417-60382e3d2223',
         },
       ],
@@ -156,7 +158,7 @@ export class ServiceGroupController {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'Cabeleireiros',
-        capacity: 2,
+        capacity: 1,
         companyId: '6e463255-9c3e-47e1-b417-60382e3d2223',
       },
     },
@@ -167,8 +169,13 @@ export class ServiceGroupController {
     description: 'Grupo de serviços não encontrado',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.serviceGroupService.findOneById(id);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
+    return this.serviceGroupService.findOneById(id, userId, role);
   }
 
   @ApiBearerAuth()

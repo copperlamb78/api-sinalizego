@@ -59,19 +59,9 @@ export class FinancialProfileController {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'Barbearia do João LTDA',
-        email: 'contato@barbearia.com',
-        cpfCnpj: '12345678000195',
-        birthDate: null,
         companyType: 'MEI',
-        mobilePhone: '75999998888',
-        incomeValue: 5000,
-        address: 'Avenida Getúlio Vargas',
-        addressNumber: '1500',
-        province: 'Centro',
-        postalCode: '44001000',
-        userId: 'clsw0s98x000013z81z8z8z8z',
+        isActive: true,
         createdAt: '2026-07-29T10:00:00.000Z',
-        updatedAt: '2026-07-29T10:00:00.000Z',
       },
     },
   })
@@ -107,20 +97,9 @@ export class FinancialProfileController {
         {
           id: 'clsw0s98x000013z81z8z8z8z',
           name: 'Barbearia do João LTDA',
-          email: 'contato@barbearia.com',
-          cpfCnpj: '12345678000195',
-          birthDate: null,
           companyType: 'MEI',
-          mobilePhone: '75999998888',
-          incomeValue: 5000,
-          address: 'Avenida Getúlio Vargas',
-          addressNumber: '1500',
-          province: 'Centro',
-          postalCode: '44001000',
-          walletId: 'c92569ff-4e78-4333-a3d8-faef1220a232',
-          userId: 'clsw0s98x000013z81z8z8z8z',
+          isActive: true,
           createdAt: '2026-07-29T10:00:00.000Z',
-          updatedAt: '2026-07-29T10:00:00.000Z',
         },
       ],
     },
@@ -158,20 +137,9 @@ export class FinancialProfileController {
         {
           id: 'clsw0s98x000013z81z8z8z8z',
           name: 'Barbearia do João LTDA',
-          email: 'contato@barbearia.com',
-          cpfCnpj: '12345678000195',
-          birthDate: null,
           companyType: 'MEI',
-          mobilePhone: '75999998888',
-          incomeValue: 5000,
-          address: 'Avenida Getúlio Vargas',
-          addressNumber: '1500',
-          province: 'Centro',
-          postalCode: '44001000',
-          walletId: 'c92569ff-4e78-4333-a3d8-faef1220a232',
-          userId: 'clsw0s98x000013z81z8z8z8z',
+          isActive: true,
           createdAt: '2026-07-29T10:00:00.000Z',
-          updatedAt: '2026-07-29T10:00:00.000Z',
         },
       ],
     },
@@ -207,20 +175,9 @@ export class FinancialProfileController {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'Barbearia do João LTDA',
-        email: 'contato@barbearia.com',
-        cpfCnpj: '12345678000195',
-        birthDate: null,
         companyType: 'MEI',
-        mobilePhone: '75999998888',
-        incomeValue: 5000,
-        address: 'Avenida Getúlio Vargas',
-        addressNumber: '1500',
-        province: 'Centro',
-        postalCode: '44001000',
-        walletId: 'c92569ff-4e78-4333-a3d8-faef1220a232',
-        userId: 'clsw0s98x000013z81z8z8z8z',
+        isActive: true,
         createdAt: '2026-07-29T10:00:00.000Z',
-        updatedAt: '2026-07-29T10:00:00.000Z',
       },
     },
   })
@@ -241,7 +198,7 @@ export class FinancialProfileController {
   @Get('get-by-id/:id')
   @ApiOperation({
     summary:
-      'Busca detalhes de um perfil financeiro pelo ID (dados sensíveis ocultados)',
+      'Busca detalhes de um perfil financeiro pelo ID com validação de posse',
   })
   @ApiParam({
     name: 'id',
@@ -251,30 +208,24 @@ export class FinancialProfileController {
   @ApiResponse({
     status: 200,
     description:
-      'Perfil financeiro retornado com sucesso (dados sensíveis sanitizados)',
+      'Perfil financeiro retornado com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'Barbearia do João LTDA',
-        email: 'contato@barbearia.com',
-        birthDate: null,
         companyType: 'MEI',
-        mobilePhone: '75999998888',
-        address: 'Avenida Getúlio Vargas',
-        addressNumber: '1500',
-        province: 'Centro',
-        postalCode: '44001000',
-        userId: 'clsw0s98x000013z81z8z8z8z',
+        isActive: true,
         createdAt: '2026-07-29T10:00:00.000Z',
-        updatedAt: '2026-07-29T10:00:00.000Z',
       },
     },
   })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 404, description: 'Perfil não encontrado' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async getById(@Param('id') id: string) {
-    return this.financialProfileService.getFinancialProfileById(id);
+  async getById(@Param('id') id: string, @Req() req: Request) {
+    const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
+    return this.financialProfileService.getFinancialProfileById(id, userId, role);
   }
 
   @ApiBearerAuth()
@@ -296,16 +247,9 @@ export class FinancialProfileController {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'Barbearia do João LTDA',
-        email: 'contato@barbearia.com',
-        cpfCnpj: '12345678000195',
-        mobilePhone: '75999998888',
-        address: 'Avenida Getúlio Vargas',
-        addressNumber: '1500',
-        province: 'Centro',
-        postalCode: '44001000',
+        companyType: 'MEI',
         isActive: false,
         disabledAt: '2026-07-29T10:00:00.000Z',
-        userId: 'clsw0s98x000013z81z8z8z8z',
       },
     },
   })
@@ -337,16 +281,9 @@ export class FinancialProfileController {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
         name: 'Barbearia do João LTDA',
-        email: 'contato@barbearia.com',
-        cpfCnpj: '12345678000195',
-        mobilePhone: '75999998888',
-        address: 'Avenida Getúlio Vargas',
-        addressNumber: '1500',
-        province: 'Centro',
-        postalCode: '44001000',
+        companyType: 'MEI',
         isActive: true,
         disabledAt: null,
-        userId: 'clsw0s98x000013z81z8z8z8z',
       },
     },
   })

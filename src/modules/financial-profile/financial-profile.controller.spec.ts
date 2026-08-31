@@ -116,14 +116,19 @@ describe('FinancialProfileController', () => {
   });
 
   describe('getById', () => {
-    it('should return sanitized financial profile by ID', async () => {
+    it('should return sanitized financial profile by ID passing authenticated user info', async () => {
+      const req = { user: { sub: 'user-1', role: 'COMPANY_OWNER' } } as any;
       const expected = { id: 'fp-1', name: 'Barbearia VIP' };
       mockFinancialProfileService.getFinancialProfileById.mockResolvedValue(
         expected,
       );
 
-      const result = await controller.getById('fp-1');
-      expect(service.getFinancialProfileById).toHaveBeenCalledWith('fp-1');
+      const result = await controller.getById('fp-1', req);
+      expect(service.getFinancialProfileById).toHaveBeenCalledWith(
+        'fp-1',
+        'user-1',
+        'COMPANY_OWNER',
+      );
       expect(result).toEqual(expected);
     });
   });
