@@ -40,6 +40,7 @@ describe('CompanyService', () => {
     },
     appointment: {
       findMany: jest.fn(),
+      aggregate: jest.fn(),
     },
     financialProfile: {
       findFirst: jest.fn(),
@@ -48,6 +49,7 @@ describe('CompanyService', () => {
     transaction: {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { totalValue: 0 } }),
       create: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
       update: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
     },
@@ -458,7 +460,7 @@ describe('CompanyService', () => {
 
       expect(mockPrisma.company.findFirst).toHaveBeenCalledWith({
         where: { id: 'comp-1', isActive: true },
-        select: { id: true, businessName: true, slug: true },
+        select: { id: true, businessName: true, slug: true, userId: true },
       });
       expect(result.financial.totalRevenue).toBe(0);
       expect(result.volume.total).toBe(0);
@@ -484,15 +486,17 @@ describe('CompanyService', () => {
         id: 'fp-1',
         walletId: 'wal_123',
       });
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        { status: ApptStatus.COMPLETED, downPaymentAmount: '50.00' },
-        { status: ApptStatus.COMPLETED, downPaymentAmount: '30.00' },
-        { status: ApptStatus.CONFIRMED, downPaymentAmount: '40.00' }, // em custódia
-        { status: ApptStatus.CANCELED, downPaymentAmount: '20.00' },
-      ]);
-      mockPrisma.transaction.findMany.mockResolvedValue([
-        { totalValue: '20.00' }, // saque anterior
-      ]);
+      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.status === ApptStatus.COMPLETED) {
+          return { _sum: { downPaymentAmount: 80.0 } };
+        } else if (args.where.status === ApptStatus.CONFIRMED) {
+          return { _sum: { downPaymentAmount: 40.0 } };
+        }
+        return { _sum: { downPaymentAmount: 0 } };
+      });
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { totalValue: 20.0 },
+      });
 
       const balance = await service.getCompanyBalance('user-owner');
 
@@ -538,17 +542,28 @@ describe('CompanyService', () => {
         id: 'fp-1',
         walletId: 'wal_123',
       });
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        { status: ApptStatus.COMPLETED, downPaymentAmount: '100.00' },
-        { status: ApptStatus.CONFIRMED, downPaymentAmount: '50.00' },
-      ]);
-      mockPrisma.transaction.findMany.mockResolvedValue([]);
+      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.status === ApptStatus.COMPLETED) {
+          return { _sum: { downPaymentAmount: 100.0 } };
+        } else if (args.where.status === ApptStatus.CONFIRMED) {
+          return { _sum: { downPaymentAmount: 50.0 } };
+        }
+        return { _sum: { downPaymentAmount: 0 } };
+      });
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { totalValue: 0 },
+      });
     });
 
     it('should throw BadRequestException if available balance is zero', async () => {
-      mockPrisma.appointment.findMany.mockResolvedValue([
-        { status: ApptStatus.CONFIRMED, downPaymentAmount: '50.00' }, // apenas em custódia
-      ]);
+      mockPrisma.appointment.aggregate.mockImplementation(async (args: any) => {
+        if (args.where.status === ApptStatus.COMPLETED) {
+          return { _sum: { downPaymentAmount: 0.0 } };
+        } else if (args.where.status === ApptStatus.CONFIRMED) {
+          return { _sum: { downPaymentAmount: 50.0 } };
+        }
+        return { _sum: { downPaymentAmount: 0 } };
+      });
 
       await expect(
         service.requestInstantWithdrawal('user-owner', { amount: 20 }),
@@ -697,58 +712,64 @@ describe('CompanyService', () => {
     it('should execute free payouts only for companies with available balance >= R$ 100.00 (accumulating balances < R$ 100.00)', async () => {
       mockPrisma.company.findMany.mockResolvedValue([
         { id: 'comp-1', businessName: 'Barbearia Alpha', userId: 'user-1' },
-        { id: 'comp-2', businessName: 'Barbearia Beta (Pequena)', userId: 'user-2' },
+        {
+          id: 'comp-2',
+          businessName: 'Barbearia Beta (Pequena)',
+          userId: 'user-2',
+        },
         { id: 'comp-3', businessName: 'Barbearia Zero', userId: 'user-3' },
       ]);
 
       // Company 1: R$ 150 (>= 100 -> paga)
       // Company 2: R$ 45 (< 100 -> acumula)
       // Company 3: R$ 0 (-> pula)
-      jest.spyOn(service, 'getCompanyBalance').mockImplementation(async (userId) => {
-        if (userId === 'user-1') {
+      jest
+        .spyOn(service, 'getCompanyBalance')
+        .mockImplementation(async (userId) => {
+          if (userId === 'user-1') {
+            return {
+              companyId: 'comp-1',
+              businessName: 'Barbearia Alpha',
+              walletId: 'wal_1',
+              availableBalance: 150.0,
+              escrowLockedBalance: 50.0,
+              completedNetRevenue: 150.0,
+              totalWithdrawn: 0,
+              nextFreeWithdrawalDate: new Date().toISOString(),
+              instantTransferFee: 5.0,
+              minFreeWeeklyPayoutThreshold: 100.0,
+              eligibleForFreeWeeklyPayout: true,
+            };
+          }
+          if (userId === 'user-2') {
+            return {
+              companyId: 'comp-2',
+              businessName: 'Barbearia Beta (Pequena)',
+              walletId: 'wal_2',
+              availableBalance: 45.0,
+              escrowLockedBalance: 20.0,
+              completedNetRevenue: 45.0,
+              totalWithdrawn: 0,
+              nextFreeWithdrawalDate: new Date().toISOString(),
+              instantTransferFee: 5.0,
+              minFreeWeeklyPayoutThreshold: 100.0,
+              eligibleForFreeWeeklyPayout: false,
+            };
+          }
           return {
-            companyId: 'comp-1',
-            businessName: 'Barbearia Alpha',
-            walletId: 'wal_1',
-            availableBalance: 150.0,
-            escrowLockedBalance: 50.0,
-            completedNetRevenue: 150.0,
-            totalWithdrawn: 0,
-            nextFreeWithdrawalDate: new Date().toISOString(),
-            instantTransferFee: 5.0,
-            minFreeWeeklyPayoutThreshold: 100.0,
-            eligibleForFreeWeeklyPayout: true,
-          };
-        }
-        if (userId === 'user-2') {
-          return {
-            companyId: 'comp-2',
-            businessName: 'Barbearia Beta (Pequena)',
-            walletId: 'wal_2',
-            availableBalance: 45.0,
-            escrowLockedBalance: 20.0,
-            completedNetRevenue: 45.0,
+            companyId: 'comp-3',
+            businessName: 'Barbearia Zero',
+            walletId: 'wal_3',
+            availableBalance: 0,
+            escrowLockedBalance: 0,
+            completedNetRevenue: 0,
             totalWithdrawn: 0,
             nextFreeWithdrawalDate: new Date().toISOString(),
             instantTransferFee: 5.0,
             minFreeWeeklyPayoutThreshold: 100.0,
             eligibleForFreeWeeklyPayout: false,
           };
-        }
-        return {
-          companyId: 'comp-3',
-          businessName: 'Barbearia Zero',
-          walletId: 'wal_3',
-          availableBalance: 0,
-          escrowLockedBalance: 0,
-          completedNetRevenue: 0,
-          totalWithdrawn: 0,
-          nextFreeWithdrawalDate: new Date().toISOString(),
-          instantTransferFee: 5.0,
-          minFreeWeeklyPayoutThreshold: 100.0,
-          eligibleForFreeWeeklyPayout: false,
-        };
-      });
+        });
 
       mockPrisma.financialProfile.findFirst.mockResolvedValue({
         id: 'fp-1',
@@ -763,7 +784,9 @@ describe('CompanyService', () => {
 
       // Apenas a empresa com R$ 150,00 deve receber o saque gratuito (empresa com R$ 45,00 acumula)
       expect(executedCount).toBe(1);
-      expect(mockAsaasService.transferSubaccountBalance).toHaveBeenCalledTimes(1);
+      expect(mockAsaasService.transferSubaccountBalance).toHaveBeenCalledTimes(
+        1,
+      );
       expect(mockAsaasService.transferSubaccountBalance).toHaveBeenCalledWith(
         'fp-1',
         150.0,
@@ -780,5 +803,3 @@ describe('CompanyService', () => {
     });
   });
 });
-
-

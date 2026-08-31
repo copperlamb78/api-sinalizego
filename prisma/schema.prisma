@@ -213,6 +213,9 @@ model FinancialProfile {
 
   // Retorno do Asaas
   walletId    String  @unique // ID da carteira gerada no Asaas
+  pixAddressKey     String? // Chave PIX
+  pixAddressKeyType String? // Tipo da chave PIX (CPF, EMAIL, PHONE, RANDOM)
+
   asaasApiKey String? // Chave de API da subconta (útil para operações futuras)
 
   // Relacionamentos da sua Arquitetura

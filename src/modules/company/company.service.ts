@@ -341,34 +341,37 @@ export class CompanyService {
     userRole: Role,
     dto?: DashboardMetricsDto,
   ) {
-    let company: { id: string; businessName: string; slug: string } | null =
-      null;
+    let company: {
+      id: string;
+      businessName: string;
+      slug: string;
+      userId?: string;
+    } | null = null;
 
-    if (userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN) {
-      if (dto?.companyId) {
-        company = await this.prisma.company.findFirst({
-          where: { id: dto.companyId, isActive: true },
-          select: { id: true, businessName: true, slug: true },
-        });
-        if (!company) {
-          throw new NotFoundException('Estabelecimento não encontrado.');
-        }
-      } else {
-        company = await this.prisma.company.findFirst({
-          where: { userId, isActive: true },
-          select: { id: true, businessName: true, slug: true },
-        });
-        if (!company) {
-          throw new BadRequestException(
-            'Informe o companyId para consultar as métricas do estabelecimento.',
+    if (dto?.companyId) {
+      company = await this.prisma.company.findFirst({
+        where: { id: dto.companyId, isActive: true },
+        select: { id: true, businessName: true, slug: true, userId: true },
+      });
+      if (!company) {
+        throw new NotFoundException('Estabelecimento não encontrado.');
+      }
+      if (userRole !== Role.ADMIN && userRole !== Role.SUPER_ADMIN) {
+        if (company.userId !== userId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para acessar os dados deste estabelecimento.',
           );
         }
       }
     } else {
-      // Dono de estabelecimento (COMPANY_OWNER)
+      if (userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN) {
+        throw new BadRequestException(
+          'Informe o companyId para consultar as métricas do estabelecimento.',
+        );
+      }
       company = await this.prisma.company.findFirst({
         where: { userId, isActive: true },
-        select: { id: true, businessName: true, slug: true },
+        select: { id: true, businessName: true, slug: true, userId: true },
       });
       if (!company) {
         throw new NotFoundException(
@@ -477,6 +480,8 @@ export class CompanyService {
       retainedAmount: number;
       reason: string;
     }> = [];
+    let completedDepositsNet = 0;
+    let escrowLockedBalance = 0;
 
     const servicesMap = new Map<
       string,
@@ -499,11 +504,13 @@ export class CompanyService {
           totalRevenue += price;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
+          // completedDepositsNet sum removed
           break;
         case ApptStatus.CONFIRMED:
           confirmedCount++;
           totalDownPaymentCollected += downPayment;
           totalPlatformFees += platformFee;
+          // escrowLockedBalance sum removed
           break;
         case ApptStatus.NO_SHOW: {
           noShowCount++;
@@ -571,6 +578,35 @@ export class CompanyService {
     }
 
     const totalAppointments = appointments.length;
+
+    const completedTxAgg = await this.prisma.transaction.aggregate({
+      where: {
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.COMPLETED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
+      },
+      _sum: { netValue: true },
+    });
+    completedDepositsNet = Number(completedTxAgg._sum.netValue || 0);
+
+    const escrowTxAgg = await this.prisma.transaction.aggregate({
+      where: {
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.CONFIRMED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
+      },
+      _sum: { netValue: true },
+    });
+    escrowLockedBalance = Number(escrowTxAgg._sum.netValue || 0);
+
     const validCount =
       completedCount + confirmedCount + canceledCount + noShowCount;
     const completionRate =
@@ -676,33 +712,30 @@ export class CompanyService {
     let totalWithdrawn = 0;
     const companyProfile = await this.prisma.financialProfile.findFirst({
       where: {
-        OR: [
-          { userId },
-          { companies: { some: { id: company.id } } },
-        ],
+        OR: [{ userId }, { companies: { some: { id: company.id } } }],
         isActive: true,
       },
-      select: { id: true, walletId: true },
+      select: {
+        id: true,
+        walletId: true,
+        pixAddressKey: true,
+        pixAddressKeyType: true,
+      },
     });
 
     if (companyProfile?.walletId) {
-      const withdrawals = await this.prisma.transaction.findMany({
+      const withdrawalsAgg = await this.prisma.transaction.aggregate({
         where: {
           barberWalletId: companyProfile.walletId,
           type: TransactionType.WITHDRAWAL,
-          status: { in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING] },
+          status: {
+            in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
+          },
         },
-        select: { totalValue: true },
+        _sum: { totalValue: true },
       });
-      totalWithdrawn = withdrawals.reduce(
-        (acc, w) => acc + Number(w.totalValue || 0),
-        0,
-      );
+      totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
     }
-
-    const completedDepositsNet = appointments
-      .filter((a) => a.status === ApptStatus.COMPLETED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
 
     const noShowDeposits = appointments
       .filter((a) => a.status === ApptStatus.NO_SHOW)
@@ -722,11 +755,6 @@ export class CompanyService {
 
     const totalEarnedDeposits =
       completedDepositsNet + noShowDeposits + canceledRetainedDeposits;
-
-    const escrowLockedBalance = appointments
-      .filter((a) => a.status === ApptStatus.CONFIRMED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
-
     const availableBalance = Math.max(
       0,
       Number((totalEarnedDeposits - totalWithdrawn).toFixed(2)),
@@ -792,54 +820,53 @@ export class CompanyService {
         ],
         isActive: true,
       },
-      select: { id: true, walletId: true },
+      select: {
+        id: true,
+        walletId: true,
+        pixAddressKey: true,
+        pixAddressKeyType: true,
+      },
     });
 
-    if (!financialProfile?.walletId) {
+    if (
+      !financialProfile?.walletId ||
+      !financialProfile?.pixAddressKey ||
+      !financialProfile?.pixAddressKeyType
+    ) {
       throw new BadRequestException(
         'Estabelecimento não possui perfil financeiro ou subconta Asaas configurada.',
       );
     }
 
-    const appointments = await this.prisma.appointment.findMany({
+    const completedAgg = await this.prisma.transaction.aggregate({
       where: {
-        companyId: company.id,
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.COMPLETED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
       },
-      select: {
-        status: true,
-        downPaymentAmount: true,
-        retainedDepositAmount: true,
-      },
+      _sum: { netValue: true },
     });
+    const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
 
-    const completedNetRevenue = appointments
-      .filter((a) => a.status === ApptStatus.COMPLETED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
+    const escrowAgg = await this.prisma.transaction.aggregate({
+      where: {
+        appointment: {
+          companyId: company.id,
+          isActive: true,
+          status: ApptStatus.CONFIRMED,
+        },
+        type: TransactionType.DEPOSIT,
+        status: TransactionStatus.CONFIRMED,
+      },
+      _sum: { netValue: true },
+    });
+    const escrowLockedBalance = Number(escrowAgg._sum.netValue || 0);
 
-    const noShowNetRevenue = appointments
-      .filter((a) => a.status === ApptStatus.NO_SHOW)
-      .reduce(
-        (acc, a) =>
-          acc + Number(a.retainedDepositAmount || a.downPaymentAmount || 0),
-        0,
-      );
-
-    const canceledRetainedRevenue = appointments
-      .filter(
-        (a) =>
-          a.status === ApptStatus.CANCELED &&
-          Number(a.retainedDepositAmount || 0) > 0,
-      )
-      .reduce((acc, a) => acc + Number(a.retainedDepositAmount || 0), 0);
-
-    const totalEarnedRevenue =
-      completedNetRevenue + noShowNetRevenue + canceledRetainedRevenue;
-
-    const escrowLockedBalance = appointments
-      .filter((a) => a.status === ApptStatus.CONFIRMED)
-      .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
-
-    const withdrawals = await this.prisma.transaction.findMany({
+    const withdrawalsAgg = await this.prisma.transaction.aggregate({
       where: {
         barberWalletId: financialProfile.walletId,
         type: TransactionType.WITHDRAWAL,
@@ -847,13 +874,9 @@ export class CompanyService {
           in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
         },
       },
-      select: { totalValue: true },
+      _sum: { totalValue: true },
     });
-
-    const totalWithdrawn = withdrawals.reduce(
-      (acc, w) => acc + Number(w.totalValue || 0),
-      0,
-    );
+    const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
 
     const availableBalance = Math.max(
       0,
@@ -875,10 +898,9 @@ export class CompanyService {
       completedNetRevenue: Number(completedNetRevenue.toFixed(2)),
       totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
       nextFreeWithdrawalDate: nextMonday.toISOString(),
-      instantTransferFee: ASAAS_TRANSFER_FEE,
+      instantTransferFee: await this.asaasService.getTransferFee(),
       minFreeWeeklyPayoutThreshold: MIN_FREE_WEEKLY_PAYOUT,
-      eligibleForFreeWeeklyPayout:
-        availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
+      eligibleForFreeWeeklyPayout: availableBalance >= MIN_FREE_WEEKLY_PAYOUT,
     };
   }
 
@@ -906,16 +928,25 @@ export class CompanyService {
         ],
         isActive: true,
       },
-      select: { id: true, walletId: true },
+      select: {
+        id: true,
+        walletId: true,
+        pixAddressKey: true,
+        pixAddressKeyType: true,
+      },
     });
 
-    if (!financialProfile?.walletId) {
+    if (
+      !financialProfile?.walletId ||
+      !financialProfile?.pixAddressKey ||
+      !financialProfile?.pixAddressKeyType
+    ) {
       throw new BadRequestException(
         'Estabelecimento não possui perfil financeiro ou subconta Asaas configurada.',
       );
     }
 
-    const transferFee = ASAAS_TRANSFER_FEE;
+    const transferFee = await this.asaasService.getTransferFee();
 
     // 1. Transação Interativa Atômica com Reserva Imediata de Saldo (Anti-Race Condition Lock)
     const {
@@ -940,47 +971,38 @@ export class CompanyService {
         );
       }
 
-      // Busca agendamentos da empresa para apuração de saldo
-      const appointments = await tx.appointment.findMany({
+      // Busca agendamentos ativos da empresa para apuração de saldo
+
+      const completedAgg = await tx.transaction.aggregate({
         where: {
-          companyId: company.id,
+          appointment: {
+            companyId: company.id,
+            isActive: true,
+            status: ApptStatus.COMPLETED,
+          },
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.CONFIRMED,
         },
-        select: {
-          status: true,
-          downPaymentAmount: true,
-          retainedDepositAmount: true,
-        },
+        _sum: { netValue: true },
       });
+      const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
 
-      const completedNetRevenue = appointments
-        .filter((a) => a.status === ApptStatus.COMPLETED)
-        .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
-
-      const noShowNetRevenue = appointments
-        .filter((a) => a.status === ApptStatus.NO_SHOW)
-        .reduce(
-          (acc, a) =>
-            acc + Number(a.retainedDepositAmount || a.downPaymentAmount || 0),
-          0,
-        );
-
-      const canceledRetainedRevenue = appointments
-        .filter(
-          (a) =>
-            a.status === ApptStatus.CANCELED &&
-            Number(a.retainedDepositAmount || 0) > 0,
-        )
-        .reduce((acc, a) => acc + Number(a.retainedDepositAmount || 0), 0);
-
-      const totalEarnedRevenue =
-        completedNetRevenue + noShowNetRevenue + canceledRetainedRevenue;
-
-      const escrowLocked = appointments
-        .filter((a) => a.status === ApptStatus.CONFIRMED)
-        .reduce((acc, a) => acc + Number(a.downPaymentAmount || 0), 0);
+      const escrowAgg = await tx.transaction.aggregate({
+        where: {
+          appointment: {
+            companyId: company.id,
+            isActive: true,
+            status: ApptStatus.CONFIRMED,
+          },
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.CONFIRMED,
+        },
+        _sum: { netValue: true },
+      });
+      const escrowLocked = Number(escrowAgg._sum.netValue || 0);
 
       // Saques já realizados ou em processamento (CONFIRMED ou PENDING)
-      const withdrawals = await tx.transaction.findMany({
+      const withdrawalsAgg = await tx.transaction.aggregate({
         where: {
           barberWalletId: financialProfile.walletId,
           type: TransactionType.WITHDRAWAL,
@@ -988,13 +1010,9 @@ export class CompanyService {
             in: [TransactionStatus.CONFIRMED, TransactionStatus.PENDING],
           },
         },
-        select: { totalValue: true },
+        _sum: { totalValue: true },
       });
-
-      const totalWithdrawn = withdrawals.reduce(
-        (acc, w) => acc + Number(w.totalValue || 0),
-        0,
-      );
+      const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
 
       const currentAvailableBalance = Math.max(
         0,
@@ -1056,7 +1074,11 @@ export class CompanyService {
       asaasResult = await this.asaasService.transferSubaccountBalance(
         financialProfile.id,
         netAmountTransferred,
-        { isFreeWeekly: false },
+        {
+          isFreeWeekly: false,
+          pixAddressKey: financialProfile.pixAddressKey,
+          pixAddressKeyType: financialProfile.pixAddressKeyType,
+        },
       );
     } catch (err: any) {
       this.logger.error(
@@ -1076,8 +1098,7 @@ export class CompanyService {
       data: {
         status: TransactionStatus.CONFIRMED,
         asaasPaymentId:
-          asaasResult?.id ||
-          `with_${Date.now()}_${company.id.slice(0, 6)}`,
+          asaasResult?.id || `with_${Date.now()}_${company.id.slice(0, 6)}`,
       },
     });
 
@@ -1123,7 +1144,11 @@ export class CompanyService {
       select: { walletId: true },
     });
 
-    if (!financialProfile?.walletId) {
+    if (
+      !financialProfile?.walletId ||
+      !financialProfile?.pixAddressKey ||
+      !financialProfile?.pixAddressKeyType
+    ) {
       return [];
     }
 
@@ -1194,7 +1219,12 @@ export class CompanyService {
                 ],
                 isActive: true,
               },
-              select: { id: true, walletId: true },
+              select: {
+                id: true,
+                walletId: true,
+                pixAddressKey: true,
+                pixAddressKeyType: true,
+              },
             },
           );
 
@@ -1223,7 +1253,11 @@ export class CompanyService {
               await this.asaasService.transferSubaccountBalance(
                 financialProfile.id,
                 balance.availableBalance,
-                { isFreeWeekly: true },
+                {
+                  isFreeWeekly: true,
+                  pixAddressKey: financialProfile.pixAddressKey,
+                  pixAddressKeyType: financialProfile.pixAddressKeyType,
+                },
               );
 
             await this.prisma.transaction.create({

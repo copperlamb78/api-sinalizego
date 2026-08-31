@@ -1,3 +1,4 @@
+import { AsaasWebhookDto } from './dto/asaas-webhook.dto';
 import {
   Controller,
   Post,
@@ -26,7 +27,7 @@ export class WebhooksController {
   })
   @ApiResponse({ status: 200, description: 'Evento processado com sucesso' })
   @ApiResponse({ status: 401, description: 'Token de webhook inválido' })
-  async handleAsaasWebhook(@Body() payload: any) {
+  async handleAsaasWebhook(@Body() payload: AsaasWebhookDto) {
     const { event, payment, id: eventId } = payload || {};
     if (!payment?.id) {
       return { received: true };

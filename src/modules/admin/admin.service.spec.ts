@@ -14,6 +14,7 @@ describe('AdminService', () => {
     },
     transaction: {
       findMany: jest.fn(),
+      aggregate: jest.fn(),
     },
     user: {
       count: jest.fn(),
@@ -112,25 +113,14 @@ describe('AdminService', () => {
         },
       ];
 
-      const mockTransactions = [
-        {
-          id: 'tx-1',
-          totalValue: '50.00',
-          netValue: '44.01',
-          platformFee: '5.00',
-          asaasFee: '0.99',
+      const mockTransactionsAgg = {
+        _sum: {
+          asaasFee: '1.98',
         },
-        {
-          id: 'tx-2',
-          totalValue: '40.00',
-          netValue: '35.01',
-          platformFee: '4.00',
-          asaasFee: '0.99',
-        },
-      ];
+      };
 
       mockPrisma.appointment.findMany.mockResolvedValue(mockAppointments);
-      mockPrisma.transaction.findMany.mockResolvedValue(mockTransactions);
+      mockPrisma.transaction.aggregate.mockResolvedValue(mockTransactionsAgg);
 
       // Counts mocks
       mockPrisma.user.count
@@ -211,7 +201,9 @@ describe('AdminService', () => {
           },
         },
       ]);
-      mockPrisma.transaction.findMany.mockResolvedValue([]);
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _sum: { asaasFee: null },
+      });
 
       mockPrisma.user.count
         .mockResolvedValueOnce(10)

@@ -1046,7 +1046,12 @@ describe('AppointmentsService', () => {
           name: 'Cliente Teste',
           email: 'cliente@test.com',
         },
-        service: { id: 'srv-1', name: 'Corte Degradê', totalPrice: 100, downPaymentPercent: 50 },
+        service: {
+          id: 'srv-1',
+          name: 'Corte Degradê',
+          totalPrice: 100,
+          downPaymentPercent: 50,
+        },
       };
 
       mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
@@ -1106,7 +1111,12 @@ describe('AppointmentsService', () => {
           name: 'Cliente Teste',
           email: 'cliente@test.com',
         },
-        service: { id: 'srv-1', name: 'Corte Degradê', totalPrice: 100, downPaymentPercent: 25 },
+        service: {
+          id: 'srv-1',
+          name: 'Corte Degradê',
+          totalPrice: 100,
+          downPaymentPercent: 25,
+        },
       };
 
       mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
@@ -1159,7 +1169,12 @@ describe('AppointmentsService', () => {
           name: 'Cliente Teste',
           email: 'cliente@test.com',
         },
-        service: { id: 'srv-1', name: 'Corte Degradê', totalPrice: 100, downPaymentPercent: 50 }, // Sinal padrão é 50.00
+        service: {
+          id: 'srv-1',
+          name: 'Corte Degradê',
+          totalPrice: 100,
+          downPaymentPercent: 50,
+        }, // Sinal padrão é 50.00
       };
 
       mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
@@ -1333,4 +1348,3 @@ describe('AppointmentsService', () => {
     });
   });
 });
-

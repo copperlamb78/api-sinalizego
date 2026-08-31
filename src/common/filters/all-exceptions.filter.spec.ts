@@ -65,10 +65,13 @@ describe('AllExceptionsFilter', () => {
   });
 
   it('should handle Prisma P2002 conflict error', () => {
-    const exception = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-      code: 'P2002',
-      clientVersion: '7.8.0',
-    });
+    const exception = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '7.8.0',
+      },
+    );
 
     filter.catch(exception, mockArgumentsHost);
 
@@ -83,10 +86,13 @@ describe('AllExceptionsFilter', () => {
   });
 
   it('should handle Prisma P2025 not found error', () => {
-    const exception = new Prisma.PrismaClientKnownRequestError('Record not found', {
-      code: 'P2025',
-      clientVersion: '7.8.0',
-    });
+    const exception = new Prisma.PrismaClientKnownRequestError(
+      'Record not found',
+      {
+        code: 'P2025',
+        clientVersion: '7.8.0',
+      },
+    );
 
     filter.catch(exception, mockArgumentsHost);
 
@@ -100,8 +106,8 @@ describe('AllExceptionsFilter', () => {
     );
   });
 
-  it('should handle generic unhandled Error as 500', () => {
-    const exception = new Error('Unexpected database failure');
+  it('should handle InternalServerErrorException without leaking details', () => {
+    const exception = new HttpException('Detailed secure system information here', HttpStatus.INTERNAL_SERVER_ERROR);
 
     filter.catch(exception, mockArgumentsHost);
 
@@ -109,8 +115,50 @@ describe('AllExceptionsFilter', () => {
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Unexpected database failure',
+        message: 'Ocorreu um erro interno no servidor.',
         error: 'Internal Server Error',
+        path: '/api/v1/test',
+      }),
+    );
+  });
+
+  it('should handle generic unhandled Error as 500', () => {
+    const exception = new Error('Unexpected database failure');
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Ocorreu um erro interno no servidor.',
+        error: 'Internal Server Error',
+      }),
+    );
+  });
+
+  it('should handle HttpException with 500 status code', () => {
+    const exception = new HttpException(
+      'DB Connection Failed',
+  it('should handle HttpException with 500 status securely without leaking details', () => {
+    const exception = new HttpException(
+      'Sensitive internal database error message that should not be exposed',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Ocorreu um erro interno no servidor.',
+        error: 'Internal Server Error',
+        path: '/api/v1/test',
       }),
     );
   });

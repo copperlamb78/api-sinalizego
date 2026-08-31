@@ -107,7 +107,10 @@ describe('CompanyServiceService', () => {
 
       const result = await service.getServicesBySlug('barbearia');
 
-      expect(mockCalculateDeposit.calculateDeposit).toHaveBeenCalledWith(50.0, 50);
+      expect(mockCalculateDeposit.calculateDeposit).toHaveBeenCalledWith(
+        50.0,
+        50,
+      );
       expect(mockCalculateTax.calculatePlatformTax).toHaveBeenCalledWith(25.0);
       expect(result).toEqual([
         {

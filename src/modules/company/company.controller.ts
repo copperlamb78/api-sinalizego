@@ -37,7 +37,6 @@ import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
 import { Role } from '@prisma/client';
 
-
 @ApiTags('Empresas')
 @Controller('company')
 export class CompanyController {
