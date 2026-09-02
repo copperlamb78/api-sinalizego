@@ -57,7 +57,6 @@ async function bootstrap() {
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
-        allowedOrigins.includes('*') ||
         /\.vercel\.app$/.test(origin)
       ) {
         callback(null, true);

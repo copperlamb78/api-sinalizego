@@ -415,7 +415,9 @@ export class AsaasService implements OnModuleInit {
 
         if (!hop1Response.ok) {
           const err = await hop1Response.json();
-          this.logger.error(`[Asaas] Erro Hop1: ${JSON.stringify(err)}`);
+          this.logger.error(
+            `[Asaas] Erro Hop1: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+          );
           throw new BadRequestException(
             'Falha ao processar primeira etapa de transferência no gateway de pagamentos.',
           );
@@ -443,7 +445,9 @@ export class AsaasService implements OnModuleInit {
 
         if (!hop2Response.ok) {
           const err = await hop2Response.json();
-          this.logger.error(`[Asaas] Erro Hop2: ${JSON.stringify(err)}`);
+          this.logger.error(
+            `[Asaas] Erro Hop2: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+          );
           throw new BadRequestException(
             'Falha ao processar envio de Pix no gateway de pagamentos.',
           );
@@ -551,7 +555,11 @@ export class AsaasService implements OnModuleInit {
         const errorData = await response.json();
         this.logger.error(
           'Erro Asaas ao criar cobrança:',
-          typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+          errorData instanceof Error
+            ? errorData.message
+            : typeof errorData === 'object'
+              ? JSON.stringify(errorData)
+              : errorData,
         );
         throw new BadRequestException(
           'Não foi possível gerar a cobrança no gateway de pagamentos.',
@@ -574,7 +582,11 @@ export class AsaasService implements OnModuleInit {
         const errorData = await pixResponse.json();
         this.logger.error(
           'Erro Asaas ao obter QR Code:',
-          typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+          errorData instanceof Error
+            ? errorData.message
+            : typeof errorData === 'object'
+              ? JSON.stringify(errorData)
+              : errorData,
         );
         throw new BadRequestException(
           'Não foi possível obter o QR Code Pix no gateway de pagamentos.',
@@ -626,9 +638,11 @@ export class AsaasService implements OnModuleInit {
       }
       this.logger.error(
         'Erro ao gerar Pix no Asaas:: ' +
-          (typeof (error.response?.data || error.message) === 'object'
-            ? JSON.stringify(error.response?.data || error.message)
-            : String(error.response?.data || error.message)),
+          ((error.response?.data || error.message) instanceof Error
+            ? (error.response?.data || error.message).message
+            : typeof (error.response?.data || error.message) === 'object'
+              ? JSON.stringify(error.response?.data || error.message)
+              : String(error.response?.data || error.message)),
         error.stack,
       );
       throw new InternalServerErrorException('Falha ao processar pagamento');
@@ -650,7 +664,11 @@ export class AsaasService implements OnModuleInit {
         const errorData = await pixResponse.json();
         this.logger.error(
           'Erro Asaas ao obter QR Code:',
-          typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+          errorData instanceof Error
+            ? errorData.message
+            : typeof errorData === 'object'
+              ? JSON.stringify(errorData)
+              : errorData,
         );
         throw new BadRequestException(
           'Falha ao obter QR Code do Pix no gateway de pagamentos.',
@@ -678,9 +696,11 @@ export class AsaasService implements OnModuleInit {
       }
       this.logger.error(
         'Erro ao consultar QR Code Pix no Asaas:: ' +
-          (typeof (error.response?.data || error.message) === 'object'
-            ? JSON.stringify(error.response?.data || error.message)
-            : String(error.response?.data || error.message)),
+          ((error.response?.data || error.message) instanceof Error
+            ? (error.response?.data || error.message).message
+            : typeof (error.response?.data || error.message) === 'object'
+              ? JSON.stringify(error.response?.data || error.message)
+              : String(error.response?.data || error.message)),
         error.stack,
       );
       throw new InternalServerErrorException(
@@ -704,7 +724,11 @@ export class AsaasService implements OnModuleInit {
         const errorData = await response.json();
         this.logger.error(
           'Erro Asaas ao criar cliente:',
-          typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+          errorData instanceof Error
+            ? errorData.message
+            : typeof errorData === 'object'
+              ? JSON.stringify(errorData)
+              : errorData,
         );
         throw new BadRequestException(
           'Não foi possível cadastrar o cliente no gateway de pagamentos.',
@@ -718,9 +742,11 @@ export class AsaasService implements OnModuleInit {
       }
       this.logger.error(
         'Erro ao criar cliente no Asaas:: ' +
-          (typeof (error.response?.data || error.message) === 'object'
-            ? JSON.stringify(error.response?.data || error.message)
-            : String(error.response?.data || error.message)),
+          ((error.response?.data || error.message) instanceof Error
+            ? (error.response?.data || error.message).message
+            : typeof (error.response?.data || error.message) === 'object'
+              ? JSON.stringify(error.response?.data || error.message)
+              : String(error.response?.data || error.message)),
         error.stack,
       );
       throw new InternalServerErrorException('Falha ao criar cliente no Asaas');
@@ -742,9 +768,11 @@ export class AsaasService implements OnModuleInit {
         const errorData = await response.json();
         this.logger.error(
           'Erro ao cancelar cobrança no Asaas:',
-          typeof errorData === 'object'
-            ? JSON.stringify(errorData)
-            : String(errorData),
+          errorData instanceof Error
+            ? errorData.message
+            : typeof errorData === 'object'
+              ? JSON.stringify(errorData)
+              : String(errorData),
         );
         throw new InternalServerErrorException(
           'Erro ao cancelar cobrança no gateway de pagamentos.',
@@ -794,9 +822,11 @@ export class AsaasService implements OnModuleInit {
         const errorData = await response.json();
         this.logger.error(
           'Erro ao estornar cobrança no Asaas:',
-          typeof errorData === 'object'
-            ? JSON.stringify(errorData)
-            : String(errorData),
+          errorData instanceof Error
+            ? errorData.message
+            : typeof errorData === 'object'
+              ? JSON.stringify(errorData)
+              : String(errorData),
         );
         throw new InternalServerErrorException(
           'Erro ao estornar cobrança no gateway de pagamentos.',
@@ -831,7 +861,11 @@ export class AsaasService implements OnModuleInit {
         const errorData = await response.json();
         this.logger.error(
           `Erro ao consultar cobrança #${paymentId} no Asaas:`,
-          typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+          errorData instanceof Error
+            ? errorData.message
+            : typeof errorData === 'object'
+              ? JSON.stringify(errorData)
+              : errorData,
         );
         return null;
       }

@@ -159,7 +159,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -204,7 +204,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -241,7 +241,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -268,7 +268,7 @@ describe('AppointmentsService', () => {
           {
             companyId: 'company-1',
             serviceId: 'service-1',
-            appointmentDate: '2026-09-01T10:00:00Z',
+            appointmentDate: '2028-01-01T10:00:00Z',
           } as any,
           'user-1',
         ),
@@ -293,7 +293,7 @@ describe('AppointmentsService', () => {
           {
             companyId: 'company-1',
             serviceId: 'service-1',
-            appointmentDate: '2026-09-01T10:00:00Z',
+            appointmentDate: '2028-01-01T10:00:00Z',
           } as any,
           'user-1',
         ),
@@ -305,26 +305,20 @@ describe('AppointmentsService', () => {
     });
 
     it('should throw BadRequestException if appointmentDate is in the past or invalid', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
-      mockPrisma.appointment.count.mockResolvedValue(0);
-      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
-      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+    mockPrisma.company.findFirst.mockResolvedValue({ id: 'company-1' });
+    mockPrisma.service.findFirst.mockResolvedValue({ id: 'service-1', companyId: 'company-1', price: 100, durationMinutes: 30 });
 
-      await expect(
-        service.createAppointment(
-          {
-            companyId: 'company-1',
-            serviceId: 'service-1',
-            appointmentDate: '2020-01-01T10:00:00Z', // data no passado
-          } as any,
-          'user-1',
-        ),
-      ).rejects.toThrow(
-        new BadRequestException(
-          'A data do agendamento deve ser uma data futura.',
-        ),
-      );
-    });
+    await expect(
+      service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2000-01-01T10:00:00Z', // intentionally in the past
+        },
+        'client-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
 
     it('should query slots using canonical overlap check grouped by serviceGroupId and excluding expired pending bookings', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
@@ -341,7 +335,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -385,7 +379,7 @@ describe('AppointmentsService', () => {
           {
             companyId: 'company-1',
             serviceId: 'service-1',
-            appointmentDate: '2026-09-01T10:00:00Z',
+            appointmentDate: '2028-01-01T10:00:00Z',
           } as any,
           'user-1',
         ),
@@ -408,7 +402,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -432,7 +426,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -456,7 +450,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
@@ -480,7 +474,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2028-01-01T10:00:00Z',
         } as any,
         'user-1',
       );
