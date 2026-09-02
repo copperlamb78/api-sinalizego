@@ -33,3 +33,7 @@
 **Vulnerability:** The global exception handler (`AllExceptionsFilter`) returned raw exception messages for `HttpException` instances with status 500 (such as `InternalServerErrorException`), which could leak sensitive internal database or application error details.
 **Learning:** `HttpException` instances with status 500 might have raw messages passed to them directly during internal system failures. Unlike generic unhandled errors, the previous configuration exposed these strings by passing the message down to the response.
 **Prevention:** Ensured the filter catches `HttpException` instances with a 500 status code, logs the sensitive internal error, and replaces the message returned to the client with a generic fallback message.
+## 2024-03-05 - [High] Overly permissive CORS wildcard
+**Vulnerability:** The CORS configuration in `src/main.ts` allowed the `*` wildcard origin via `allowedOrigins.includes('*')`.
+**Learning:** This bypasses the intended strict origin validation, potentially allowing cross-origin requests from any unauthorized domain, increasing the attack surface.
+**Prevention:** Always explicitly define allowed origins and avoid using the `*` wildcard in CORS configurations, especially when credentials are enabled or sensitive actions are exposed.
