@@ -341,5 +341,4 @@ describe('CompanyController', () => {
       expect(result).toEqual(expected);
     });
   });
-
 });

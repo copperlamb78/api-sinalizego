@@ -115,8 +115,7 @@ export class CompanyService {
     userId?: string,
     role?: Role | string,
   ) {
-    const isSystemManager =
-      role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    const isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
 
     const company = isSystemManager
       ? await this.prisma.company.findUnique({
@@ -929,7 +928,11 @@ export class CompanyService {
   /**
    * Solicita saque avulso sob demanda fora do ciclo semanal com proteção atômica anti-race condition e dedução de tarifa.
    */
-  async requestInstantWithdrawal(userId: string, dto?: WithdrawDto, companyId?: string) {
+  async requestInstantWithdrawal(
+    userId: string,
+    dto?: WithdrawDto,
+    companyId?: string,
+  ) {
     const whereClause: Prisma.CompanyWhereInput = {
       userId,
       isActive: true,

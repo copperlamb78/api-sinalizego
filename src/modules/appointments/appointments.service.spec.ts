@@ -159,7 +159,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -204,7 +204,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -241,7 +241,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -268,7 +268,7 @@ describe('AppointmentsService', () => {
           {
             companyId: 'company-1',
             serviceId: 'service-1',
-            appointmentDate: '2026-09-01T10:00:00Z',
+            appointmentDate: '2029-08-28T10:00:00.000Z',
           } as any,
           'user-1',
         ),
@@ -293,7 +293,7 @@ describe('AppointmentsService', () => {
           {
             companyId: 'company-1',
             serviceId: 'service-1',
-            appointmentDate: '2026-09-01T10:00:00Z',
+            appointmentDate: '2029-08-28T10:00:00.000Z',
           } as any,
           'user-1',
         ),
@@ -341,7 +341,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -385,7 +385,7 @@ describe('AppointmentsService', () => {
           {
             companyId: 'company-1',
             serviceId: 'service-1',
-            appointmentDate: '2026-09-01T10:00:00Z',
+            appointmentDate: '2029-08-28T10:00:00.000Z',
           } as any,
           'user-1',
         ),
@@ -408,7 +408,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -432,7 +432,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -456,7 +456,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -480,7 +480,7 @@ describe('AppointmentsService', () => {
         {
           companyId: 'company-1',
           serviceId: 'service-1',
-          appointmentDate: '2026-09-01T10:00:00Z',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
         } as any,
         'user-1',
       );
@@ -972,9 +972,9 @@ describe('AppointmentsService', () => {
         role: Role.COMPANY_OWNER,
       });
 
-      await expect(
-        service.markAsNoShow('appt-1', 'owner-1'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.markAsNoShow('appt-1', 'owner-1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if less than 15 minutes have passed since appointmentDate', async () => {
@@ -989,9 +989,9 @@ describe('AppointmentsService', () => {
         role: Role.COMPANY_OWNER,
       });
 
-      await expect(
-        service.markAsNoShow('appt-1', 'owner-1'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.markAsNoShow('appt-1', 'owner-1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should successfully mark as NO_SHOW and retain deposit when >= 15 min past start time', async () => {

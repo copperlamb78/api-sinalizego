@@ -47,7 +47,11 @@ export class WebhooksController {
         `[Webhook Controller] Erro não tratado ao processar webhook do Asaas: ${err?.message || err}`,
         err?.stack,
       );
-      return { received: true, error: true, message: 'Processed with error recovery' };
+      return {
+        received: true,
+        error: true,
+        message: 'Processed with error recovery',
+      };
     }
   }
 }

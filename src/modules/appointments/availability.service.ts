@@ -170,7 +170,9 @@ export class AvailabilityService {
 
     const [year, month, day] = dateStr.split('-').map(Number);
     const dayStartFilter = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    const dayEndFilter = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+    const dayEndFilter = new Date(
+      Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0),
+    );
 
     // Consulta todos os agendamentos ativos concorrentes do dia para o mesmo grupo de serviço
     const activeAppointments = await this.prisma.appointment.findMany({
@@ -229,24 +231,10 @@ export class AvailabilityService {
       const slotEndMin = slotEndMinutes % 60;
 
       const slotStartDate = new Date(
-        Date.UTC(
-          year,
-          month - 1,
-          day,
-          slotStartHour,
-          slotStartMin,
-          0,
-        ),
+        Date.UTC(year, month - 1, day, slotStartHour, slotStartMin, 0),
       );
       const slotEndDate = new Date(
-        Date.UTC(
-          year,
-          month - 1,
-          day,
-          slotEndHour,
-          slotEndMin,
-          0,
-        ),
+        Date.UTC(year, month - 1, day, slotEndHour, slotEndMin, 0),
       );
 
       // 2. Exclusão de horários passados caso a data consultada seja hoje

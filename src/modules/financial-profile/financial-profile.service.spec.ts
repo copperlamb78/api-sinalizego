@@ -7,9 +7,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  FINANCIAL_PROFILE_OWNER_SELECT,
-} from './constants/financial-profile-select.constant';
+import { FINANCIAL_PROFILE_OWNER_SELECT } from './constants/financial-profile-select.constant';
 import { Role } from '@prisma/client';
 
 describe('FinancialProfileService', () => {
@@ -192,7 +190,11 @@ describe('FinancialProfileService', () => {
       };
       mockPrisma.financialProfile.findFirst.mockResolvedValue(mockProfile);
 
-      const result = await service.getFinancialProfileById('fp-1', 'user-1', 'COMPANY_OWNER');
+      const result = await service.getFinancialProfileById(
+        'fp-1',
+        'user-1',
+        'COMPANY_OWNER',
+      );
 
       expect(mockPrisma.financialProfile.findFirst).toHaveBeenCalledWith({
         where: { id: 'fp-1', userId: 'user-1', isActive: true },
@@ -210,7 +212,11 @@ describe('FinancialProfileService', () => {
       };
       mockPrisma.financialProfile.findUnique.mockResolvedValue(mockProfile);
 
-      const result = await service.getFinancialProfileById('fp-1', 'admin-id', Role.ADMIN);
+      const result = await service.getFinancialProfileById(
+        'fp-1',
+        'admin-id',
+        Role.ADMIN,
+      );
 
       expect(mockPrisma.financialProfile.findUnique).toHaveBeenCalledWith({
         where: { id: 'fp-1' },

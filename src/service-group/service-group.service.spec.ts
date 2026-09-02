@@ -52,7 +52,15 @@ describe('ServiceGroupService', () => {
 
   describe('findAll (Tenant Scoping)', () => {
     it('should scope list to company owned by userId for regular user', async () => {
-      const mockGroups = [{ id: 'group-1', name: 'Barba', capacity: 1, companyId: 'comp-1', isActive: true }];
+      const mockGroups = [
+        {
+          id: 'group-1',
+          name: 'Barba',
+          capacity: 1,
+          companyId: 'comp-1',
+          isActive: true,
+        },
+      ];
       mockPrisma.serviceGroup.findMany.mockResolvedValue(mockGroups);
 
       const result = await service.findAll('user-1', Role.COMPANY_OWNER);
@@ -74,7 +82,15 @@ describe('ServiceGroupService', () => {
     });
 
     it('should not scope to company.userId when called by ADMIN', async () => {
-      const mockGroups = [{ id: 'group-1', name: 'Barba', capacity: 1, companyId: 'comp-1', isActive: true }];
+      const mockGroups = [
+        {
+          id: 'group-1',
+          name: 'Barba',
+          capacity: 1,
+          companyId: 'comp-1',
+          isActive: true,
+        },
+      ];
       mockPrisma.serviceGroup.findMany.mockResolvedValue(mockGroups);
 
       const result = await service.findAll('admin-id', Role.ADMIN);
@@ -112,7 +128,11 @@ describe('ServiceGroupService', () => {
     it('should return service group when accessed by company owner', async () => {
       mockPrisma.serviceGroup.findUnique.mockResolvedValue(serviceGroupMock);
 
-      const result = await service.findOneById('group-1', 'owner-1', Role.COMPANY_OWNER);
+      const result = await service.findOneById(
+        'group-1',
+        'owner-1',
+        Role.COMPANY_OWNER,
+      );
 
       expect(result).toEqual(serviceGroupMock);
     });
@@ -128,7 +148,11 @@ describe('ServiceGroupService', () => {
     it('should allow ADMIN to retrieve service group belonging to any company', async () => {
       mockPrisma.serviceGroup.findUnique.mockResolvedValue(serviceGroupMock);
 
-      const result = await service.findOneById('group-1', 'admin-id', Role.ADMIN);
+      const result = await service.findOneById(
+        'group-1',
+        'admin-id',
+        Role.ADMIN,
+      );
 
       expect(result).toEqual(serviceGroupMock);
     });
