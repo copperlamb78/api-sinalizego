@@ -5,8 +5,8 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { AppModule } from '../src/app.module';
 
-const OUTPUT_DOCS = resolve(__dirname, '..', 'docs', 'openapi.json');
-const OUTPUT_ROOT = resolve(__dirname, '..', 'openapi.json');
+const OUTPUT_DOCS = resolve(process.cwd(), 'docs', 'openapi.json');
+const OUTPUT_ROOT = resolve(process.cwd(), 'openapi.json');
 
 async function generate(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
