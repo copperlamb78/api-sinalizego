@@ -15,3 +15,6 @@
 ## 2026-08-27 - Database Aggregation in Admin Service
 **Learning:** Found an instance in `admin.service.ts` where transactions were fetched via `.findMany()` just to sum the `asaasFee`, creating unnecessary memory footprint.
 **Action:** Replaced it with `.aggregate({ _sum: { asaasFee: true } })` to perform computation natively in the database, reducing memory consumption and processing time.
+## 2026-08-29 - Date parsing in O(N) loops
+**Learning:** `new Date(Date.UTC(...))` is extremely slow when executed repeatedly inside a hot inner loop for availability checking.
+**Action:** Extract the base date parsing `dayStartFilter.getTime()` before the loop and compute the slot timestamps using basic math (`dayStartMs + minutes * 60000`) instead to avoid expensive `Date` instantiations per iteration.
