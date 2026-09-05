@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from '../asaas.service';
-import { ApptStatus, TransactionStatus } from '@prisma/client';
+import {
+  ApptStatus,
+  PlatformInvoiceStatus,
+  TransactionStatus,
+} from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BARBER_ASAAS_PIX_FEE } from 'src/common/constants/billing.constant';
 
@@ -667,6 +671,193 @@ export class WebhooksService {
     );
 
     return reconciledCount;
+  }
+
+  /**
+   * Processa webhooks de notas fiscais (INVOICE_*) recebidos do Asaas.
+   */
+  async handleInvoiceEvent(
+    event: string,
+    invoice: any,
+    eventId?: string,
+    rawPayload?: any,
+  ) {
+    try {
+      if (!invoice?.id) {
+        return { received: true, ignored: true, reason: 'Missing invoice.id' };
+      }
+
+      const correlationId = `inv_evt_${Date.now()}_${invoice.id}`;
+      const eventKey =
+        eventId || `${event}_${invoice.id}_${invoice.status || ''}`;
+
+      // 1. Idempotência Atômica via WebhookEvent
+      let isDuplicate = false;
+      try {
+        await this.prisma.webhookEvent.create({
+          data: {
+            eventId: eventKey,
+            event: event,
+            paymentId: invoice.id,
+            payload: rawPayload || invoice,
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          isDuplicate = true;
+        } else {
+          this.logger.error(
+            `[Webhook Asaas][${correlationId}] Falha ao registrar idempotência atômica da NFS-e: ${err.message}`,
+          );
+        }
+      }
+
+      if (isDuplicate) {
+        this.logger.log(
+          `[Webhook Asaas][${correlationId}] Evento de NFS-e ${eventKey} já processado anteriormente.`,
+        );
+        return {
+          received: true,
+          alreadyProcessed: true,
+          event,
+          invoiceId: invoice.id,
+        };
+      }
+
+      // 2. Localiza a PlatformInvoice correspondente
+      const platformInvoice = await this.prisma.platformInvoice.findFirst({
+        where: {
+          OR: [
+            { asaasInvoiceId: invoice.id },
+            ...(invoice.externalReference
+              ? [{ id: invoice.externalReference }]
+              : []),
+          ],
+        },
+        include: {
+          company: {
+            select: { id: true, businessName: true },
+          },
+        },
+      });
+
+      if (!platformInvoice) {
+        this.logger.warn(
+          `[Webhook Asaas][${correlationId}] PlatformInvoice não encontrada para a nota Asaas #${invoice.id}.`,
+        );
+        return {
+          received: true,
+          event,
+          invoiceId: invoice.id,
+          warning: 'PlatformInvoice not found',
+        };
+      }
+
+      // 3. Mapeamento e atualização de status
+      const updateData: any = {
+        pdfUrl: invoice.pdfUrl || platformInvoice.pdfUrl,
+        xmlUrl: invoice.xmlUrl || platformInvoice.xmlUrl,
+        invoiceNumber: invoice.number || platformInvoice.invoiceNumber,
+      };
+
+      if (!platformInvoice.asaasInvoiceId) {
+        updateData.asaasInvoiceId = invoice.id;
+      }
+
+      switch (event) {
+        case 'INVOICE_AUTHORIZED':
+          updateData.status = PlatformInvoiceStatus.AUTHORIZED;
+          updateData.authorizedAt = new Date();
+          updateData.errorMessage = null;
+          this.logger.log(
+            `[Webhook Asaas][${correlationId}] NFS-e #${platformInvoice.id} autorizada com sucesso pela prefeitura! Número: ${invoice.number}`,
+          );
+          break;
+
+        case 'INVOICE_SYNCHRONIZED':
+          updateData.status = PlatformInvoiceStatus.SYNCHRONIZED;
+          break;
+
+        case 'INVOICE_ERROR': {
+          updateData.status = PlatformInvoiceStatus.ERROR;
+          updateData.errorMessage =
+            invoice.statusDescription ||
+            rawPayload?.statusDescription ||
+            'Erro na autorização da nota fiscal junto à prefeitura.';
+
+          this.logger.error(
+            `[Webhook Asaas][${correlationId}] Erro na autorização da NFS-e #${platformInvoice.id}: ${updateData.errorMessage}`,
+          );
+
+          // Disparo de e-mail de alerta ao administrador
+          const adminEmail =
+            process.env.ADMIN_ALERT_EMAIL ||
+            process.env.MAIL_FROM_EMAIL ||
+            'admin@sinalizego.com';
+
+          await this.mailService
+            .sendInvoiceErrorAlertEmail(adminEmail, {
+              invoiceId: platformInvoice.id,
+              companyName: platformInvoice.company.businessName,
+              companyId: platformInvoice.company.id,
+              competence: `${String(platformInvoice.periodMonth).padStart(2, '0')}/${platformInvoice.periodYear}`,
+              grossAmount: Number(platformInvoice.grossAmount),
+              errorMessage: updateData.errorMessage,
+            })
+            .catch((mailErr) => {
+              this.logger.warn(
+                `[Webhook Asaas][${correlationId}] Falha ao enviar e-mail de alerta de erro de NFS-e: ${mailErr?.message || mailErr}`,
+              );
+            });
+          break;
+        }
+
+        case 'INVOICE_CANCELED':
+          updateData.status = PlatformInvoiceStatus.CANCELED;
+          break;
+
+        case 'INVOICE_CANCELLATION_DENIED':
+          updateData.status = PlatformInvoiceStatus.CANCELLATION_DENIED;
+          break;
+
+        case 'INVOICE_PROCESSING_CANCELLATION':
+          updateData.status = PlatformInvoiceStatus.PROCESSING_CANCELLATION;
+          break;
+
+        default:
+          if (
+            invoice.status &&
+            PlatformInvoiceStatus[invoice.status as PlatformInvoiceStatus]
+          ) {
+            updateData.status = invoice.status as PlatformInvoiceStatus;
+          }
+          break;
+      }
+
+      await this.prisma.platformInvoice.update({
+        where: { id: platformInvoice.id },
+        data: updateData,
+      });
+
+      return {
+        received: true,
+        event,
+        invoiceId: invoice.id,
+        platformInvoiceId: platformInvoice.id,
+        status: updateData.status,
+      };
+    } catch (err: any) {
+      this.logger.error(
+        `[Webhook Asaas] Erro ao processar evento de NFS-e: ${err?.message || err}`,
+        err?.stack,
+      );
+      // Regra A21: Webhook NUNCA pode responder >= 500
+      return {
+        received: true,
+        error: true,
+        message: 'Processed with error recovery',
+      };
+    }
   }
 
   /**

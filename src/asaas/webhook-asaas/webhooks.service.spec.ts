@@ -28,6 +28,10 @@ describe('WebhooksService', () => {
       create: jest.fn(),
       deleteMany: jest.fn(),
     },
+    platformInvoice: {
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     $transaction: jest.fn((promises) => Promise.all(promises)),
   };
 
@@ -40,6 +44,7 @@ describe('WebhooksService', () => {
   const mockMailService = {
     sendAppointmentConfirmationEmail: jest.fn().mockResolvedValue(true),
     sendAppointmentCancellationEmail: jest.fn().mockResolvedValue(true),
+    sendInvoiceErrorAlertEmail: jest.fn().mockResolvedValue(true),
   };
 
   beforeEach(async () => {
@@ -478,6 +483,99 @@ describe('WebhooksService', () => {
           processedAt: { lt: expect.any(Date) },
         },
       });
+    });
+  });
+
+  describe('handleInvoiceEvent', () => {
+    const platformInvoiceMock = {
+      id: 'inv-123',
+      companyId: 'comp-1',
+      periodMonth: 9,
+      periodYear: 2026,
+      grossAmount: 150.0,
+      asaasInvoiceId: 'as-inv-1',
+      company: { id: 'comp-1', businessName: 'Barbearia Modelo' },
+    };
+
+    it('should ignore event if invoice.id is missing', async () => {
+      const result = await service.handleInvoiceEvent('INVOICE_AUTHORIZED', {});
+      expect(result).toEqual({
+        received: true,
+        ignored: true,
+        reason: 'Missing invoice.id',
+      });
+    });
+
+    it('should handle idempotency duplicate using WebhookEvent P2002', async () => {
+      mockPrisma.webhookEvent.create.mockRejectedValue({ code: 'P2002' });
+
+      const result = await service.handleInvoiceEvent('INVOICE_AUTHORIZED', {
+        id: 'as-inv-1',
+      });
+      expect(result).toEqual({
+        received: true,
+        alreadyProcessed: true,
+        event: 'INVOICE_AUTHORIZED',
+        invoiceId: 'as-inv-1',
+      });
+    });
+
+    it('should update platform invoice on INVOICE_AUTHORIZED', async () => {
+      mockPrisma.webhookEvent.create.mockResolvedValue({});
+      mockPrisma.platformInvoice.findFirst.mockResolvedValue(
+        platformInvoiceMock,
+      );
+      mockPrisma.platformInvoice.update.mockResolvedValue({});
+
+      const result = await service.handleInvoiceEvent('INVOICE_AUTHORIZED', {
+        id: 'as-inv-1',
+        number: '12345',
+        pdfUrl: 'https://asaas.com/12345.pdf',
+        xmlUrl: 'https://asaas.com/12345.xml',
+      });
+
+      expect(result.received).toBe(true);
+      expect(mockPrisma.platformInvoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-123' },
+        data: expect.objectContaining({
+          status: 'AUTHORIZED',
+          invoiceNumber: '12345',
+          pdfUrl: 'https://asaas.com/12345.pdf',
+          xmlUrl: 'https://asaas.com/12345.xml',
+          authorizedAt: expect.any(Date),
+        }),
+      });
+    });
+
+    it('should update platform invoice on INVOICE_ERROR and send email alert to admin', async () => {
+      mockPrisma.webhookEvent.create.mockResolvedValue({});
+      mockPrisma.platformInvoice.findFirst.mockResolvedValue(
+        platformInvoiceMock,
+      );
+      mockPrisma.platformInvoice.update.mockResolvedValue({});
+
+      const result = await service.handleInvoiceEvent('INVOICE_ERROR', {
+        id: 'as-inv-1',
+        statusDescription: 'Certificado digital da prefeitura expirado',
+      });
+
+      expect(result.received).toBe(true);
+      expect(mockPrisma.platformInvoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-123' },
+        data: expect.objectContaining({
+          status: 'ERROR',
+          errorMessage: 'Certificado digital da prefeitura expirado',
+        }),
+      });
+
+      expect(mockMailService.sendInvoiceErrorAlertEmail).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          invoiceId: 'inv-123',
+          companyName: 'Barbearia Modelo',
+          errorMessage: 'Certificado digital da prefeitura expirado',
+        }),
+      );
     });
   });
 });

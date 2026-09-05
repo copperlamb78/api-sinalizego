@@ -592,7 +592,10 @@ export class AppointmentsService {
 
       return this.prisma.appointment.update({
         where: { id: appointmentId },
-        data: { status: ApptStatus.COMPLETED },
+        data: {
+          status: ApptStatus.COMPLETED,
+          completedAt: new Date(),
+        },
       });
     }
 
@@ -834,7 +837,10 @@ export class AppointmentsService {
 
     return this.prisma.appointment.update({
       where: { id: appointmentId },
-      data: { status: ApptStatus.COMPLETED },
+      data: {
+        status: ApptStatus.COMPLETED,
+        completedAt: new Date(),
+      },
       include: {
         company: {
           select: {
@@ -1112,6 +1118,7 @@ export class AppointmentsService {
         },
         data: {
           status: ApptStatus.COMPLETED,
+          completedAt: new Date(),
           disabledBy: 'SYSTEM_AUTO_COMPLETE',
         },
       });

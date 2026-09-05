@@ -6,6 +6,7 @@ import {
   getAppointmentCancellationEmailTemplate,
   getAppointmentConfirmationEmailTemplate,
   getAppointmentReminderEmailTemplate,
+  getInvoiceErrorAlertEmailTemplate,
   getPasswordResetEmailTemplate,
   getWelcomeEmailTemplate,
 } from './templates/email.templates';
@@ -238,6 +239,43 @@ export class MailService {
     } catch (error: any) {
       this.logger.error(
         `Falha ao enviar e-mail de recuperação para ${to}: ${error?.message || error}`,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Envia e-mail de alerta ao administrador quando ocorre falha na emissão de NFS-e junto à prefeitura.
+   */
+  async sendInvoiceErrorAlertEmail(
+    to: string,
+    data: {
+      invoiceId: string;
+      companyName: string;
+      companyId: string;
+      competence: string;
+      grossAmount: number | string;
+      errorMessage: string;
+    },
+  ): Promise<boolean> {
+    try {
+      await this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject: `⚠️ Alerta de Erro na Emissão de NFS-e — ${data.companyName}`,
+        sender: {
+          name: this.senderName,
+          email: this.senderEmail,
+        },
+        to: [{ email: to, name: 'Administrador SinalizeGO' }],
+        htmlContent: getInvoiceErrorAlertEmailTemplate(data),
+      });
+
+      this.logger.log(
+        `Alerta de erro de NFS-e #${data.invoiceId} enviado para admin (${to})`,
+      );
+      return true;
+    } catch (error: any) {
+      this.logger.error(
+        `Falha ao enviar alerta de erro de NFS-e para ${to}: ${error?.message || error}`,
       );
       return false;
     }

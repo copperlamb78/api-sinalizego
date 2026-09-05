@@ -14,6 +14,8 @@ import { CalculateTax } from 'src/helpers/calculate-tax.helper';
 import {
   BARBER_ASAAS_PIX_FEE,
   DEFAULT_ASAAS_GATEWAY_COST,
+  DEFAULT_MEI_TAXES,
+  DEFAULT_MUNICIPAL_SERVICE_ID,
 } from 'src/common/constants/billing.constant';
 import { CryptoHelper } from 'src/helpers/crypto.helper';
 
@@ -840,6 +842,189 @@ export class AsaasService implements OnModuleInit {
     } catch (error: any) {
       this.logger.error(
         `Falha na comunicação com Asaas ao consultar cobrança #${paymentId}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Cria ou obtém o cadastro da barbearia/empresa como cliente na conta mestre do Asaas para fins fiscais.
+   */
+  async createCustomerInMasterAccount(data: {
+    name: string;
+    cpfCnpj: string;
+    email?: string;
+    phone?: string;
+    mobilePhone?: string;
+    address?: string;
+    addressNumber?: string;
+    province?: string;
+    postalCode?: string;
+    externalReference?: string;
+  }): Promise<string> {
+    try {
+      const sanitizedCpfCnpj = data.cpfCnpj.replace(/\D/g, '');
+
+      // 1. Tenta consultar se o cliente já existe pelo CPF/CNPJ
+      const searchRes = await fetch(
+        `${this.apiUrl}/customers?cpfCnpj=${encodeURIComponent(sanitizedCpfCnpj)}`,
+        {
+          method: 'GET',
+          headers: this.headers,
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        if (searchData?.data && searchData.data.length > 0) {
+          return searchData.data[0].id;
+        }
+      }
+
+      // 2. Se não existir, cadastra
+      const response = await fetch(`${this.apiUrl}/customers`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({
+          name: data.name,
+          cpfCnpj: sanitizedCpfCnpj,
+          email: data.email,
+          phone: data.phone,
+          mobilePhone: data.mobilePhone,
+          address: data.address,
+          addressNumber: data.addressNumber,
+          province: data.province,
+          postalCode: data.postalCode
+            ? data.postalCode.replace(/\D/g, '')
+            : undefined,
+          externalReference: data.externalReference,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        this.logger.error(
+          `Erro ao cadastrar empresa como cliente no Asaas: ${JSON.stringify(responseData)}`,
+        );
+        throw new BadRequestException(
+          'Não foi possível cadastrar a empresa no gateway fiscal.',
+        );
+      }
+
+      return responseData.id;
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(
+        `Falha ao cadastrar cliente na conta mestre do Asaas: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Falha na comunicação com Asaas ao cadastrar cliente fiscal',
+      );
+    }
+  }
+
+  /**
+   * Agenda uma NFS-e via API do Asaas (POST /v3/invoices)
+   */
+  async scheduleInvoice(data: {
+    customerId: string;
+    serviceDescription: string;
+    value: number;
+    effectiveDate: string; // YYYY-MM-DD
+    externalReference: string;
+    municipalServiceId?: string;
+    municipalServiceCode?: string;
+    taxes?: {
+      retainIss?: boolean;
+      iss?: number;
+      cofins?: number;
+      csll?: number;
+      inss?: number;
+      ir?: number;
+      pis?: number;
+    };
+  }): Promise<any> {
+    try {
+      const municipalServiceId =
+        data.municipalServiceId ||
+        process.env.ASAAS_INVOICE_MUNICIPAL_SERVICE_ID ||
+        DEFAULT_MUNICIPAL_SERVICE_ID;
+
+      const payload: any = {
+        customer: data.customerId,
+        serviceDescription: data.serviceDescription,
+        value: Number(data.value.toFixed(2)),
+        effectiveDate: data.effectiveDate,
+        externalReference: data.externalReference,
+        taxes: data.taxes || DEFAULT_MEI_TAXES,
+      };
+
+      if (data.municipalServiceCode) {
+        payload.municipalServiceCode = data.municipalServiceCode;
+      } else if (municipalServiceId) {
+        payload.municipalServiceId = municipalServiceId;
+      }
+
+      const response = await fetch(`${this.apiUrl}/invoices`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        this.logger.error(
+          `Erro ao agendar NFS-e no Asaas: ${JSON.stringify(responseData)}`,
+        );
+        throw new BadRequestException(
+          `Falha ao agendar nota fiscal no Asaas: ${responseData?.errors?.[0]?.description || 'Erro desconhecido'}`,
+        );
+      }
+
+      return responseData;
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(
+        `Falha ao agendar NFS-e no Asaas: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Falha na comunicação com Asaas ao agendar NFS-e',
+      );
+    }
+  }
+
+  /**
+   * Consulta uma NFS-e no Asaas (GET /v3/invoices/{id})
+   */
+  async getInvoiceById(invoiceId: string): Promise<any | null> {
+    try {
+      const response = await fetch(`${this.apiUrl}/invoices/${invoiceId}`, {
+        method: 'GET',
+        headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        this.logger.error(
+          `Erro ao consultar NFS-e #${invoiceId} no Asaas:`,
+          typeof errorData === 'object' ? JSON.stringify(errorData) : errorData,
+        );
+        return null;
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      this.logger.error(
+        `Falha na comunicação com Asaas ao consultar NFS-e #${invoiceId}: ${error.message}`,
       );
       return null;
     }
