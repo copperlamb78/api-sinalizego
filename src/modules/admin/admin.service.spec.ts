@@ -146,6 +146,7 @@ describe('AdminService', () => {
 
       // Platform Gross Revenue: 5.00 + 4.00 = 9.00
       expect(result.financial.platformGrossRevenue).toBe(9.0);
+      expect(result.financial.platformFeeInEscrow).toBe(4.0);
       // Platform Absorbed Gateway Costs: 0.00 (Regra N2 / A10)
       expect(result.financial.totalAsaasPixCosts).toBe(0.0);
       // Net Profit: 9.00 - 0.00 = 9.00
