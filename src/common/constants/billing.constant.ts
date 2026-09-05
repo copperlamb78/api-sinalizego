@@ -54,6 +54,11 @@ export const MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2;
 export const MAX_WEEKLY_CANCELLATIONS_LIMIT = 3;
 
 /**
+ * Passo padrão da grade de horários de agendamento (30 minutos — AG-05).
+ */
+export const DEFAULT_SLOT_STEP_MINUTES = 30;
+
+/**
  * Constantes fiscais para emissão de NFS-e via Asaas (Regime MEI da SinalizeGO)
  */
 export const DEFAULT_MEI_TAXES = {
