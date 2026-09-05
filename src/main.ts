@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -53,13 +52,9 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Permite requisições sem origin (mobile apps, Postman, webhooks do Asaas), origens permitidas ou subdomínios da Vercel
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        allowedOrigins.includes('*') ||
-        /\.vercel\.app$/.test(origin)
-      ) {
+      // Permite requisições sem origin (mobile apps, Postman, webhooks do Asaas) ou origens explicitamente permitidas.
+      // Nunca usar wildcard '*' ou regex em domínios compartilhados para evitar CORS spoofing
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(

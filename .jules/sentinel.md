@@ -33,3 +33,7 @@
 **Vulnerability:** The global exception handler (`AllExceptionsFilter`) returned raw exception messages for `HttpException` instances with status 500 (such as `InternalServerErrorException`), which could leak sensitive internal database or application error details.
 **Learning:** `HttpException` instances with status 500 might have raw messages passed to them directly during internal system failures. Unlike generic unhandled errors, the previous configuration exposed these strings by passing the message down to the response.
 **Prevention:** Ensured the filter catches `HttpException` instances with a 500 status code, logs the sensitive internal error, and replaces the message returned to the client with a generic fallback message.
+## 2024-05-24 - [CORS spoofing bypass]
+**Vulnerability:** Overly permissive wildcard and regex expressions in CORS configuration.
+**Learning:** Using regex expressions for shared hosting domains in CORS policies allows attackers to bypass security by creating random domains (e.g., malicious-site.vercel.app).
+**Prevention:** Hardcode permitted domains directly or use an exact matching logic in the `origin` array instead of applying wildcards or regular expressions for shared domains.
