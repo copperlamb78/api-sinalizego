@@ -109,7 +109,14 @@ export class AppointmentsService {
       await tx.$executeRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
 
       // 1.1 Lock pessimista no grupo de serviço para evitar double-booking concorrente na mesma cadeira/capacidade (AG-01)
-      await tx.$executeRaw`SELECT id FROM "ServiceGroup" WHERE id = ${service.serviceGroupId} FOR UPDATE`;
+      const UUID_REGEX =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!UUID_REGEX.test(service.serviceGroupId)) {
+        throw new BadRequestException(
+          'Identificador de grupo de serviço inválido.',
+        );
+      }
+      await tx.$executeRaw`SELECT id FROM "ServiceGroup" WHERE id = ${service.serviceGroupId}::uuid FOR UPDATE`;
 
       const now = new Date();
 
@@ -845,12 +852,13 @@ export class AppointmentsService {
       );
     }
 
-    // Trava Temporal: Não permitir conclusão antes do término do agendamento (AG-10)
-    const effectiveEndDate =
-      appointment.appointmentEndDate || appointment.appointmentDate;
-    if (new Date() < effectiveEndDate) {
+    // Trava Temporal: Permitido concluir somente a partir de 10 minutos após o início do agendamento (Regra N3 anti-fraude)
+    const tenMinutesAfterStart = new Date(
+      appointment.appointmentDate.getTime() + 10 * 60 * 1000,
+    );
+    if (new Date() < tenMinutesAfterStart) {
       throw new BadRequestException(
-        'Não é possível concluir um atendimento antes do horário de término agendado.',
+        'Não é possível concluir um atendimento antes de 10 minutos após o horário de início agendado.',
       );
     }
 
