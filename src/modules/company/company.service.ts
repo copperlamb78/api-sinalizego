@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -26,6 +28,7 @@ import {
 } from '@prisma/client';
 import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
+import { CompanyTransactionsDto } from './dto/company-transactions.dto';
 import { AsaasService } from 'src/asaas/asaas.service';
 import {
   ASAAS_TRANSFER_FEE,
@@ -852,7 +855,7 @@ export class CompanyService {
   }
 
   /**
-   * Helper privado para cálculo centralizado de saldo disponível, custódia e saques (WP-03 / A4 / A14).
+   * Helper privado para cálculo centralizado de saldo disponível, custódia e saques (WP-03 / A4 / A14 / F-10 / F-11 / F-12).
    */
   private async computeAvailableBalance(
     companyId: string,
@@ -861,28 +864,32 @@ export class CompanyService {
   ) {
     const client = tx || this.prisma;
 
+    // F-10 e F-11: Saldo unificado por carteira (walletId).
+    // Inclui agendamentos COMPLETED e cancelamentos/no-shows com sinal retido (retainedDepositAmount > 0 - Regra N6).
     const [completedAgg, escrowAgg, withdrawalsAgg] = await Promise.all([
       client.transaction.aggregate({
         where: {
-          appointment: {
-            companyId: companyId,
-            isActive: true,
-            status: ApptStatus.COMPLETED,
-          },
+          barberWalletId: walletId,
           type: TransactionType.DEPOSIT,
           status: TransactionStatus.CONFIRMED,
+          appointment: {
+            OR: [
+              { status: ApptStatus.COMPLETED },
+              { retainedDepositAmount: { gt: 0 } },
+            ],
+          },
         },
         _sum: { netValue: true },
       }),
       client.transaction.aggregate({
         where: {
-          appointment: {
-            companyId: companyId,
-            isActive: true,
-            status: ApptStatus.CONFIRMED,
-          },
+          barberWalletId: walletId,
           type: TransactionType.DEPOSIT,
           status: TransactionStatus.CONFIRMED,
+          appointment: {
+            status: ApptStatus.CONFIRMED,
+            retainedDepositAmount: null,
+          },
         },
         _sum: { netValue: true },
       }),
@@ -901,26 +908,26 @@ export class CompanyService {
     const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
     const escrowLockedBalance = Number(escrowAgg._sum.netValue || 0);
     const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
-    const availableBalance = Math.max(
-      0,
-      Number((completedNetRevenue - totalWithdrawn).toFixed(2)),
-    );
+    const rawBalance = Number((completedNetRevenue - totalWithdrawn).toFixed(2));
+    const availableBalance = Math.max(0, rawBalance);
+    const debtBalance = rawBalance < 0 ? Math.abs(rawBalance) : 0;
 
     return {
       completedNetRevenue: Number(completedNetRevenue.toFixed(2)),
       escrowLockedBalance: Number(escrowLockedBalance.toFixed(2)),
       totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
       availableBalance: Number(availableBalance.toFixed(2)),
+      debtBalance: Number(debtBalance.toFixed(2)),
     };
   }
 
   /**
    * Consulta o saldo detalhado da empresa: disponível, em custódia (Escrow Hold) e histórico de saques.
+   * Permite consulta de saldo acumulado mesmo se a empresa estiver desativada (F-19).
    */
   async getCompanyBalance(userId: string, companyId?: string) {
     const whereClause: Prisma.CompanyWhereInput = {
       userId,
-      isActive: true,
     };
     if (companyId) {
       whereClause.id = companyId;
@@ -928,7 +935,12 @@ export class CompanyService {
 
     const company = await this.prisma.company.findFirst({
       where: whereClause,
-      select: { id: true, businessName: true, financialProfileId: true },
+      select: {
+        id: true,
+        businessName: true,
+        financialProfileId: true,
+        isActive: true,
+      },
     });
 
     if (!company) {
@@ -1011,7 +1023,6 @@ export class CompanyService {
   ) {
     const whereClause: Prisma.CompanyWhereInput = {
       userId,
-      isActive: true,
     };
     if (companyId) {
       whereClause.id = companyId;
@@ -1153,9 +1164,26 @@ export class CompanyService {
           isFreeWeekly: false,
           pixAddressKey: financialProfile.pixAddressKey,
           pixAddressKeyType: financialProfile.pixAddressKeyType,
+          description: `Saque avulso SinalizeGO ref:${pendingTx.id}`,
         },
       );
     } catch (err: any) {
+      const isTimeout =
+        err?.name === 'TimeoutError' ||
+        err?.name === 'AbortError' ||
+        err?.message?.includes('timeout') ||
+        err?.message?.includes('aborted');
+
+      if (isTimeout) {
+        this.logger.error(
+          `[Saque Instantâneo] TIMEOUT na chamada ao Asaas para subconta #${financialProfile.id}. A transação #${pendingTx.id} permanecerá PENDING para resolução pela conciliação ativa, prevenindo saque duplo.`,
+        );
+        throw new HttpException(
+          'A transferência está em processamento pelo gateway de pagamentos. Seu saldo foi reservado e será atualizado em breve.',
+          HttpStatus.ACCEPTED,
+        );
+      }
+
       this.logger.error(
         `Falha ao executar transferência Asaas para subconta #${financialProfile.id}: ${err?.message || err}. Revertendo reserva de saldo...`,
       );
@@ -1333,7 +1361,16 @@ export class CompanyService {
                   },
                 });
 
-          if (!financialProfile?.walletId) continue;
+          if (
+            !financialProfile?.walletId ||
+            !financialProfile?.pixAddressKey ||
+            !financialProfile?.pixAddressKeyType
+          ) {
+            this.logger.warn(
+              `[Cron Payouts] Empresa "${company.businessName}" sem perfil financeiro completo ou chave Pix configurada. Pulando.`,
+            );
+            continue;
+          }
 
           // Salvaguarda de Idempotência: Garante que este estabelecimento não possui saque em voo ou executado hoje
           const alreadyExecutedToday = await this.prisma.transaction.findFirst({
@@ -1360,6 +1397,7 @@ export class CompanyService {
           );
 
           if (balance.availableBalance >= MIN_FREE_WEEKLY_PAYOUT) {
+            const transferFee = await this.asaasService.getTransferFee();
             // 1. Reserva Atômica Local com status PENDING (proteção anti-race condition)
             const pendingTx = await this.prisma.transaction.create({
               data: {
@@ -1369,7 +1407,7 @@ export class CompanyService {
                 netValue: balance.availableBalance,
                 platformFee: 0,
                 asaasFee: 0,
-                platformAbsorbedFee: 0,
+                platformAbsorbedFee: transferFee,
                 paidByPlatform: true,
                 billingType: BillingType.PIX,
                 barberWalletId: financialProfile.walletId,
@@ -1407,12 +1445,25 @@ export class CompanyService {
               );
             } catch (transferErr: any) {
               this.logger.error(
-                `[Cron Payouts] Falha na transferência Asaas para empresa #${company.id}: ${transferErr?.message || transferErr}. Revertendo reserva de saldo...`,
+                `[Cron Payouts] Falha na transferência Asaas para empresa #${company.id}: ${transferErr?.message || transferErr}.`,
               );
-              await this.prisma.transaction.update({
-                where: { id: pendingTx.id },
-                data: { status: TransactionStatus.CANCELED },
-              });
+              if (transferErr?.hop1Completed) {
+                this.logger.error(
+                  `[Cron Payouts] ALERTA CRÍTICO: Hop 1 concluído (${transferErr.hop1Id}), mas Hop 2 falhou para empresa #${company.id}. Valor retido na conta mestre aguardando envio do Pix. Mantendo PENDING.`,
+                );
+                await this.prisma.transaction.update({
+                  where: { id: pendingTx.id },
+                  data: {
+                    asaasPaymentId:
+                      transferErr.hop1Id || `hop1_${pendingTx.id}`,
+                  },
+                });
+              } else {
+                await this.prisma.transaction.update({
+                  where: { id: pendingTx.id },
+                  data: { status: TransactionStatus.CANCELED },
+                });
+              }
             }
           } else if (balance.availableBalance > 0) {
             this.logger.log(
@@ -1436,5 +1487,153 @@ export class CompanyService {
       );
       return 0;
     }
+  }
+
+  /**
+   * Consulta o extrato financeiro completo da empresa (depósitos, saques, taxas e estornos) - F-25.
+   */
+  async getCompanyTransactions(
+    userId: string,
+    filters?: CompanyTransactionsDto,
+  ) {
+    const whereCompany: Prisma.CompanyWhereInput = { userId };
+    if (filters?.companyId) {
+      whereCompany.id = filters.companyId;
+    }
+
+    const company = await this.prisma.company.findFirst({
+      where: whereCompany,
+      select: { id: true, businessName: true, financialProfileId: true },
+    });
+
+    if (!company) {
+      throw new NotFoundException(
+        'Estabelecimento não encontrado para este usuário.',
+      );
+    }
+
+    const financialProfile = await this.prisma.financialProfile.findFirst({
+      where: {
+        OR: [
+          { userId },
+          { companies: { some: { id: company.id } } },
+        ],
+        isActive: true,
+      },
+      select: { walletId: true },
+    });
+
+    if (!financialProfile?.walletId) {
+      return {
+        transactions: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+      };
+    }
+
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const whereTx: Prisma.TransactionWhereInput = {
+      barberWalletId: financialProfile.walletId,
+    };
+
+    if (filters?.type) {
+      whereTx.type = filters.type;
+    }
+
+    if (filters?.status) {
+      whereTx.status = filters.status;
+    }
+
+    if (filters?.startDate || filters?.endDate) {
+      whereTx.createdAt = {};
+      if (filters.startDate) {
+        whereTx.createdAt.gte = new Date(`${filters.startDate}T00:00:00.000Z`);
+      }
+      if (filters.endDate) {
+        whereTx.createdAt.lte = new Date(`${filters.endDate}T23:59:59.999Z`);
+      }
+    }
+
+    const [total, transactions] = await Promise.all([
+      this.prisma.transaction.count({ where: whereTx }),
+      this.prisma.transaction.findMany({
+        where: whereTx,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip,
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          totalValue: true,
+          netValue: true,
+          platformFee: true,
+          asaasFee: true,
+          platformAbsorbedFee: true,
+          paidByPlatform: true,
+          billingType: true,
+          asaasPaymentId: true,
+          createdAt: true,
+          appointment: {
+            select: {
+              id: true,
+              appointmentDate: true,
+              status: true,
+              retainedDepositAmount: true,
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      transactions: transactions.map((t) => ({
+        id: t.id,
+        type: t.type,
+        status: t.status,
+        totalValue: Number(t.totalValue),
+        netValue: Number(t.netValue),
+        platformFee: Number(t.platformFee),
+        asaasFee: Number(t.asaasFee),
+        platformAbsorbedFee: Number(t.platformAbsorbedFee),
+        paidByPlatform: t.paidByPlatform,
+        billingType: t.billingType,
+        asaasPaymentId: t.asaasPaymentId,
+        createdAt: t.createdAt,
+        appointment: t.appointment
+          ? {
+              id: t.appointment.id,
+              appointmentDate: t.appointment.appointmentDate,
+              status: t.appointment.status,
+              retainedDepositAmount: t.appointment.retainedDepositAmount
+                ? Number(t.appointment.retainedDepositAmount)
+                : null,
+              serviceName: t.appointment.service?.name || null,
+              clientName: t.appointment.client?.name || null,
+            }
+          : null,
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 }
