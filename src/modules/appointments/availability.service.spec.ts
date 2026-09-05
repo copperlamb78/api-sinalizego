@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AvailabilityService } from './availability.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { ApptStatus } from '@prisma/client';
 import { fromZonedTime } from 'date-fns-tz';
 
 describe('AvailabilityService', () => {
@@ -338,7 +337,9 @@ describe('AvailabilityService', () => {
           startWithSeconds,
           endDate,
         ),
-      ).rejects.toThrow('Horário do agendamento deve conter segundos e milissegundos zerados.');
+      ).rejects.toThrow(
+        'Horário do agendamento deve conter segundos e milissegundos zerados.',
+      );
     });
 
     it('should throw BadRequestException if appointment is misaligned with 30-min grid (ex: 09:07)', async () => {
@@ -476,15 +477,17 @@ describe('AvailabilityService', () => {
         '2026-08-24T16:00:00',
         'America/Manaus',
       );
-      const manausEnd = fromZonedTime(
-        '2026-08-24T16:30:00',
-        'America/Manaus',
-      );
+      const manausEnd = fromZonedTime('2026-08-24T16:30:00', 'America/Manaus');
 
       expect(manausStart.toISOString()).toBe('2026-08-24T20:00:00.000Z');
 
       await expect(
-        service.validateSlotWithinWorkingHours('comp-1', manausStart, manausEnd, 'America/Manaus'),
+        service.validateSlotWithinWorkingHours(
+          'comp-1',
+          manausStart,
+          manausEnd,
+          'America/Manaus',
+        ),
       ).resolves.not.toThrow();
     });
   });
