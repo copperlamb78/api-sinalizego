@@ -5,6 +5,7 @@ import {
   ApptStatus,
   PlatformInvoiceStatus,
   TransactionStatus,
+  TransactionType,
 } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BARBER_ASAAS_PIX_FEE } from 'src/common/constants/billing.constant';
@@ -141,8 +142,8 @@ export class WebhooksService {
             };
           }
 
-          // Revalidação com a API Asaas (A11 / A20)
-          let verifiedPayment = payment;
+          // Revalidação com a API Asaas (A11 / A20) - FAIL CLOSED (F-18)
+          let verifiedPayment: any = null;
           try {
             const remotePayment = await this.asaasService.getPaymentById(
               payment.id,
@@ -155,8 +156,46 @@ export class WebhooksService {
             }
           } catch (revalErr: any) {
             this.logger.warn(
-              `[Webhook Asaas][${correlationId}] Revalidação via API Asaas falhou (${revalErr?.message || revalErr}). Prosseguindo com dados do payload.`,
+              `[Webhook Asaas][${correlationId}] Revalidação via API Asaas falhou (${revalErr?.message || revalErr}). Fail-closed: confirmação adiada para conciliação ativa.`,
             );
+            return {
+              received: true,
+              event,
+              paymentId: payment.id,
+              pendingReconciliation: true,
+              reason:
+                'Revalidation with Asaas API failed; deferred to active reconciliation',
+            };
+          }
+
+          if (!verifiedPayment || !verifiedPayment.status) {
+            this.logger.warn(
+              `[Webhook Asaas][${correlationId}] Pagamento ${payment.id} não pôde ser verificado na API Asaas. Ignorando confirmação direta.`,
+            );
+            return {
+              received: true,
+              event,
+              paymentId: payment.id,
+              pendingReconciliation: true,
+              reason: 'Payment not found in Asaas API',
+            };
+          }
+
+          if (
+            verifiedPayment.status !== 'RECEIVED' &&
+            verifiedPayment.status !== 'CONFIRMED' &&
+            verifiedPayment.status !== 'RECEIVED_IN_CASH'
+          ) {
+            this.logger.warn(
+              `[Webhook Asaas][${correlationId}] Pagamento ${payment.id} possui status não confirmatório no Asaas (${verifiedPayment.status}). Ignorando.`,
+            );
+            return {
+              received: true,
+              event,
+              paymentId: payment.id,
+              ignored: true,
+              reason: `Asaas status is ${verifiedPayment.status}`,
+            };
           }
 
           // Salvaguarda Anti-Race Condition: Se o agendamento já foi cancelado ou expirou antes do pagamento
@@ -201,11 +240,12 @@ export class WebhooksService {
           }
 
           // 2. Conferência Estrita de Valor (Anti-Fraude de Pagamento Menor)
-          if (
-            verifiedPayment.value !== undefined &&
-            verifiedPayment.value !== null
-          ) {
-            const paidValue = Number(verifiedPayment.value);
+          const paidValue = Number(
+            verifiedPayment.value !== undefined && verifiedPayment.value !== null
+              ? verifiedPayment.value
+              : payment.value,
+          );
+          if (!isNaN(paidValue)) {
             const expectedValue = Number(transaction.totalValue);
 
             if (paidValue < expectedValue - 0.01) {
@@ -243,15 +283,17 @@ export class WebhooksService {
           const realAsaasFee =
             verifiedPayment?.fee !== undefined && verifiedPayment?.fee !== null
               ? Number(verifiedPayment.fee)
-              : verifiedPayment?.value !== undefined &&
-                  verifiedPayment?.netValue !== undefined
-                ? Number(
-                    (
-                      Number(verifiedPayment.value) -
-                      Number(verifiedPayment.netValue)
-                    ).toFixed(2),
-                  )
-                : undefined;
+              : payment?.fee !== undefined && payment?.fee !== null
+                ? Number(payment.fee)
+                : verifiedPayment?.value !== undefined &&
+                    verifiedPayment?.netValue !== undefined
+                  ? Number(
+                      (
+                        Number(verifiedPayment.value) -
+                        Number(verifiedPayment.netValue)
+                      ).toFixed(2),
+                    )
+                  : undefined;
 
           const platformAbsorbedFee =
             realAsaasFee !== undefined &&
@@ -664,6 +706,103 @@ export class WebhooksService {
           `[Conciliação Ativa] Erro ao reconciliar transação #${tx.id}: ${error.message}`,
         );
       }
+    }
+
+    // 2. Reconciliação de Saques Presos em PENDING sem ID Asaas (F-14)
+    try {
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const stuckPendingWithdrawals = await this.prisma.transaction.findMany({
+        where: {
+          type: TransactionType.WITHDRAWAL,
+          status: TransactionStatus.PENDING,
+          createdAt: { lt: fifteenMinutesAgo },
+          asaasPaymentId: null,
+        },
+        take: 20,
+      });
+
+      for (const stx of stuckPendingWithdrawals) {
+        if (
+          stx.type === TransactionType.WITHDRAWAL &&
+          stx.status === TransactionStatus.PENDING &&
+          !stx.asaasPaymentId
+        ) {
+          this.logger.warn(
+            `[Conciliação Ativa] Saque preso #${stx.id} em PENDING há mais de 15 minutos sem asaasPaymentId. Cancelando reserva para destravar estabelecimento...`,
+          );
+          await this.prisma.transaction.update({
+            where: { id: stx.id },
+            data: { status: TransactionStatus.CANCELED },
+          });
+          reconciledCount++;
+        }
+      }
+    } catch (stuckErr: any) {
+      this.logger.error(
+        `[Conciliação Ativa] Erro ao reconciliar saques pendentes: ${stuckErr.message}`,
+      );
+    }
+
+    // 3. Detecção de Estornos / Chargebacks Tardios em Transações CONFIRMED (F-13)
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const confirmedTransactions = await this.prisma.transaction.findMany({
+        where: {
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.CONFIRMED,
+          createdAt: { gte: sevenDaysAgo, lt: fiveMinutesAgo },
+          asaasPaymentId: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      });
+
+      for (const ctx of confirmedTransactions) {
+        if (
+          !ctx.asaasPaymentId ||
+          ctx.type !== TransactionType.DEPOSIT ||
+          ctx.status !== TransactionStatus.CONFIRMED
+        )
+          continue;
+        try {
+          const asaasPayment = await this.asaasService.getPaymentById(
+            ctx.asaasPaymentId,
+          );
+          if (
+            asaasPayment &&
+            (asaasPayment.status === 'REFUNDED' ||
+              asaasPayment.status === 'REFUND_IN_PROGRESS' ||
+              asaasPayment.status === 'CHARGEBACK_REQUESTED')
+          ) {
+            this.logger.warn(
+              `[Conciliação Ativa] Transação #${ctx.id} (${ctx.asaasPaymentId}) detectada como ${asaasPayment.status} no Asaas. Atualizando ledger...`,
+            );
+            await this.prisma.$transaction([
+              this.prisma.transaction.update({
+                where: { id: ctx.id },
+                data: { status: TransactionStatus.REFUNDED },
+              }),
+              ...(ctx.appointmentId
+                ? [
+                    this.prisma.appointment.update({
+                      where: { id: ctx.appointmentId },
+                      data: { status: ApptStatus.CANCELED, isActive: false },
+                    }),
+                  ]
+                : []),
+            ]);
+            reconciledCount++;
+          }
+        } catch (err: any) {
+          this.logger.debug(
+            `[Conciliação Ativa] Falha ao verificar transação confirmada #${ctx.id}: ${err.message}`,
+          );
+        }
+      }
+    } catch (confErr: any) {
+      this.logger.error(
+        `[Conciliação Ativa] Erro ao verificar transações confirmadas: ${confErr.message}`,
+      );
     }
 
     this.logger.log(
