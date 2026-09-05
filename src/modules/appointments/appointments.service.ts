@@ -81,11 +81,13 @@ export class AppointmentsService {
     }
 
     const company = await this.prisma.company.findFirst({
-      where: { id: data.companyId },
+      where: { id: data.companyId, isActive: true },
     });
 
     if (!company) {
-      throw new NotFoundException('Empresa não encontrada.');
+      throw new NotFoundException(
+        'Empresa não encontrada ou inativa para novos agendamentos.',
+      );
     }
 
     const service = await this.prisma.service.findFirst({
@@ -627,37 +629,20 @@ export class AppointmentsService {
     }
 
     if (dto.status === ApptStatus.COMPLETED) {
-      if (appointment.status !== ApptStatus.CONFIRMED) {
-        throw new BadRequestException(
-          'Apenas agendamentos confirmados podem ser marcados como concluídos.',
-        );
-      }
-
-      return this.prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status: ApptStatus.COMPLETED,
-          completedAt: new Date(),
-        },
-      });
+      return this.completeAppointment(appointmentId, userId, role);
     }
 
     if (dto.status === ApptStatus.CANCELED) {
-      return this.prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status: ApptStatus.CANCELED,
-          isActive: false,
-          disabledAt: new Date(),
-          disabledBy: userId,
-        },
-      });
+      return this.deactivateAppointment(appointmentId, userId, role);
     }
 
-    return this.prisma.appointment.update({
-      where: { id: appointmentId },
-      data: { status: dto.status },
-    });
+    if (dto.status === ApptStatus.NO_SHOW) {
+      return this.markAsNoShow(appointmentId, userId, role);
+    }
+
+    throw new BadRequestException(
+      `Transição manual para status '${dto.status}' não é permitida.`,
+    );
   }
 
   async deactivateAppointment(
@@ -740,37 +725,35 @@ export class AppointmentsService {
 
       if (transaction?.asaasPaymentId) {
         const paidAmount = Number(appointment.downPaymentAmount);
-        const totalPrice = Number(
-          appointment.servicePrice || appointment.service?.totalPrice || 0,
-        );
-        const configuredFloor = appointment.service?.downPaymentPercent ?? 25;
-        const guaranteedDepositAmount = this.calculateDeposit.calculateDeposit(
-          totalPrice,
-          configuredFloor,
-        );
 
         if (hoursDifference > 24) {
-          // 1. Cancelamento com antecedência (> 24h): Estorno integral (100% do valor pago online: sinal + taxa)
-          const totalOnlinePaid = Number(transaction.totalValue);
+          // 1. Faixa 1 (> 24h): Estorno Pix do sinal pago S (taxa da plataforma retida - Regra N6a)
+          const depositToRefund = paidAmount;
           try {
             await this.asaasService.refundPayment(
               transaction.asaasPaymentId,
-              undefined,
-              'Cancelamento com antecedência superior a 24 horas (estorno integral).',
+              depositToRefund,
+              'Cancelamento com antecedência superior a 24 horas (estorno do sinal).',
             );
             await this.prisma.transaction.update({
               where: { id: transaction.id },
               data: { status: TransactionStatus.REFUNDED },
             });
             isRefunded = true;
-            refundAmount = totalOnlinePaid;
+            refundAmount = depositToRefund;
           } catch (err: any) {
             this.logger.error(
-              `Falha ao processar estorno integral Asaas no cancelamento do agendamento #${appointment.id}: ${err?.message || err}`,
+              `[Estorno Asaas] Falha ao processar estorno do sinal no agendamento #${appointment.id}: ${err?.message || err}`,
             );
           }
+        } else if (hoursDifference >= 2) {
+          // 2. Faixa 2 (2h a 24h): Sinal de garantia vira crédito para o cliente usar no estabelecimento (Regra N6b)
+          // O sinal não é estornado via Asaas e não entra como retenção de vacância imediata
+          isRefunded = false;
+          refundAmount = undefined;
+          retainedDeposit = undefined;
         } else {
-          // 2. Cancelamento tardio (<= 24h): Retenção de 100% do sinal pago para compensação de vacância (Regra N6)
+          // 3. Faixa 3 (< 2h): Cancelamento tardio com retenção integral do sinal para a barbearia a título de compensação de vacância (Regra N6c)
           retainedDeposit = paidAmount;
           isRefunded = false;
           refundAmount = undefined;
