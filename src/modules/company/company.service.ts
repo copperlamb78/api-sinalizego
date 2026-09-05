@@ -32,6 +32,7 @@ import {
   MIN_FREE_WEEKLY_PAYOUT,
 } from 'src/common/constants/billing.constant';
 import { Cron } from '@nestjs/schedule';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class CompanyService {
@@ -903,11 +904,17 @@ export class CompanyService {
       financialProfile.walletId,
     );
 
-    const now = new Date();
-    const nextMonday = new Date(now);
-    const daysUntilMonday = (1 + 7 - now.getDay()) % 7 || 7;
-    nextMonday.setDate(now.getDate() + daysUntilMonday);
-    nextMonday.setHours(6, 0, 0, 0);
+    const nowLocal = toZonedTime(new Date(), 'America/Sao_Paulo');
+    const daysUntilMonday = (1 + 7 - nowLocal.getDay()) % 7 || 7;
+    const nextMondayLocal = new Date(nowLocal);
+    nextMondayLocal.setDate(nowLocal.getDate() + daysUntilMonday);
+    const y = nextMondayLocal.getFullYear();
+    const m = (nextMondayLocal.getMonth() + 1).toString().padStart(2, '0');
+    const d = nextMondayLocal.getDate().toString().padStart(2, '0');
+    const nextMondayInstant = fromZonedTime(
+      `${y}-${m}-${d}T06:00:00.000`,
+      'America/Sao_Paulo',
+    );
 
     return {
       companyId: company.id,
@@ -917,7 +924,7 @@ export class CompanyService {
       escrowLockedBalance: balanceMetrics.escrowLockedBalance,
       completedNetRevenue: balanceMetrics.completedNetRevenue,
       totalWithdrawn: balanceMetrics.totalWithdrawn,
-      nextFreeWithdrawalDate: nextMonday.toISOString(),
+      nextFreeWithdrawalDate: nextMondayInstant.toISOString(),
       instantTransferFee: await this.asaasService.getTransferFee(),
       minFreeWeeklyPayoutThreshold: MIN_FREE_WEEKLY_PAYOUT,
       eligibleForFreeWeeklyPayout:
