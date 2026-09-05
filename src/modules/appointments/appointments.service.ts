@@ -846,7 +846,9 @@ export class AppointmentsService {
     }
 
     // Trava Temporal: Não permitir conclusão antes do término do agendamento (AG-10)
-    if (new Date() < appointment.appointmentEndDate) {
+    const effectiveEndDate =
+      appointment.appointmentEndDate || appointment.appointmentDate;
+    if (new Date() < effectiveEndDate) {
       throw new BadRequestException(
         'Não é possível concluir um atendimento antes do horário de término agendado.',
       );
