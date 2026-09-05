@@ -40,6 +40,7 @@ describe('AppointmentsService', () => {
     user: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      update: jest.fn(),
     },
     company: {
       findMany: jest.fn(),
@@ -65,6 +66,7 @@ describe('AppointmentsService', () => {
   const mockAsaasService = {
     cancelPayment: jest.fn().mockResolvedValue(true),
     refundPayment: jest.fn().mockResolvedValue(true),
+    createCustomer: jest.fn().mockResolvedValue('cus_mock_123'),
   };
 
   const mockAvailabilityService = {
@@ -487,6 +489,115 @@ describe('AppointmentsService', () => {
       );
 
       expect(result.downPaymentAmount).toBe(250.0);
+    });
+
+    it('should throw BadRequestException if user has no cpfCnpj and no cpfCnpj is provided in appointment payload', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-no-cpf',
+        name: 'Cliente Sem CPF',
+        cpfCnpj: null,
+      });
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2029-08-28T10:00:00.000Z',
+          } as any,
+          'user-no-cpf',
+        ),
+      ).rejects.toThrow(
+        new BadRequestException('Usuário não possui CPF/CNPJ.'),
+      );
+    });
+
+    it('should throw BadRequestException if provided inline cpfCnpj has invalid length', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-no-cpf',
+        name: 'Cliente Sem CPF',
+        cpfCnpj: null,
+      });
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2029-08-28T10:00:00.000Z',
+            cpfCnpj: '123',
+          } as any,
+          'user-no-cpf',
+        ),
+      ).rejects.toThrow(new BadRequestException('CPF/CNPJ inválido.'));
+    });
+
+    it('should throw ConflictException if provided inline cpfCnpj belongs to another user', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-no-cpf',
+        name: 'Cliente Sem CPF',
+        cpfCnpj: null,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'other-user',
+        cpfCnpj: '12345678909',
+      });
+
+      await expect(
+        service.createAppointment(
+          {
+            companyId: 'company-1',
+            serviceId: 'service-1',
+            appointmentDate: '2029-08-28T10:00:00.000Z',
+            cpfCnpj: '12345678909',
+          } as any,
+          'user-no-cpf',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should register cpfCnpj, create asaas customer and proceed with booking when user has no cpf but provides it inline', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-no-cpf',
+        name: 'Cliente Sem CPF',
+        cpfCnpj: null,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockAsaasService.createCustomer.mockResolvedValue('cus_new_client');
+      mockPrisma.user.update.mockResolvedValue({
+        id: 'user-no-cpf',
+        name: 'Cliente Sem CPF',
+        cpfCnpj: '12345678909',
+        asaasCustomerId: 'cus_new_client',
+      });
+      mockPrisma.appointment.count.mockResolvedValue(0);
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
+      mockPrisma.service.findFirst.mockResolvedValue(mockService);
+      mockPrisma.appointment.findMany.mockResolvedValue([]);
+      mockPrisma.appointment.create.mockResolvedValue({
+        id: 'appt-inline-cpf',
+        clientId: 'user-no-cpf',
+      });
+
+      const result = await service.createAppointment(
+        {
+          companyId: 'company-1',
+          serviceId: 'service-1',
+          appointmentDate: '2029-08-28T10:00:00.000Z',
+          cpfCnpj: '123.456.789-09',
+        } as any,
+        'user-no-cpf',
+      );
+
+      expect(mockAsaasService.createCustomer).toHaveBeenCalledWith(
+        '12345678909',
+        'Cliente Sem CPF',
+      );
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-no-cpf' },
+        data: { cpfCnpj: '12345678909', asaasCustomerId: 'cus_new_client' },
+      });
+      expect(result.id).toBe('appt-inline-cpf');
     });
   });
 
