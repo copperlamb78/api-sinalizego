@@ -44,7 +44,7 @@ export class AppointmentsService {
   ) {}
 
   async createAppointment(data: CreateAppointmentsDto, userId: string) {
-    const user = await this.prisma.user.findFirst({
+    let user = await this.prisma.user.findFirst({
       where: { id: userId },
     });
     if (!user) {
@@ -52,7 +52,32 @@ export class AppointmentsService {
     }
 
     if (!user.cpfCnpj) {
-      throw new BadRequestException('Usuário não possui CPF/CNPJ.');
+      if (data.cpfCnpj) {
+        const cleanDoc = data.cpfCnpj.replace(/\D/g, '');
+        if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
+          throw new BadRequestException('CPF/CNPJ inválido.');
+        }
+
+        const existingDoc = await this.prisma.user.findUnique({
+          where: { cpfCnpj: cleanDoc },
+        });
+        if (existingDoc && existingDoc.id !== userId) {
+          throw new ConflictException(
+            'Este CPF/CNPJ já está vinculado a outra conta.',
+          );
+        }
+
+        const asaasCustomerId = await this.asaasService.createCustomer(
+          cleanDoc,
+          user.name,
+        );
+        user = await this.prisma.user.update({
+          where: { id: userId },
+          data: { cpfCnpj: cleanDoc, asaasCustomerId },
+        });
+      } else {
+        throw new BadRequestException('Usuário não possui CPF/CNPJ.');
+      }
     }
 
     const company = await this.prisma.company.findFirst({
