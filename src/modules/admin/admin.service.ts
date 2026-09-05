@@ -126,6 +126,7 @@ export class AdminService {
         _sum: {
           servicePrice: true,
           retainedDepositAmount: true,
+          platformFeeAmount: true,
         },
       }),
       this.prisma.transaction.aggregate({
@@ -222,12 +223,15 @@ export class AdminService {
     const canceledRetained = Number(
       canceledAgg._sum.retainedDepositAmount || 0,
     );
+    const canceledFee =
+      canceledRetained > 0 ? Number(canceledAgg._sum.platformFeeAmount || 0) : 0;
     const canceledPotential =
       canceledRetained > 0 ? Number(canceledAgg._sum.servicePrice || 0) : 0;
 
     const gmv =
       completedPrice + confirmedDeposit + noShowRetained + canceledRetained;
-    const platformGrossRevenue = completedFee + confirmedFee + noShowFee;
+    const platformGrossRevenue =
+      completedFee + confirmedFee + noShowFee + canceledFee;
 
     const totalRetainedLossPrevented = noShowRetained + canceledRetained;
     const totalPotentialLostRevenue = noShowPotential + canceledPotential;
@@ -304,6 +308,7 @@ export class AdminService {
       },
       financial: {
         platformGrossRevenue: Number((platformGrossRevenue || 0).toFixed(2)),
+        platformFeeInEscrow: Number((confirmedFee || 0).toFixed(2)),
         totalAsaasPixCosts: Number(
           (totalPlatformAbsorbedCosts || 0).toFixed(2),
         ),
