@@ -62,33 +62,38 @@ export class CreateFinancialProfileDto {
   @IsNumber()
   incomeValue: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Avenida Getúlio Vargas',
-    description: 'Logradouro / Nome da rua ou avenida',
+    description:
+      'Logradouro / Nome da rua ou avenida (se omitido, herda da empresa ativa)',
   })
   @IsString()
-  address: string;
+  @IsOptional()
+  address?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '1500',
-    description: 'Número do endereço',
+    description: 'Número do endereço (se omitido, herda da empresa ativa)',
   })
   @IsString()
-  addressNumber: string;
+  @IsOptional()
+  addressNumber?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Centro',
-    description: 'Bairro',
+    description: 'Bairro (se omitido, herda da empresa ativa)',
   })
   @IsString()
-  province: string;
+  @IsOptional()
+  province?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '44001000',
-    description: 'CEP sem hífen (8 dígitos)',
+    description: 'CEP sem hífen (se omitido, herda da empresa ativa)',
   })
   @IsString()
-  postalCode: string;
+  @IsOptional()
+  postalCode?: string;
 
   @ApiProperty({
     example: '12345678909',
