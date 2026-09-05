@@ -174,7 +174,9 @@ export class AsaasService implements OnModuleInit {
       address: data.address,
       addressNumber: data.addressNumber,
       province: data.province,
-      postalCode: data.postalCode.replace(/\D/g, ''),
+      postalCode: data.postalCode
+        ? data.postalCode.replace(/\D/g, '')
+        : undefined,
 
       webhooks: [
         {
