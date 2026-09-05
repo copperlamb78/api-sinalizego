@@ -52,3 +52,21 @@ export const MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2;
  * Limite máximo de cancelamentos permitidos por cliente na mesma semana (7 dias) antes do bloqueio temporário.
  */
 export const MAX_WEEKLY_CANCELLATIONS_LIMIT = 3;
+
+/**
+ * Constantes fiscais para emissão de NFS-e via Asaas (Regime MEI da SinalizeGO)
+ */
+export const DEFAULT_MEI_TAXES = {
+  retainIss: false,
+  iss: 0,
+  cofins: 0,
+  csll: 0,
+  inss: 0,
+  ir: 0,
+  pis: 0,
+};
+
+export const INVOICE_DESCRIPTION_TEMPLATE =
+  'Serviços de intermediação de negócios, agendamento eletrônico e disponibilização de plataforma online de software. Competência: {{MES}}/{{ANO}}. Prestado em conformidade com o item 10.05 da LC 116/03. Código de Serviço Municipal: 1005.';
+
+export const DEFAULT_MUNICIPAL_SERVICE_ID = '10.05';
