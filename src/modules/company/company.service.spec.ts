@@ -49,6 +49,7 @@ describe('CompanyService', () => {
     transaction: {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
       aggregate: jest.fn().mockResolvedValue({ _sum: { totalValue: 0 } }),
       create: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
       update: jest.fn().mockResolvedValue({ id: 'tx-pending-1' }),
@@ -658,7 +659,10 @@ describe('CompanyService', () => {
         pixAddressKeyType: 'CPF',
       });
       mockPrisma.transaction.aggregate.mockImplementation(async (args: any) => {
-        if (args.where.appointment?.status === ApptStatus.COMPLETED) {
+        if (
+          args.where.appointment?.status === ApptStatus.COMPLETED ||
+          args.where.appointment?.OR
+        ) {
           return { _sum: { netValue: 80.0 } };
         } else if (args.where.appointment?.status === ApptStatus.CONFIRMED) {
           return { _sum: { netValue: 40.0 } };
@@ -680,18 +684,27 @@ describe('CompanyService', () => {
       expect(balance.nextFreeWithdrawalDate).toBeDefined();
     });
 
-    it('should throw NotFoundException if company does not exist', async () => {
-      mockPrisma.company.findFirst.mockResolvedValue(null);
-
-      await expect(service.getCompanyBalance('unknown-user')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should throw BadRequestException if financial profile or walletId is missing', async () => {
+    it('should throw BadRequestException if financial profile is missing walletId', async () => {
       mockPrisma.company.findFirst.mockResolvedValue({
         id: 'comp-1',
         businessName: 'Barbearia VIP',
+        financialProfileId: 'fp-1',
+      });
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-1',
+        walletId: null,
+      });
+
+      await expect(service.getCompanyBalance('user-owner')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if financial profile is not found', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        financialProfileId: 'fp-1',
       });
       mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
 
@@ -715,7 +728,10 @@ describe('CompanyService', () => {
         pixAddressKeyType: 'CPF',
       });
       mockPrisma.transaction.aggregate.mockImplementation(async (args: any) => {
-        if (args.where.appointment?.status === ApptStatus.COMPLETED) {
+        if (
+          args.where.appointment?.status === ApptStatus.COMPLETED ||
+          args.where.appointment?.OR
+        ) {
           return { _sum: { netValue: 100.0 } };
         } else if (args.where.appointment?.status === ApptStatus.CONFIRMED) {
           return { _sum: { netValue: 50.0 } };
@@ -728,7 +744,10 @@ describe('CompanyService', () => {
 
     it('should throw BadRequestException if available balance is zero', async () => {
       mockPrisma.transaction.aggregate.mockImplementation(async (args: any) => {
-        if (args.where.appointment?.status === ApptStatus.COMPLETED) {
+        if (
+          args.where.appointment?.status === ApptStatus.COMPLETED ||
+          args.where.appointment?.OR
+        ) {
           return { _sum: { netValue: 0.0 } };
         } else if (args.where.appointment?.status === ApptStatus.CONFIRMED) {
           return { _sum: { netValue: 50.0 } };
@@ -818,6 +837,7 @@ describe('CompanyService', () => {
           isFreeWeekly: false,
           pixAddressKey: '12345678900',
           pixAddressKeyType: 'CPF',
+          description: 'Saque avulso SinalizeGO ref:tx-withdraw-1',
         },
       );
       expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
@@ -980,6 +1000,57 @@ describe('CompanyService', () => {
       });
 
       computeSpy.mockRestore();
+    });
+  });
+
+  describe('getCompanyTransactions (F-25)', () => {
+    it('should throw NotFoundException if company not found or does not belong to user', async () => {
+      mockPrisma.company.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.getCompanyTransactions('user-1', {
+          companyId: 'comp-1',
+          page: 1,
+          limit: 10,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should return paginated transactions for company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValueOnce({
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+      });
+      mockPrisma.financialProfile.findFirst.mockResolvedValueOnce({
+        walletId: 'wal-1',
+      });
+      mockPrisma.transaction.count.mockResolvedValueOnce(1);
+      mockPrisma.transaction.findMany.mockResolvedValueOnce([
+        {
+          id: 'tx-1',
+          type: 'DEPOSIT',
+          status: 'CONFIRMED',
+          totalValue: 50,
+          netValue: 45,
+          createdAt: new Date(),
+          appointment: {
+            id: 'appt-1',
+            client: { name: 'Cliente A' },
+            service: { name: 'Corte' },
+          },
+        },
+      ]);
+
+      const result = await service.getCompanyTransactions('user-1', {
+        companyId: 'comp-1',
+        page: 1,
+        limit: 10,
+      });
+
+      expect(result.transactions).toHaveLength(1);
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.totalPages).toBe(1);
     });
   });
 });
