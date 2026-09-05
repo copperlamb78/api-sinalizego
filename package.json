@@ -43,6 +43,8 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cloudinary": "^2.10.0",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
     "helmet": "^8.3.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -103,7 +105,9 @@
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/$1"
     },
-    "setupFiles": ["<rootDir>/../test/jest-setup.js"]
+    "setupFiles": [
+      "<rootDir>/../test/jest-setup.js"
+    ]
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
