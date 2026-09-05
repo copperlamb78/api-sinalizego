@@ -939,7 +939,9 @@ describe('AppointmentsService', () => {
 
       await expect(
         service.completeAppointment('appt-1', 'owner-1'),
-      ).rejects.toThrow('Não é possível concluir um atendimento antes de 10 minutos após o horário de início agendado.');
+      ).rejects.toThrow(
+        'Não é possível concluir um atendimento antes de 10 minutos após o horário de início agendado.',
+      );
     });
 
     it('should throw BadRequestException if less than 10 minutes have elapsed since appointment start', async () => {
@@ -956,7 +958,9 @@ describe('AppointmentsService', () => {
 
       await expect(
         service.completeAppointment('appt-1', 'owner-1'),
-      ).rejects.toThrow('Não é possível concluir um atendimento antes de 10 minutos após o horário de início agendado.');
+      ).rejects.toThrow(
+        'Não é possível concluir um atendimento antes de 10 minutos após o horário de início agendado.',
+      );
     });
 
     it('should successfully complete a CONFIRMED appointment when at least 10 minutes have elapsed since start', async () => {
