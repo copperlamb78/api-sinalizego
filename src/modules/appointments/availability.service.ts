@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ApptStatus } from '@prisma/client';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { DEFAULT_SLOT_STEP_MINUTES } from 'src/common/constants/billing.constant';
 
 export interface AvailableSlotsResponse {
   date: string;
@@ -116,7 +118,7 @@ export class AvailabilityService {
     const [company, service, schedule] = await Promise.all([
       this.prisma.company.findUnique({
         where: { id: companyId, isActive: true },
-        select: { id: true },
+        select: { id: true, timezone: true },
       }),
       this.prisma.service.findUnique({
         where: { id: serviceId, isActive: true },
@@ -155,8 +157,9 @@ export class AvailabilityService {
       };
     }
 
+    const timezone = company.timezone || 'America/Sao_Paulo';
     const durationMinutes = service.durationMinutes;
-    const slotStepMinutes = 30; // Passo padrão da grade de agendamentos
+    const slotStepMinutes = DEFAULT_SLOT_STEP_MINUTES;
 
     const startMinutes = this.timeToMinutes(schedule.startTime);
     const endMinutes = this.timeToMinutes(schedule.endTime);
@@ -168,19 +171,17 @@ export class AvailabilityService {
       ? this.timeToMinutes(schedule.lunchEndTime)
       : null;
 
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const dayStartFilter = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    const dayEndFilter = new Date(
-      Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0),
-    );
+    // Converte início e fim do dia na timezone da empresa para instantes UTC (AG-02, AG-07)
+    const dayStartFilter = fromZonedTime(`${dateStr}T00:00:00.000`, timezone);
+    const dayEndFilter = fromZonedTime(`${dateStr}T23:59:59.999`, timezone);
 
-    // Consulta todos os agendamentos ativos concorrentes do dia para o mesmo grupo de serviço
+    // Consulta todos os agendamentos ativos concorrentes do dia local para o mesmo grupo de serviço
     const activeAppointments = await this.prisma.appointment.findMany({
       where: {
         companyId: company.id,
         isActive: true,
         status: { notIn: [ApptStatus.CANCELED, ApptStatus.NO_SHOW] },
-        appointmentDate: { gte: dayStartFilter, lt: dayEndFilter },
+        appointmentDate: { gte: dayStartFilter, lte: dayEndFilter },
         service: {
           serviceGroupId: service.serviceGroupId,
         },
@@ -226,7 +227,7 @@ export class AvailabilityService {
         }
       }
 
-      // ⚡ Bolt: Calculate start and end in milliseconds from the start of the UTC day mathematically to avoid expensive Date parsing in loop
+      // Converte o slot local para instante UTC matemático baseado na âncora do dia na timezone
       const slotStartMs = dayStartMs + slotStartMinutes * 60000;
       const slotEndMs = dayStartMs + slotEndMinutes * 60000;
 
@@ -261,12 +262,33 @@ export class AvailabilityService {
     companyId: string,
     appointmentStartDate: Date,
     appointmentEndDate: Date,
+    companyTimezone?: string,
   ): Promise<void> {
-    const year = appointmentStartDate.getUTCFullYear();
-    const month = (appointmentStartDate.getUTCMonth() + 1)
-      .toString()
-      .padStart(2, '0');
-    const day = appointmentStartDate.getUTCDate().toString().padStart(2, '0');
+    if (
+      appointmentStartDate.getUTCSeconds() !== 0 ||
+      appointmentStartDate.getUTCMilliseconds() !== 0
+    ) {
+      throw new BadRequestException(
+        'Horário do agendamento deve conter segundos e milissegundos zerados.',
+      );
+    }
+
+    let timezone = companyTimezone;
+    if (!timezone) {
+      const comp = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { timezone: true },
+      });
+      timezone = comp?.timezone || 'America/Sao_Paulo';
+    }
+
+    // Converte o instante UTC para a hora de parede na timezone da empresa (AG-02)
+    const localStart = toZonedTime(appointmentStartDate, timezone);
+    const localEnd = toZonedTime(appointmentEndDate, timezone);
+
+    const year = localStart.getFullYear();
+    const month = (localStart.getMonth() + 1).toString().padStart(2, '0');
+    const day = localStart.getDate().toString().padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
     const schedule = await this.resolveWorkingHoursForDate(companyId, dateStr);
@@ -277,12 +299,8 @@ export class AvailabilityService {
       );
     }
 
-    const apptStartMinutes =
-      appointmentStartDate.getUTCHours() * 60 +
-      appointmentStartDate.getUTCMinutes();
-    const apptEndMinutes =
-      appointmentEndDate.getUTCHours() * 60 +
-      appointmentEndDate.getUTCMinutes();
+    const apptStartMinutes = localStart.getHours() * 60 + localStart.getMinutes();
+    const apptEndMinutes = localEnd.getHours() * 60 + localEnd.getMinutes();
 
     const workStartMinutes = this.timeToMinutes(schedule.startTime);
     const workEndMinutes = this.timeToMinutes(schedule.endTime);
@@ -293,6 +311,13 @@ export class AvailabilityService {
     ) {
       throw new BadRequestException(
         `O horário solicitado (${this.minutesToTime(apptStartMinutes)} - ${this.minutesToTime(apptEndMinutes)}) está fora do expediente de funcionamento (${schedule.startTime} - ${schedule.endTime}).`,
+      );
+    }
+
+    // Validação de alinhamento com a grade de horários (AG-05)
+    if ((apptStartMinutes - workStartMinutes) % DEFAULT_SLOT_STEP_MINUTES !== 0) {
+      throw new BadRequestException(
+        `O horário solicitado (${this.minutesToTime(apptStartMinutes)}) não está alinhado com a grade de agendamentos de ${DEFAULT_SLOT_STEP_MINUTES} minutos.`,
       );
     }
 
