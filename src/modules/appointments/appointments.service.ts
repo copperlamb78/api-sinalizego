@@ -28,6 +28,7 @@ import {
   MAX_ACTIVE_APPOINTMENTS_PER_CLIENT,
   MAX_WEEKLY_CANCELLATIONS_LIMIT,
 } from 'src/common/constants/billing.constant';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class AppointmentsService {
@@ -92,6 +93,7 @@ export class AppointmentsService {
       company.id,
       startDate,
       endDate,
+      company.timezone,
     );
 
     const price = Number(service.totalPrice);
@@ -105,6 +107,9 @@ export class AppointmentsService {
     const appointment = await this.prisma.$transaction(async (tx) => {
       // 1. Lock pessimista na linha do usuário para serializar requisições concorrentes e evitar bypass de limites
       await tx.$executeRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+
+      // 1.1 Lock pessimista no grupo de serviço para evitar double-booking concorrente na mesma cadeira/capacidade (AG-01)
+      await tx.$executeRaw`SELECT id FROM "ServiceGroup" WHERE id = ${service.serviceGroupId} FOR UPDATE`;
 
       const now = new Date();
 
@@ -583,6 +588,12 @@ export class AppointmentsService {
       );
     }
 
+    if (appointment.status === ApptStatus.COMPLETED) {
+      throw new BadRequestException(
+        'Atendimento já concluído não pode ter seu status alterado.',
+      );
+    }
+
     if (dto.status === ApptStatus.COMPLETED) {
       if (appointment.status !== ApptStatus.CONFIRMED) {
         throw new BadRequestException(
@@ -670,6 +681,12 @@ export class AppointmentsService {
 
     if (appointment.status === 'CANCELED' || !appointment.isActive) {
       throw new BadRequestException('Agendamento já está inativo.');
+    }
+
+    if (appointment.status === ApptStatus.COMPLETED) {
+      throw new BadRequestException(
+        'Atendimento concluído não pode ser cancelado.',
+      );
     }
 
     // Regra de Cancelamento & Estorno (Conformidade CDC Art. 51 / Código Civil Arts. 417 a 420)
@@ -828,10 +845,10 @@ export class AppointmentsService {
       );
     }
 
-    // Trava Temporal: Não permitir conclusão antes do início do agendamento
-    if (new Date() < appointment.appointmentDate) {
+    // Trava Temporal: Não permitir conclusão antes do término do agendamento (AG-10)
+    if (new Date() < appointment.appointmentEndDate) {
       throw new BadRequestException(
-        'Não é possível concluir um atendimento antes do horário de início agendado.',
+        'Não é possível concluir um atendimento antes do horário de término agendado.',
       );
     }
 
@@ -1006,27 +1023,21 @@ export class AppointmentsService {
   async sendDailyAppointmentReminders(): Promise<number> {
     try {
       const now = new Date();
-      const tomorrowStart = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() + 1,
-          0,
-          0,
-          0,
-          0,
-        ),
+      const nowLocal = toZonedTime(now, 'America/Sao_Paulo');
+      const tomorrowLocal = new Date(nowLocal);
+      tomorrowLocal.setDate(nowLocal.getDate() + 1);
+      const year = tomorrowLocal.getFullYear();
+      const month = (tomorrowLocal.getMonth() + 1).toString().padStart(2, '0');
+      const day = tomorrowLocal.getDate().toString().padStart(2, '0');
+      const tomorrowDateStr = `${year}-${month}-${day}`;
+
+      const tomorrowStart = fromZonedTime(
+        `${tomorrowDateStr}T00:00:00.000`,
+        'America/Sao_Paulo',
       );
-      const tomorrowEnd = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() + 1,
-          23,
-          59,
-          59,
-          999,
-        ),
+      const tomorrowEnd = fromZonedTime(
+        `${tomorrowDateStr}T23:59:59.999`,
+        'America/Sao_Paulo',
       );
 
       const appointments = await this.prisma.appointment.findMany({
