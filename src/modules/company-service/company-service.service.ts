@@ -30,8 +30,22 @@ export class CompanyServiceService {
       );
     }
 
+    let financialProfile = company.financialProfile;
+    if (!financialProfile) {
+      const activeProfile = await this.prisma.financialProfile.findFirst({
+        where: { userId: userId, isActive: true },
+      });
+      if (activeProfile) {
+        await this.prisma.company.update({
+          where: { id: company.id },
+          data: { financialProfileId: activeProfile.id },
+        });
+        financialProfile = activeProfile;
+      }
+    }
+
     // Trava de Onboarding: o barbeiro deve ter configurado a conta financeira/bancária (Asaas) antes de cadastrar serviços
-    if (!company.financialProfile || !company.financialProfile.walletId) {
+    if (!financialProfile || !financialProfile.walletId) {
       throw new BadRequestException(
         'Para cadastrar serviços, você precisa primeiro configurar sua conta bancária/financeira no painel.',
       );
