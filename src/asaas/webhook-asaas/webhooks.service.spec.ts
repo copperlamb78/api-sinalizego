@@ -38,7 +38,11 @@ describe('WebhooksService', () => {
   const mockAsaasService = {
     refundPayment: jest.fn().mockResolvedValue(true),
     cancelPayment: jest.fn().mockResolvedValue(true),
-    getPaymentById: jest.fn(),
+    getPaymentById: jest
+      .fn()
+      .mockImplementation((id: string) =>
+        Promise.resolve({ id, status: 'RECEIVED' }),
+      ),
   };
 
   const mockMailService = {
@@ -173,6 +177,35 @@ describe('WebhooksService', () => {
           platformAbsorbedFee: 0,
         }),
       });
+    });
+
+    it('should fail closed and defer to reconciliation when getPaymentById throws (F-18)', async () => {
+      const activeAppt = {
+        id: 'appt-1',
+        status: ApptStatus.PENDING_PAYMENT,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      };
+
+      mockPrisma.transaction.findUnique.mockResolvedValue(mockTransaction);
+      mockPrisma.appointment.findUnique.mockResolvedValue(activeAppt);
+      mockAsaasService.getPaymentById.mockRejectedValueOnce(
+        new Error('Asaas API timeout'),
+      );
+
+      const result = await service.handleAsaasEvent(
+        'PAYMENT_CONFIRMED',
+        mockPayment,
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          received: true,
+          pendingReconciliation: true,
+        }),
+      );
+      expect(mockPrisma.transaction.update).not.toHaveBeenCalled();
+      expect(mockPrisma.appointment.update).not.toHaveBeenCalled();
     });
 
     it('should trigger automatic refund and update transaction to REFUNDED when payment is received for CANCELED appointment', async () => {
