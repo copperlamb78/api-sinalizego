@@ -201,6 +201,7 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `GET` | `/company/balance` | Consultar saldo liberado, retido em custódia (Escrow Hold) e data do próximo saque gratuito | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `POST` | `/company/withdraw` | Solicitar saque avulso sob demanda fora do ciclo semanal (tarifa Asaas de R$ 5,00) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `GET` | `/company/withdrawals` | Consultar histórico completo e extrato auditado de saques da empresa | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company/transactions` | Consultar extrato financeiro completo da empresa (depósitos, saques, retenções e estornos) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `POST` | `/company/create` | Criar empresa (com novo usuário) | ❌ | — |
 | `POST` | `/company/create-company-to-user` | Criar empresa para usuário existente | 🔑 JWT | — |
 | `GET` | `/company/get-by-user-id` | Buscar empresa por userId | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
@@ -272,8 +273,8 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `PATCH` | `/appointments/:id/complete` | Concluir atendimento realizado com trava temporal (`now >= appointmentDate`) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/appointments/:id/no-show` | Registrar falta do cliente (No-Show) com retenção de sinal e trava de tolerância (+15 min) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 | `PATCH` | `/appointments/:id/status` | Atualizar status do agendamento (apenas transições válidas) | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
-| `DELETE` | `/appointments/:id/client` | Cancelar agendamento pelo cliente (estorno integral se > 24h ou estorno do excedente ao sinal mínimo se <= 24h) | 🔑 JWT | — |
-| `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento com log de auditoria | 🔑 JWT | — |
+| `DELETE` | `/appointments/:id/client` | Cancelar agendamento pelo cliente (estorno Pix do sinal se > 24h, crédito para o cliente se 2h a 24h, ou retenção de 100% do sinal se < 2h) | 🔑 JWT | — |
+| `DELETE` | `/appointments/:id/deactivate` | Cancelar/Desativar agendamento aplicando política de 3 faixas de cancelamento e log de auditoria | 🔑 JWT | — |
 
 ---
 
@@ -620,8 +621,10 @@ src/
     │   ├── dto/
     │   │   ├── company-create.dto.ts
     │   │   ├── company-filter.dto.ts
+    │   │   ├── company-transactions.dto.ts
     │   │   ├── company-update.dto.ts
-    │   │   └── dashboard-metrics.dto.ts
+    │   │   ├── dashboard-metrics.dto.ts
+    │   │   └── withdraw.dto.ts
     │   └── helpers/
     │       └── create-slug.helper.ts
     │
@@ -701,7 +704,7 @@ src/
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **36 suítes de teste e 404 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **36 suítes de teste e 409 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -715,7 +718,7 @@ npm test
 - **E-mails Transacionais & Lembretes D-1 (`MailModule`):** Disparo assíncrono e resiliente via Brevo API com novo layout Dark Mode institucional (`#0B1120`, `#0F172A`, `#1E293B`, `#14B8A6`, `#EF4444`) e templates dedicados:
   - **Boas-Vindas (`sendWelcomeEmail`):** Disparado no cadastro de novos usuários em `UsersService.createUser` com mensagem personalizada por perfil (`CLIENT` / `COMPANY_OWNER`) e card de vantagens.
   - **Confirmação de Agendamento (`sendAppointmentConfirmationEmail`):** Disparado via Webhook Asaas (`PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`) com card detalhado do serviço, data/hora formatada no fuso da empresa e sinal pago Pix em destaque.
-  - **Cancelamento, Estorno & Blindagem Jurídica (CDC Art. 51 / CC Arts. 417 a 420):** Disparado no cancelamento com aviso explícito e estilizado no e-mail: estorno integral do Pix via Asaas para cancelamentos com mais de 24h (`> 24h`); para cancelamentos tardios (`<= 24h`), retenção estrita do sinal mínimo de garantia do serviço (`guaranteedDepositAmount` baseado no piso de 25%/50% e Safety Gate de R$ 15,00) como indenização por vacância, com **estorno parcial automático via Asaas** de qualquer quantia excedente paga antecipadamente pelo cliente (ex: 50%, 75% ou 100%).
+  - **Cancelamento, Estorno & Blindagem Jurídica (CDC Art. 51 / CC Arts. 417 a 420):** Política de 3 faixas de cancelamento com blindagem contra prejuízo: estorno Pix do sinal pago para cancelamentos com mais de 24h (`> 24h`, taxa da plataforma retida); conversão do sinal em crédito para o cliente usar no estabelecimento em até 90 dias (`2h a 24h`); retenção integral de 100% do sinal pago para o estabelecimento a título de compensação de vacância para cancelamentos com menos de 2h (`< 2h`).
   - **Lembrete de Véspera D-1 (`sendDailyAppointmentReminders`):** Cron job diário às 19:00 (`@Cron('0 19 * * *')`) notificando clientes sobre agendamentos do dia seguinte com isolamento de falhas por lote.
   - **Recuperação de Senha (`sendPasswordResetEmail`):** Instruções seguras com botão CTA estilizado e link de contingência válido por 15 minutos.
 - **Usuários, Gestão de Contas & Checkout Fluido:** Omissão de senhas e tokens na listagem (`USER_PUBLIC_SELECT`), alteração de senha autenticada, validação de unicidade de e-mail e CPF, rota para auto-desativação (`DELETE /users/me`), rotas administrativas exclusivas para desativação e reativação de contas de terceiros (`DELETE /users/:userId` e `PATCH /users/:userId/activate` restritas a `SYSTEM_MANAGERS`), e suporte a **CPF inline em agendamentos (`POST /appointments`)**, permitindo que o cliente informe o documento no momento da reserva sem interrupção de compra, com criação automática do cliente no gateway Asaas e atualização do perfil.
