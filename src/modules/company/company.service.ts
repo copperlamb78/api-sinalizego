@@ -31,7 +31,6 @@ import { WithdrawDto } from './dto/withdraw.dto';
 import { CompanyTransactionsDto } from './dto/company-transactions.dto';
 import { AsaasService } from 'src/asaas/asaas.service';
 import {
-  ASAAS_TRANSFER_FEE,
   MIN_FREE_WEEKLY_PAYOUT,
 } from 'src/common/constants/billing.constant';
 import { Cron } from '@nestjs/schedule';
@@ -577,7 +576,6 @@ export class CompanyService {
       retainedAmount: number;
       reason: string;
     }> = [];
-    let completedDepositsNet = 0;
     let escrowLockedBalance = 0;
 
     const servicesMap = new Map<
@@ -675,20 +673,6 @@ export class CompanyService {
     }
 
     const totalAppointments = appointments.length;
-
-    const completedTxAgg = await this.prisma.transaction.aggregate({
-      where: {
-        appointment: {
-          companyId: company.id,
-          isActive: true,
-          status: ApptStatus.COMPLETED,
-        },
-        type: TransactionType.DEPOSIT,
-        status: TransactionStatus.CONFIRMED,
-      },
-      _sum: { netValue: true },
-    });
-    completedDepositsNet = Number(completedTxAgg._sum.netValue || 0);
 
     const escrowTxAgg = await this.prisma.transaction.aggregate({
       where: {
@@ -908,7 +892,9 @@ export class CompanyService {
     const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
     const escrowLockedBalance = Number(escrowAgg._sum.netValue || 0);
     const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
-    const rawBalance = Number((completedNetRevenue - totalWithdrawn).toFixed(2));
+    const rawBalance = Number(
+      (completedNetRevenue - totalWithdrawn).toFixed(2),
+    );
     const availableBalance = Math.max(0, rawBalance);
     const debtBalance = rawBalance < 0 ? Math.abs(rawBalance) : 0;
 
@@ -1514,10 +1500,7 @@ export class CompanyService {
 
     const financialProfile = await this.prisma.financialProfile.findFirst({
       where: {
-        OR: [
-          { userId },
-          { companies: { some: { id: company.id } } },
-        ],
+        OR: [{ userId }, { companies: { some: { id: company.id } } }],
         isActive: true,
       },
       select: { walletId: true },
