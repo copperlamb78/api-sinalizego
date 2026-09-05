@@ -21,6 +21,7 @@ import { ServiceGroupModule } from './service-group/service-group.module';
 import { MailModule } from './modules/mail/mail.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { InvoiceModule } from './modules/invoice/invoice.module';
 import { validate } from './common/env.validation';
 
 @Module({
@@ -53,6 +54,7 @@ import { validate } from './common/env.validation';
     MailModule,
     WorkingHoursModule,
     AdminModule,
+    InvoiceModule,
   ],
   controllers: [AppController],
   providers: [
