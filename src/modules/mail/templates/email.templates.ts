@@ -496,3 +496,45 @@ export function getPasswordResetEmailTemplate(
     },
   });
 }
+
+/**
+ * 6. Template de Alerta de Erro na Emissão de NFS-e (Admin Alert)
+ */
+export function getInvoiceErrorAlertEmailTemplate(data: {
+  invoiceId: string;
+  companyName: string;
+  companyId: string;
+  competence: string;
+  grossAmount: number | string;
+  errorMessage: string;
+}): string {
+  const introHtml = `
+    Atenção, Administrador!<br><br>
+    Ocorreu uma falha na autorização/emissão da <strong>NFS-e</strong> junto à prefeitura via gateway Asaas.<br>
+    O gateway não realiza retentativas automáticas em notas rejeitadas; a correção cadastral ou ajuste no painel do Asaas é necessária.
+  `;
+
+  const infoCardHtml = `
+    <tr>
+        <td style="padding-bottom: 12px;">
+            <span style="color: #EF4444; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Detalhes da Falha</span><br>
+            <p style="color: #F8FAFC; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;">
+                🏢 <strong>Empresa:</strong> ${data.companyName} (#${data.companyId})<br>
+                📅 <strong>Competência:</strong> ${data.competence}<br>
+                💰 <strong>Valor Consolidado:</strong> R$ ${Number(data.grossAmount).toFixed(2)}<br>
+                🆔 <strong>ID da Invoice:</strong> ${data.invoiceId}<br>
+                ⚠️ <strong>Motivo do Erro:</strong> <span style="color: #EF4444;">${data.errorMessage}</span>
+            </p>
+        </td>
+    </tr>
+  `;
+
+  return baseEmailLayout({
+    title: '⚠️ Erro na Emissão de NFS-e — SinalizeGO',
+    previewText: `Falha na emissão de NFS-e para ${data.companyName} (${data.competence})`,
+    actionTitle: 'Falha na Emissão de NFS-e ⚠️',
+    actionTitleColor: '#EF4444',
+    introHtml,
+    infoCardHtml,
+  });
+}
