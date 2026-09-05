@@ -61,6 +61,11 @@ export class FinancialProfileService {
 
     if (existingDoc) {
       if (existingDoc.userId === userId) {
+        await this.prisma.company.updateMany({
+          where: { userId: userId, financialProfileId: null, isActive: true },
+          data: { financialProfileId: existingDoc.id },
+        });
+
         return {
           ...existingDoc,
           birthDate: existingDoc.birthDate
@@ -75,7 +80,41 @@ export class FinancialProfileService {
       }
     }
 
-    const assasWalletId = await this.asaasService.createSubAccount(data);
+    // CA-07: Herança automática de endereço da empresa ativa caso omitido
+    let address = data.address;
+    let addressNumber = data.addressNumber;
+    let province = data.province;
+    let postalCode = data.postalCode;
+
+    if (!address || !addressNumber || !province || !postalCode) {
+      const activeCompany = await this.prisma.company.findFirst({
+        where: { userId: userId, isActive: true },
+      });
+
+      if (activeCompany) {
+        address = address || activeCompany.street;
+        addressNumber = addressNumber || activeCompany.number;
+        province = province || activeCompany.district;
+        postalCode = postalCode || activeCompany.zipCode;
+      }
+    }
+
+    if (!address || !addressNumber || !province || !postalCode) {
+      throw new BadRequestException(
+        'Endereço completo (logradouro, número, bairro e CEP) é obrigatório para abertura de conta de recebimento.',
+      );
+    }
+
+    const subAccountPayload = {
+      ...data,
+      address,
+      addressNumber,
+      province,
+      postalCode,
+    };
+
+    const assasWalletId =
+      await this.asaasService.createSubAccount(subAccountPayload);
 
     // Criptografa a chave da subconta Asaas em repouso
     const encryptedApiKey = assasWalletId.apiKey
@@ -91,10 +130,10 @@ export class FinancialProfileService {
         companyType: data.companyType || null,
         mobilePhone: data.mobilePhone.replace(/\D/g, ''),
         incomeValue: data.incomeValue,
-        address: data.address,
-        addressNumber: data.addressNumber,
-        province: data.province,
-        postalCode: data.postalCode.replace(/\D/g, ''),
+        address: address,
+        addressNumber: addressNumber,
+        province: province,
+        postalCode: postalCode.replace(/\D/g, ''),
         walletId: assasWalletId.walletId,
         pixAddressKey: data.pixAddressKey,
         pixAddressKeyType: data.pixAddressKeyType,
@@ -102,6 +141,12 @@ export class FinancialProfileService {
         userId: userId,
       },
       select: FINANCIAL_PROFILE_OWNER_SELECT,
+    });
+
+    // Vincula empresas ativas do usuário ao novo perfil financeiro criado
+    await this.prisma.company.updateMany({
+      where: { userId: userId, financialProfileId: null, isActive: true },
+      data: { financialProfileId: newProfile.id },
     });
 
     if (user.role !== 'COMPANY_OWNER') {
