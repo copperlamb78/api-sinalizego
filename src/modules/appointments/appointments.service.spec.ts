@@ -134,6 +134,7 @@ describe('AppointmentsService', () => {
       durationMinutes: 30,
       totalPrice: 50.0,
       downPaymentPercent: 50,
+      serviceGroupId: '11111111-1111-4111-8111-111111111111',
       serviceGroup: { capacity: 2 },
     };
 
@@ -332,7 +333,7 @@ describe('AppointmentsService', () => {
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue({
         ...mockService,
-        serviceGroupId: 'group-1',
+        serviceGroupId: '11111111-1111-4111-8111-111111111111',
       });
       mockPrisma.appointment.findMany.mockResolvedValue([]); // Nenhuma reserva ativa não-expirada ocupando vaga
       mockPrisma.appointment.create.mockResolvedValue({ id: 'appt-new' });
@@ -355,7 +356,7 @@ describe('AppointmentsService', () => {
             appointmentDate: { lt: expect.any(Date) },
             appointmentEndDate: { gt: expect.any(Date) },
             service: {
-              serviceGroupId: 'group-1',
+              serviceGroupId: '11111111-1111-4111-8111-111111111111',
             },
             OR: [
               { status: { not: ApptStatus.PENDING_PAYMENT } },
@@ -371,7 +372,7 @@ describe('AppointmentsService', () => {
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue({
         ...mockService,
-        serviceGroupId: 'group-1',
+        serviceGroupId: '11111111-1111-4111-8111-111111111111',
         serviceGroup: { capacity: 1 }, // Capacidade de apenas 1 atendimento simultâneo
       });
       // 1. Cancelamentos semanais = 0; 2. Limite por cliente = 0; 3. Sobreposição de capacidade = 1 (capacidade atingida)
@@ -710,6 +711,20 @@ describe('AppointmentsService', () => {
       });
       expect(result.status).toEqual(ApptStatus.CANCELED);
     });
+
+    it('should throw BadRequestException when trying to update status of a COMPLETED appointment', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        ...appointmentMock,
+        status: ApptStatus.COMPLETED,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(ownerUserMock);
+
+      await expect(
+        service.updateAppointmentStatus('appointment-1', 'owner-1', {
+          status: ApptStatus.CANCELED,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('deactivateAppointment', () => {
@@ -762,6 +777,21 @@ describe('AppointmentsService', () => {
         }),
       });
       expect(result.status).toEqual(ApptStatus.CANCELED);
+    });
+
+    it('should throw BadRequestException when trying to deactivate a COMPLETED appointment', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        ...appointmentMock,
+        status: ApptStatus.COMPLETED,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'client-1',
+        role: Role.CLIENT,
+      });
+
+      await expect(
+        service.deactivateAppointment('appointment-1', 'client-1'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -895,7 +925,7 @@ describe('AppointmentsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should throw BadRequestException if appointmentDate is in the future', async () => {
+    it('should throw BadRequestException if appointmentDate is in the future or less than 10 minutes from start', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue({
         id: 'appt-1',
         status: ApptStatus.CONFIRMED,
@@ -909,14 +939,31 @@ describe('AppointmentsService', () => {
 
       await expect(
         service.completeAppointment('appt-1', 'owner-1'),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow('Não é possível concluir um atendimento antes de 10 minutos após o horário de início agendado.');
     });
 
-    it('should successfully complete a CONFIRMED appointment when appointmentDate is past or now', async () => {
+    it('should throw BadRequestException if less than 10 minutes have elapsed since appointment start', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue({
         id: 'appt-1',
         status: ApptStatus.CONFIRMED,
-        appointmentDate: new Date(Date.now() - 30 * 60 * 1000), // 30min no passado
+        appointmentDate: new Date(Date.now() - 5 * 60 * 1000), // apenas 5 min decorridos
+        company: { userId: 'owner-1' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+
+      await expect(
+        service.completeAppointment('appt-1', 'owner-1'),
+      ).rejects.toThrow('Não é possível concluir um atendimento antes de 10 minutos após o horário de início agendado.');
+    });
+
+    it('should successfully complete a CONFIRMED appointment when at least 10 minutes have elapsed since start', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        status: ApptStatus.CONFIRMED,
+        appointmentDate: new Date(Date.now() - 30 * 60 * 1000), // 30min no passado (>= 10min)
         company: { userId: 'owner-1' },
       });
       mockPrisma.user.findUnique.mockResolvedValue({
