@@ -15,6 +15,13 @@ describe('CompanyServiceService', () => {
     company: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    financialProfile: {
+      findFirst: jest.fn(),
+    },
+    serviceGroup: {
+      findFirst: jest.fn(),
     },
     service: {
       create: jest.fn(),
@@ -145,6 +152,7 @@ describe('CompanyServiceService', () => {
         id: 'comp-1',
         financialProfile: null,
       });
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
 
       await expect(
         service.createService(createDto as any, 'user-1'),
@@ -153,6 +161,36 @@ describe('CompanyServiceService', () => {
           'Para cadastrar serviços, você precisa primeiro configurar sua conta bancária/financeira no painel.',
         ),
       );
+    });
+
+    it('should heal and allow service creation if company has null financialProfile but user has active profile with walletId', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        financialProfile: null,
+      });
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-active-1',
+        walletId: 'wal_auto_123',
+        isActive: true,
+      });
+      mockPrisma.serviceGroup = {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '11111111-1111-4111-8111-111111111111',
+          companyId: 'comp-1',
+        }),
+      };
+      mockPrisma.service.create.mockResolvedValue({
+        id: 'srv-1',
+        name: createDto.name,
+      });
+
+      const result = await service.createService(createDto as any, 'user-1');
+
+      expect(mockPrisma.company.update).toHaveBeenCalledWith({
+        where: { id: 'comp-1' },
+        data: { financialProfileId: 'fp-active-1' },
+      });
+      expect(result.id).toBe('srv-1');
     });
 
     it('should throw NotFoundException if serviceGroup does not belong to the user company (Anti-IDOR)', async () => {
