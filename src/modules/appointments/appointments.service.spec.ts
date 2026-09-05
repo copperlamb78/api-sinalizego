@@ -692,6 +692,8 @@ describe('AppointmentsService', () => {
       id: 'appointment-1',
       clientId: 'client-1',
       status: ApptStatus.CONFIRMED,
+      isActive: true,
+      appointmentDate: new Date(Date.now() - 3600000),
       company: {
         id: 'company-1',
         userId: 'owner-1',
@@ -787,13 +789,15 @@ describe('AppointmentsService', () => {
         { status: ApptStatus.COMPLETED },
       );
 
-      expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
-        where: { id: 'appointment-1' },
-        data: {
-          status: ApptStatus.COMPLETED,
-          completedAt: expect.any(Date),
-        },
-      });
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'appointment-1' },
+          data: expect.objectContaining({
+            status: ApptStatus.COMPLETED,
+            completedAt: expect.any(Date),
+          }),
+        }),
+      );
       expect(result.status).toEqual(ApptStatus.COMPLETED);
     });
 
@@ -1250,8 +1254,8 @@ describe('AppointmentsService', () => {
 
       expect(mockAsaasService.refundPayment).toHaveBeenCalledWith(
         'pay_123',
-        undefined,
-        'Cancelamento com antecedência superior a 24 horas (estorno integral).',
+        50.0,
+        'Cancelamento com antecedência superior a 24 horas (estorno do sinal).',
       );
       expect(
         mockMailService.sendAppointmentCancellationEmail,
@@ -1261,14 +1265,14 @@ describe('AppointmentsService', () => {
           customerName: 'Cliente Teste',
           companyName: 'Barbearia VIP',
           isRefunded: true,
-          refundAmount: 55.0,
+          refundAmount: 50.0,
         }),
       );
       expect(result.status).toBe(ApptStatus.CANCELED);
     });
 
-    it('should NOT trigger Asaas refund when canceled <= 24h before appointment, retaining 100% of deposit (Regra N6)', async () => {
-      const nearFutureDate = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h no futuro
+    it('should NOT trigger Asaas refund when canceled < 2h before appointment, retaining 100% of deposit (Regra N6c)', async () => {
+      const nearFutureDate = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1h no futuro (< 2h)
       const apptMock = {
         id: 'appt-1',
         appointmentDate: nearFutureDate,
@@ -1323,6 +1327,64 @@ describe('AppointmentsService', () => {
         expect.objectContaining({
           isRefunded: false,
           refundAmount: undefined,
+        }),
+      );
+    });
+
+    it('should NOT trigger Asaas refund nor retain deposit when canceled between 2h and 24h before (Regra N6b - credito)', async () => {
+      const midFutureDate = new Date(Date.now() + 5 * 60 * 60 * 1000); // 5h no futuro (entre 2h e 24h)
+      const apptMock = {
+        id: 'appt-1',
+        appointmentDate: midFutureDate,
+        status: ApptStatus.CONFIRMED,
+        isActive: true,
+        servicePrice: 100.0,
+        downPaymentAmount: 50.0,
+        company: {
+          userId: 'owner-1',
+          businessName: 'Barbearia VIP',
+          timezone: 'America/Sao_Paulo',
+        },
+        client: {
+          id: 'client-1',
+          name: 'Cliente Teste',
+          email: 'cliente@test.com',
+        },
+        service: {
+          id: 'srv-1',
+          name: 'Corte Degradê',
+          totalPrice: 100,
+          downPaymentPercent: 50,
+        },
+      };
+
+      mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+      mockPrisma.transaction.findFirst.mockResolvedValue({
+        id: 'tx-1',
+        appointmentId: 'appt-1',
+        asaasPaymentId: 'pay_123',
+        totalValue: 55.0,
+        status: TransactionStatus.CONFIRMED,
+      });
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...apptMock,
+        status: ApptStatus.CANCELED,
+        retainedDepositAmount: null,
+        isActive: false,
+      });
+
+      await service.deactivateAppointment('appt-1', 'owner-1');
+
+      expect(mockAsaasService.refundPayment).not.toHaveBeenCalled();
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            retainedDepositAmount: null,
+          }),
         }),
       );
     });
