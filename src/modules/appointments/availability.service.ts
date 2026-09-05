@@ -198,6 +198,7 @@ export class AvailabilityService {
     const maxCapacity = service.serviceGroup?.capacity ?? 1;
     const nowMs = Date.now();
     const availableSlots: string[] = [];
+    const dayStartMs = dayStartFilter.getTime();
 
     // Pre-calculate appointment times in milliseconds to avoid O(N * M) Date parsing
     // ⚡ Bolt: Memoize expensive Date parsing outside the slot check loop
@@ -225,27 +226,17 @@ export class AvailabilityService {
         }
       }
 
-      const slotStartHour = Math.floor(slotStartMinutes / 60);
-      const slotStartMin = slotStartMinutes % 60;
-      const slotEndHour = Math.floor(slotEndMinutes / 60);
-      const slotEndMin = slotEndMinutes % 60;
-
-      const slotStartDate = new Date(
-        Date.UTC(year, month - 1, day, slotStartHour, slotStartMin, 0),
-      );
-      const slotEndDate = new Date(
-        Date.UTC(year, month - 1, day, slotEndHour, slotEndMin, 0),
-      );
+      // ⚡ Bolt: Calculate start and end in milliseconds from the start of the UTC day mathematically to avoid expensive Date parsing in loop
+      const slotStartMs = dayStartMs + slotStartMinutes * 60000;
+      const slotEndMs = dayStartMs + slotEndMinutes * 60000;
 
       // 2. Exclusão de horários passados caso a data consultada seja hoje
       // ⚡ Bolt: Cache slotStartMs early to do fast integer comparison instead of Date object comparison against now
-      const slotStartMs = slotStartDate.getTime();
       if (slotStartMs <= nowMs) {
         continue;
       }
 
       // 3. Verificação de sobreposição com agendamentos existentes no grupo de serviço
-      const slotEndMs = slotEndDate.getTime();
 
       let overlappingCount = 0;
       for (const appt of activeAppointmentsMs) {

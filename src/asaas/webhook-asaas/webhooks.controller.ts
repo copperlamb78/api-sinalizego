@@ -31,7 +31,24 @@ export class WebhooksController {
   @ApiResponse({ status: 401, description: 'Token de webhook inválido' })
   async handleAsaasWebhook(@Body() payload: AsaasWebhookDto) {
     try {
-      const { event, payment, id: eventId } = payload || {};
+      const { event, payment, invoice, id: eventId } = payload || {};
+
+      if (event?.startsWith('INVOICE_')) {
+        if (!invoice?.id) {
+          return {
+            received: true,
+            ignored: true,
+            reason: 'Missing invoice.id',
+          };
+        }
+        return await this.webhooksService.handleInvoiceEvent(
+          event,
+          invoice,
+          eventId,
+          payload,
+        );
+      }
+
       if (!payment?.id) {
         return { received: true };
       }

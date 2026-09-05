@@ -46,6 +46,7 @@ summarised here.
    code — both in the same change.
 5. **Never commit to `main` and never `git push` without consent.** Present work
    as a Pull Request. Commit messages in Portuguese, Conventional Commits.
+   **Um commit por arquivo** para facilitar o code review (`git add <arquivo> && git commit`).
 6. **Financial values are derived server-side**, never read from a request body.
 7. **`CONFIRMED` is set only by the authenticated Asaas webhook.**
 

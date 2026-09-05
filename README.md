@@ -35,10 +35,11 @@
 | 💈 **Catálogo & Regras de Sinal** | CRUD completo de serviços com sinal automático (50% padrão com piso de R$ 15,00, ou 30% para serviços >= R$ 400,00) e trava de onboarding financeiro obrigatório |
 | 📅 **Agendamentos Blindados** | Cálculo 100% automático de sinal no backend, lock pessimista FOR UPDATE, limite de 2 reservas ativas e bloqueio por excesso de cancelamentos (HTTP 429) |
 | 💳 **Perfil Financeiro & Split (Asaas)** | Criação de subcontas no Asaas Sandbox e cobranças Pix com split para a carteira da empresa derivadas 100% do banco |
-| ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
+| 🧾 **NFS-e Automática Mensal** | Regime de competência mensal consolidando a taxa de comissão bruta da plataforma por barbearia, emissão de NFS-e via Asaas e conciliação em tempo real por Webhook |
+| ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` e eventos de NFS-e (`INVOICE_AUTHORIZED`, `INVOICE_ERROR`) com alerta por e-mail |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 371 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, registro de No-Show com travas temporais, Prejuízo Evitado, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
+| 🧪 **Suíte de Testes Completa** | 386 testes unitários automatizados (36 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, emissão e webhooks de NFS-e, No-Show com travas temporais, Escrow Hold, saques e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -329,6 +330,19 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ---
 
+### 🧾 Invoices — Notas Fiscais Eletrônicas (NFS-e)
+
+> Faturamento por Regime de Competência Mensal, consolidando a taxa de comissão bruta da plataforma por empresa e emitindo NFS-e única via API do Asaas com acompanhamento de webhooks em tempo real e extrato de atendimentos.
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `GET` | `/company/invoices` | Listar as NFS-e emitidas para a empresa do usuário logado (com links de PDF e XML) | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/company/invoices/:id/appointments` | Consultar extrato detalhado dos agendamentos cobertos por uma NFS-e específica | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/admin/invoices` | Listagem global consolidada de todas as NFS-e emitidas na plataforma (Admin) | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `GET` | `/admin/invoices/:id/appointments` | Consultar extrato de agendamentos de uma NFS-e no painel administrativo | 🔑 JWT | `SYSTEM_MANAGERS` |
+
+---
+
 ## 🗄️ Banco de Dados
 
 ### Diagrama de Entidades
@@ -340,6 +354,8 @@ erDiagram
     Company ||--o{ ServiceGroup : "organiza"
     Company ||--o{ Service : "oferece"
     Company ||--o{ Appointment : "recebe"
+    Company ||--o{ PlatformInvoice : "recebe"
+    PlatformInvoice ||--o{ Appointment : "cobre"
     Company ||--o{ WorkingHour : "define"
     Company ||--o{ ScheduleException : "configura"
     ServiceGroup ||--o{ Service : "agrupa (Restrict)"
@@ -377,6 +393,7 @@ erDiagram
         string number
         string logoPhoto
         string bannerPhoto
+        string platformCustomerId
         boolean isActive
         datetime createdAt
         datetime updatedAt
@@ -414,8 +431,10 @@ erDiagram
         string companyId FK
         string serviceId FK
         string clientId FK
+        string platformInvoiceId FK
         datetime appointmentDate
         datetime appointmentEndDate
+        datetime completedAt
         enum status "PENDING_PAYMENT | CONFIRMED | COMPLETED | CANCELED | NO_SHOW"
         datetime expiresAt
         string pixTxId
@@ -431,6 +450,27 @@ erDiagram
         datetime createdAt
         datetime updatedAt
         datetime disabledAt
+    }
+
+    PlatformInvoice {
+        string id PK
+        string companyId FK
+        int periodMonth
+        int periodYear
+        datetime periodStart
+        datetime periodEnd
+        decimal grossAmount
+        int appointmentsCount
+        string asaasInvoiceId
+        enum status "SCHEDULED | SYNCHRONIZED | AUTHORIZED | PROCESSING_CANCELLATION | CANCELED | CANCELLATION_DENIED | ERROR"
+        string invoiceNumber
+        string pdfUrl
+        string xmlUrl
+        string errorMessage
+        datetime effectiveDate
+        datetime authorizedAt
+        datetime createdAt
+        datetime updatedAt
     }
 
     WorkingHour {
@@ -639,19 +679,28 @@ src/
     │   └── templates/
     │       └── email.templates.ts
     │
-    └── 💳 transactions/
-        ├── transactions.module.ts
-        ├── transactions.controller.ts
-        ├── transactions.controller.spec.ts
-        ├── transactions.service.ts
-        └── transactions.service.spec.ts
+    ├── 💳 transactions/
+    │   ├── transactions.module.ts
+    │   ├── transactions.controller.ts
+    │   ├── transactions.controller.spec.ts
+    │   ├── transactions.service.ts
+    │   └── transactions.service.spec.ts
+    │
+    └── 🧾 invoice/
+        ├── invoice.module.ts
+        ├── invoice.controller.ts
+        ├── invoice.service.ts
+        ├── invoice.service.spec.ts
+        └── dto/
+            ├── list-company-invoices.dto.ts
+            └── list-admin-invoices.dto.ts
 ```
 
 ---
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **35 suítes de teste e 369 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **36 suítes de teste e 386 testes unitários automatizados**.
 
 Para rodar todos os testes:
 

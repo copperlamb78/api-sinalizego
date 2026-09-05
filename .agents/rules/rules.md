@@ -120,7 +120,9 @@ purpose is to catch a change made out of confusion, not to gatekeep.
 | write or change any `*.spec.ts` | `docs/testes.md` |
 | call the Asaas API, handle webhooks, refunds or transfers | `docs/integracao-asaas.md` |
 | the user mentions a finding ID (S-xx, O-xx, A-xx) | `docs/debitos-tecnicos.md` |
+| the user mentions F-xx, AG-xx, CA-xx, DOC-xx, NF-xx, DF-xx or DI-xx | the matching `docs/tasks-*.md` (`financeiro` · `agendamento` · `cadastro` · `nota-fiscal` · `promocoes`); DOC-xx lives in `docs/readme-sync.md` §7 |
 | you need an end-to-end flow before answering | `docs/fluxos.md` |
+| touch anything the README describes — route, DTO, constant, model, file, env, script | `docs/readme-sync.md` |
 
 **Deep sources** — read only when a module sends you there:
 `docs/analise-gateway-ab163ab.md` · `docs/analise-otimizacao-seguranca-ab163ab.md`
@@ -154,11 +156,13 @@ flag it under §1B.
 - Never commit directly. Present changes as a Pull Request in chat markdown
   (summary + diff). Run `git commit` only after explicit approval, and never
   `git push` without consent.
+- **Um commit por arquivo.** Para facilitar o code review, realize **um commit individual por arquivo** (`git add <arquivo> && git commit -m '...'`), com mensagem semântica em Conventional Commits em português descrevendo a alteração daquele arquivo específico.
 - Commit messages in **Portuguese**, Conventional Commits: `feat(modulo): …`,
   `fix(seguranca): …`.
 - Any PR touching code, endpoints, DTOs, entities, helpers, tests or business
-  rules MUST update `README.md` in the same PR. Full checklist in
-  `docs/regras-api.md`.
+  rules MUST update `README.md` in the same PR — the **section the change
+  affects**, not just the test count. Trigger table and verification commands
+  in `docs/readme-sync.md`.
 - Mock every third-party API (Asaas, Cloudinary, Brevo) in `*.spec.ts`. Zero
   real external calls in tests.
 
