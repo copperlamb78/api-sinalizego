@@ -238,9 +238,15 @@ export class AvailabilityService {
 
       // 3. Verificação de sobreposição com agendamentos existentes no grupo de serviço
 
-      const overlappingCount = activeAppointmentsMs.filter(
-        (appt) => appt.startMs < slotEndMs && appt.endMs > slotStartMs,
-      ).length;
+      let overlappingCount = 0;
+      for (const appt of activeAppointmentsMs) {
+        if (appt.startMs < slotEndMs && appt.endMs > slotStartMs) {
+          overlappingCount++;
+          if (overlappingCount >= maxCapacity) {
+            break;
+          }
+        }
+      }
 
       if (overlappingCount < maxCapacity) {
         availableSlots.push(this.minutesToTime(currentMinutes));
