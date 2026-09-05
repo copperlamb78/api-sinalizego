@@ -121,10 +121,28 @@ export class CompanyService {
     const company = isSystemManager
       ? await this.prisma.company.findUnique({
           where: { id: companyId },
+          include: {
+            financialProfile: {
+              select: {
+                id: true,
+                walletId: true,
+                isActive: true,
+              },
+            },
+          },
         })
       : userId
         ? await this.prisma.company.findFirst({
             where: { id: companyId, userId, isActive: true },
+            include: {
+              financialProfile: {
+                select: {
+                  id: true,
+                  walletId: true,
+                  isActive: true,
+                },
+              },
+            },
           })
         : null;
 
@@ -139,6 +157,13 @@ export class CompanyService {
     if (!user) {
       throw new NotFoundException('Usuário não encontrado.');
     }
+
+    const activeFinancialProfile = await this.prisma.financialProfile.findFirst(
+      {
+        where: { userId: userId, isActive: true },
+        select: { id: true },
+      },
+    );
 
     const slug = await this.slugHelper.createSlug(data.businessName);
 
@@ -155,6 +180,7 @@ export class CompanyService {
         number: data.number,
         whatsapp: data.phone,
         userId: userId,
+        financialProfileId: activeFinancialProfile?.id || null,
       },
     });
 
@@ -183,7 +209,16 @@ export class CompanyService {
 
   async getCompanyByUserId(userId: string) {
     const company = await this.prisma.company.findFirst({
-      where: { userId: userId },
+      where: { userId: userId, isActive: true },
+      include: {
+        financialProfile: {
+          select: {
+            id: true,
+            walletId: true,
+            isActive: true,
+          },
+        },
+      },
     });
 
     if (!company) {
@@ -191,11 +226,36 @@ export class CompanyService {
         'Nenhuma empresa encontrada para este usuário.',
       );
     }
+
+    if (!company.financialProfile) {
+      const activeProfile = await this.prisma.financialProfile.findFirst({
+        where: { userId: userId, isActive: true },
+        select: {
+          id: true,
+          walletId: true,
+          isActive: true,
+        },
+      });
+
+      if (activeProfile) {
+        await this.prisma.company.update({
+          where: { id: company.id },
+          data: { financialProfileId: activeProfile.id },
+        });
+
+        return {
+          ...company,
+          financialProfileId: activeProfile.id,
+          financialProfile: activeProfile,
+        };
+      }
+    }
+
     return company;
   }
 
   async getAllCompaniesByUserId(userId: string, filters?: FilterCompanyDto) {
-    const whereClause: any = { userId: userId };
+    const whereClause: any = { userId: userId, isActive: true };
     let orderByClause: any = { createdAt: 'desc' };
     if (filters) {
       if (filters.businessName) whereClause.businessName = filters.businessName;
@@ -207,6 +267,15 @@ export class CompanyService {
 
     const companies = await this.prisma.company.findMany({
       where: whereClause,
+      include: {
+        financialProfile: {
+          select: {
+            id: true,
+            walletId: true,
+            isActive: true,
+          },
+        },
+      },
       orderBy: orderByClause,
     });
 
