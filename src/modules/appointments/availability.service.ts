@@ -248,8 +248,7 @@ export class AvailabilityService {
       const slotEndMs = slotEndDate.getTime();
 
       let overlappingCount = 0;
-      for (let i = 0; i < activeAppointmentsMs.length; i++) {
-        const appt = activeAppointmentsMs[i];
+      for (const appt of activeAppointmentsMs) {
         if (appt.startMs < slotEndMs && appt.endMs > slotStartMs) {
           overlappingCount++;
           if (overlappingCount >= maxCapacity) {
