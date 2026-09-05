@@ -65,6 +65,7 @@ describe('TransactionsService', () => {
       platformFeeAmount: 7.5,
       company: {
         id: 'company-1',
+        isActive: true,
         financialProfile: {
           walletId: 'wallet-1',
         },
@@ -85,6 +86,20 @@ describe('TransactionsService', () => {
       await expect(
         service.createPixForAppointment('invalid-id', 'client-1'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if company is inactive (F-19)', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        ...validAppointment,
+        company: {
+          ...validAppointment.company,
+          isActive: false,
+        },
+      });
+
+      await expect(
+        service.createPixForAppointment('appointment-1', 'client-1'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw ForbiddenException if appointment belongs to a different user', async () => {
@@ -120,7 +135,7 @@ describe('TransactionsService', () => {
     it('should throw NotFoundException if company has no walletId configured', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue({
         ...validAppointment,
-        company: { id: 'company-1', financialProfile: null },
+        company: { id: 'company-1', isActive: true, financialProfile: null },
       });
 
       await expect(
