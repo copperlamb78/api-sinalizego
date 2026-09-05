@@ -9,11 +9,19 @@ export class AsaasWebhookDto {
   @IsString()
   event: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Objeto de pagamento enviado pelo webhook',
   })
+  @IsOptional()
   @IsObject()
-  payment: any;
+  payment?: any;
+
+  @ApiPropertyOptional({
+    description: 'Objeto de nota fiscal enviado pelo webhook',
+  })
+  @IsOptional()
+  @IsObject()
+  invoice?: any;
 
   @ApiPropertyOptional({
     description: 'O ID do evento no Asaas',
