@@ -224,7 +224,9 @@ export class AdminService {
       canceledAgg._sum.retainedDepositAmount || 0,
     );
     const canceledFee =
-      canceledRetained > 0 ? Number(canceledAgg._sum.platformFeeAmount || 0) : 0;
+      canceledRetained > 0
+        ? Number(canceledAgg._sum.platformFeeAmount || 0)
+        : 0;
     const canceledPotential =
       canceledRetained > 0 ? Number(canceledAgg._sum.servicePrice || 0) : 0;
 
