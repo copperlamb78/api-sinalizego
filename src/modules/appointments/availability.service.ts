@@ -247,9 +247,18 @@ export class AvailabilityService {
       // 3. Verificação de sobreposição com agendamentos existentes no grupo de serviço
       const slotEndMs = slotEndDate.getTime();
 
-      const overlappingCount = activeAppointmentsMs.filter(
-        (appt) => appt.startMs < slotEndMs && appt.endMs > slotStartMs,
-      ).length;
+      // ⚡ Bolt: Replace .filter().length with a standard loop and early exit
+      // Avoids intermediate array allocations and reduces CPU cycles
+      let overlappingCount = 0;
+      for (let i = 0; i < activeAppointmentsMs.length; i++) {
+        const appt = activeAppointmentsMs[i];
+        if (appt.startMs < slotEndMs && appt.endMs > slotStartMs) {
+          overlappingCount++;
+          if (overlappingCount >= maxCapacity) {
+            break;
+          }
+        }
+      }
 
       if (overlappingCount < maxCapacity) {
         availableSlots.push(this.minutesToTime(currentMinutes));

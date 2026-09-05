@@ -15,3 +15,6 @@
 ## 2026-08-27 - Database Aggregation in Admin Service
 **Learning:** Found an instance in `admin.service.ts` where transactions were fetched via `.findMany()` just to sum the `asaasFee`, creating unnecessary memory footprint.
 **Action:** Replaced it with `.aggregate({ _sum: { asaasFee: true } })` to perform computation natively in the database, reducing memory consumption and processing time.
+## 2026-09-05 - [Array Allocation in Hot Loops]
+**Learning:** Calling `.filter(...).length` repeatedly within a hot loop (like a time-slot generator) creates costly intermediate array allocations and wastes CPU cycles by iterating over all items even when a condition (like `maxCapacity`) has already been met.
+**Action:** Replace functional array chained methods inside hot loops with standard `for` loops and implement early exits (`break`) to eliminate unnecessary allocations and achieve O(1) space and faster execution.
