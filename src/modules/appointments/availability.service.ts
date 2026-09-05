@@ -299,7 +299,8 @@ export class AvailabilityService {
       );
     }
 
-    const apptStartMinutes = localStart.getHours() * 60 + localStart.getMinutes();
+    const apptStartMinutes =
+      localStart.getHours() * 60 + localStart.getMinutes();
     const apptEndMinutes = localEnd.getHours() * 60 + localEnd.getMinutes();
 
     const workStartMinutes = this.timeToMinutes(schedule.startTime);
@@ -315,7 +316,10 @@ export class AvailabilityService {
     }
 
     // Validação de alinhamento com a grade de horários (AG-05)
-    if ((apptStartMinutes - workStartMinutes) % DEFAULT_SLOT_STEP_MINUTES !== 0) {
+    if (
+      (apptStartMinutes - workStartMinutes) % DEFAULT_SLOT_STEP_MINUTES !==
+      0
+    ) {
       throw new BadRequestException(
         `O horário solicitado (${this.minutesToTime(apptStartMinutes)}) não está alinhado com a grade de agendamentos de ${DEFAULT_SLOT_STEP_MINUTES} minutos.`,
       );
