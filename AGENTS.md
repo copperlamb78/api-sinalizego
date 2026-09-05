@@ -285,8 +285,9 @@ releases it for withdrawal.
 
 | Notice | Rule |
 |---|---|
-| `> 24h` | full refund of the amount paid online |
-| `<= 24h` | **retain 100% of the deposit** as vacancy compensation. No partial refund. |
+| `> 24h` | refund of deposit (S) via Pix; platform fee (P) retained |
+| `2h to 24h` | deposit (S) converted to client credit in that barbershop (90 days); platform fee (P) retained |
+| `< 2h` | **retain 100% of the deposit** as vacancy compensation. No refund. Platform fee retained. |
 
 **Withdrawals.** Ad-hoc (`POST /company/withdraw`) carries the R$ 5.00 transfer
 fee (`ASAAS_TRANSFER_FEE`). The weekly automatic payout (`@Cron('0 6 * * 1')`)
