@@ -27,6 +27,10 @@ describe('FinancialProfileService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    company: {
+      updateMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
   };
 
   const mockAsaasService = {
@@ -120,10 +124,103 @@ describe('FinancialProfileService', () => {
         select: FINANCIAL_PROFILE_OWNER_SELECT,
       });
       expect(result).not.toHaveProperty('asaasApiKey');
+      expect(mockPrisma.company.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', financialProfileId: null, isActive: true },
+        data: { financialProfileId: 'fp-1' },
+      });
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { role: 'COMPANY_OWNER' },
       });
+    });
+
+    it('should link company and return existing profile if same user resubmits document', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.financialProfile.findUnique.mockResolvedValue({
+        id: 'fp-existing',
+        userId: 'user-1',
+        cpfCnpj: '12345678000195',
+        birthDate: new Date('1990-01-01'),
+        companyType: 'MEI',
+      });
+
+      const result = await service.createFinancialProfile(createDto, 'user-1');
+
+      expect(mockPrisma.company.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', financialProfileId: null, isActive: true },
+        data: { financialProfileId: 'fp-existing' },
+      });
+      expect(result.id).toBe('fp-existing');
+    });
+
+    it('should inherit address from active company when address fields are omitted', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.financialProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'comp-1',
+        street: 'Rua da Empresa',
+        number: '200',
+        district: 'Bairro Comercial',
+        zipCode: '44000111',
+      });
+      mockAsaasService.createSubAccount.mockResolvedValue({
+        walletId: 'wallet-asaas-auto-address',
+        apiKey: '$aact_secret_key_auto',
+      });
+      mockPrisma.financialProfile.create.mockResolvedValue({
+        id: 'fp-auto',
+        ...createDto,
+        address: 'Rua da Empresa',
+        addressNumber: '200',
+        province: 'Bairro Comercial',
+        postalCode: '44000111',
+        walletId: 'wallet-asaas-auto-address',
+        userId: 'user-1',
+      });
+
+      const dtoWithoutAddress = {
+        ...createDto,
+        address: undefined,
+        addressNumber: undefined,
+        province: undefined,
+        postalCode: undefined,
+      };
+
+      const result = await service.createFinancialProfile(
+        dtoWithoutAddress as any,
+        'user-1',
+      );
+
+      expect(mockPrisma.company.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'user-1', isActive: true },
+      });
+      expect(mockAsaasService.createSubAccount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: 'Rua da Empresa',
+          addressNumber: '200',
+          province: 'Bairro Comercial',
+          postalCode: '44000111',
+        }),
+      );
+      expect(result.id).toBe('fp-auto');
+    });
+
+    it('should throw BadRequestException if address is omitted and user has no active company', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.financialProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+
+      const dtoWithoutAddress = {
+        ...createDto,
+        address: undefined,
+        addressNumber: undefined,
+        province: undefined,
+        postalCode: undefined,
+      };
+
+      await expect(
+        service.createFinancialProfile(dtoWithoutAddress as any, 'user-1'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException if user is not found', async () => {
