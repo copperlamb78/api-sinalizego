@@ -247,11 +247,12 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 <details>
 <summary>💰 <b>Taxa da Plataforma (automática)</b></summary>
 
-| Preço do Serviço | Taxa |
-|------------------|------|
-| Até R$ 50,00 | 15% |
-| R$ 50,01 — R$ 249,99 | 10% |
-| R$ 250,00+ | 5% |
+| Sinal do Serviço | Taxa | Regra de Cálculo |
+|------------------|------|------------------|
+| Até R$ 250,00 | 10% | Incide sobre o sinal; piso mínimo de R$ 2,00 |
+| Excedente a R$ 250,00 | 5% | Arredondamento para cima em múltiplos de R$ 0,25 |
+
+*A taxa é cobrada do cliente no Pix por cima do sinal e remunera os custos de reserva e processamento de gateway.*
 
 </details>
 
