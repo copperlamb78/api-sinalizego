@@ -677,7 +677,10 @@ describe('AppointmentsService', () => {
 
       expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
         where: { id: 'appointment-1' },
-        data: { status: ApptStatus.COMPLETED },
+        data: {
+          status: ApptStatus.COMPLETED,
+          completedAt: expect.any(Date),
+        },
       });
       expect(result.status).toEqual(ApptStatus.COMPLETED);
     });
@@ -929,7 +932,10 @@ describe('AppointmentsService', () => {
       const result = await service.completeAppointment('appt-1', 'owner-1');
       expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
         where: { id: 'appt-1' },
-        data: { status: ApptStatus.COMPLETED },
+        data: {
+          status: ApptStatus.COMPLETED,
+          completedAt: expect.any(Date),
+        },
         include: expect.any(Object),
       });
       expect(result).toEqual(expectedCompleted);
@@ -1269,6 +1275,7 @@ describe('AppointmentsService', () => {
         },
         data: {
           status: ApptStatus.COMPLETED,
+          completedAt: expect.any(Date),
           disabledBy: 'SYSTEM_AUTO_COMPLETE',
         },
       });
