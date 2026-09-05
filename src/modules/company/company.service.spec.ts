@@ -228,6 +228,104 @@ describe('CompanyService', () => {
       expect(result.refresh_token).toBe('refresh.token.owner');
       expect(result.company).toEqual(createdCompany);
     });
+
+    it('should link active financialProfileId on creation if user already has an active financial profile', async () => {
+      const existingUser = {
+        id: 'user-owner-1',
+        name: 'Dono Existente',
+        email: 'dono@test.com',
+        role: 'COMPANY_OWNER',
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(existingUser);
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-active-1',
+      });
+
+      mockPrisma.company.create.mockImplementation((args) => ({
+        id: 'comp-2',
+        ...args.data,
+      }));
+
+      await service.createCompany(dto as any, 'user-owner-1');
+
+      expect(mockPrisma.company.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            financialProfileId: 'fp-active-1',
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('getCompanyByUserId', () => {
+    it('should return company with financialProfile included', async () => {
+      const mockCompanyWithProfile = {
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        userId: 'user-1',
+        financialProfileId: 'fp-1',
+        financialProfile: {
+          id: 'fp-1',
+          walletId: 'wal_123',
+          isActive: true,
+        },
+      };
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompanyWithProfile);
+
+      const result = await service.getCompanyByUserId('user-1');
+
+      expect(mockPrisma.company.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'user-1', isActive: true },
+        include: {
+          financialProfile: {
+            select: {
+              id: true,
+              walletId: true,
+              isActive: true,
+            },
+          },
+        },
+      });
+      expect(result).toEqual(mockCompanyWithProfile);
+    });
+
+    it('should heal and link financialProfile if company has null profile but user has active profile', async () => {
+      const mockCompanyWithoutProfile = {
+        id: 'comp-1',
+        businessName: 'Barbearia VIP',
+        userId: 'user-1',
+        financialProfileId: null,
+        financialProfile: null,
+      };
+      mockPrisma.company.findFirst.mockResolvedValue(mockCompanyWithoutProfile);
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-active-1',
+        walletId: 'wal_auto_123',
+        isActive: true,
+      });
+
+      const result = await service.getCompanyByUserId('user-1');
+
+      expect(mockPrisma.company.update).toHaveBeenCalledWith({
+        where: { id: 'comp-1' },
+        data: { financialProfileId: 'fp-active-1' },
+      });
+      expect(result.financialProfileId).toBe('fp-active-1');
+      expect(result.financialProfile).toEqual({
+        id: 'fp-active-1',
+        walletId: 'wal_auto_123',
+        isActive: true,
+      });
+    });
+
+    it('should throw NotFoundException if user has no company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+
+      await expect(service.getCompanyByUserId('user-none')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
   describe('findBySlug', () => {
@@ -494,6 +592,15 @@ describe('CompanyService', () => {
 
       expect(mockPrisma.company.findFirst).toHaveBeenCalledWith({
         where: { id: 'comp-1', userId: 'user-1', isActive: true },
+        include: {
+          financialProfile: {
+            select: {
+              id: true,
+              walletId: true,
+              isActive: true,
+            },
+          },
+        },
       });
       expect(result).toEqual(mockCompany);
     });
@@ -515,6 +622,15 @@ describe('CompanyService', () => {
 
       expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
         where: { id: 'comp-1' },
+        include: {
+          financialProfile: {
+            select: {
+              id: true,
+              walletId: true,
+              isActive: true,
+            },
+          },
+        },
       });
       expect(result).toEqual(mockCompany);
     });
