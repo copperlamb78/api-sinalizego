@@ -117,6 +117,27 @@ export class AsaasService implements OnModuleInit {
           pixFee?.fixedFeeValue ??
           pixFee?.minimumFeeValue;
 
+        const discountExpiration = pixFee?.discountExpiration;
+        if (discountExpiration) {
+          const expDate = new Date(discountExpiration);
+          const daysRemaining = Math.ceil(
+            (expDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          );
+          if (daysRemaining <= 30 && daysRemaining > 0) {
+            this.logger.warn(
+              `[AsaasService] ALERTA: A promoção da taxa Pix do Asaas expira em ${daysRemaining} dias (${discountExpiration}). Após essa data, o custo de gateway passará para R$ 1,99.`,
+            );
+          } else if (daysRemaining <= 0) {
+            this.logger.warn(
+              `[AsaasService] AVISO: A promoção da taxa Pix do Asaas expirou em ${discountExpiration}. O custo de gateway é R$ 1,99 e a plataforma absorverá a diferença conforme regra N2.`,
+            );
+          } else {
+            this.logger.log(
+              `[AsaasService] Promoção da taxa Pix ativa até ${discountExpiration} (${daysRemaining} dias restantes).`,
+            );
+          }
+        }
+
         if (
           dynamicFee !== undefined &&
           dynamicFee !== null &&
@@ -425,6 +446,8 @@ export class AsaasService implements OnModuleInit {
           );
         }
 
+        const hop1Data = await hop1Response.json();
+
         // 2. Transfer from Master Account to Barber's Pix (Master absorbs the fee)
         const hop2Payload: any = {
           value: Number(value.toFixed(2)),
@@ -438,19 +461,35 @@ export class AsaasService implements OnModuleInit {
           hop2Payload.pixAddressKeyType = options.pixAddressKeyType;
         }
 
-        const hop2Response = await fetch(`${this.apiUrl}/transfers`, {
-          method: 'POST',
-          headers: this.headers, // master API key
-          body: JSON.stringify(hop2Payload),
-          signal: AbortSignal.timeout(10_000),
-        });
+        let hop2Response: Response;
+        try {
+          hop2Response = await fetch(`${this.apiUrl}/transfers`, {
+            method: 'POST',
+            headers: this.headers, // master API key
+            body: JSON.stringify(hop2Payload),
+            signal: AbortSignal.timeout(10_000),
+          });
+        } catch (hop2FetchErr: any) {
+          this.logger.error(
+            `[Asaas] Erro de rede/timeout Hop2: ${hop2FetchErr?.message || hop2FetchErr}`,
+          );
+          const hop2Err: any = new BadRequestException(
+            'Falha de comunicação no envio de Pix da conta mestre.',
+          );
+          hop2Err.hop1Completed = true;
+          hop2Err.hop1Id = hop1Data?.id;
+          throw hop2Err;
+        }
 
         if (!hop2Response.ok) {
           const err = await hop2Response.json();
           this.logger.error(`[Asaas] Erro Hop2: ${JSON.stringify(err)}`);
-          throw new BadRequestException(
+          const hop2Err: any = new BadRequestException(
             'Falha ao processar envio de Pix no gateway de pagamentos.',
           );
+          hop2Err.hop1Completed = true;
+          hop2Err.hop1Id = hop1Data?.id;
+          throw hop2Err;
         }
 
         return await hop2Response.json();
@@ -541,6 +580,7 @@ export class AsaasService implements OnModuleInit {
           dueDate: new Date().toISOString().split('T')[0],
           description: `SinalizeGo - Reserva de Horário #${appointmentId}`,
           externalReference: appointmentId,
+          postalService: false,
           split: [
             {
               walletId: barberWalletId,
