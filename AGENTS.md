@@ -41,6 +41,7 @@ This gate outranks speed and completeness.
 - **Present work as a Pull Request.** Never commit to `main` directly. Never
   `git push` without consent. Commit messages in **Portuguese**, Conventional
   Commits: `feat(modulo): …`, `fix(seguranca): …`.
+- **Um commit por arquivo.** Para facilitar o code review, realize **um commit individual por arquivo** (`git add <arquivo> && git commit -m '...'`), com mensagem semântica em Conventional Commits em português descrevendo a alteração daquele arquivo específico.
 
 ## 2. Workflow & safety
 
