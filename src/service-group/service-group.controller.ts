@@ -69,11 +69,7 @@ export class ServiceGroupController {
   ) {
     const userId = req.user?.['sub'];
     const role = req.user?.['role'];
-    return this.serviceGroupService.create(
-      createServiceGroupDto,
-      userId,
-      role,
-    );
+    return this.serviceGroupService.create(createServiceGroupDto, userId, role);
   }
 
   @ApiBearerAuth()
@@ -97,7 +93,10 @@ export class ServiceGroupController {
   })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async findAll(@Req() req: Request, @Query() filters?: FiltersServiceGroupDto) {
+  async findAll(
+    @Req() req: Request,
+    @Query() filters?: FiltersServiceGroupDto,
+  ) {
     const userId = req.user?.['sub'];
     const role = req.user?.['role'];
     return this.serviceGroupService.findAll(userId, role, filters);
@@ -176,10 +175,7 @@ export class ServiceGroupController {
     description: 'Grupo de serviços não encontrado',
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
-  async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: Request,
-  ) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const userId = req.user?.['sub'];
     const role = req.user?.['role'];
     return this.serviceGroupService.findOneById(id, userId, role);

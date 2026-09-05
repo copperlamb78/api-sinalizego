@@ -62,8 +62,7 @@ export class ServiceGroupService {
     role?: Role | string,
     filters?: FiltersServiceGroupDto,
   ) {
-    const isSystemManager =
-      role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    const isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
     const whereClause: any = { isActive: true };
 
     if (!isSystemManager) {
@@ -111,8 +110,7 @@ export class ServiceGroupService {
       throw new NotFoundException('Grupo de serviços não encontrado.');
     }
 
-    const isSystemManager =
-      role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    const isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
 
     if (!isSystemManager && serviceGroup.company?.userId !== userId) {
       throw new ForbiddenException(

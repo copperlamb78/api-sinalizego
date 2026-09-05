@@ -38,7 +38,7 @@
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` para aprovar agendamentos |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 369 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, registro de No-Show com travas temporais, Prejuízo Evitado, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
+| 🧪 **Suíte de Testes Completa** | 371 testes unitários automatizados (35 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, registro de No-Show com travas temporais, Prejuízo Evitado, liquidação em Escrow Hold, saques semanais/avulsos com lock atômico anti-race condition, dashboards executivos e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---

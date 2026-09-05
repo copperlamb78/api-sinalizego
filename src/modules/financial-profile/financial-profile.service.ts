@@ -11,9 +11,7 @@ import {
   AdminFiltersFinancialProfileDto,
   FiltersFinancialProfileDto,
 } from './dto/filters-financial-profile.dto';
-import {
-  FINANCIAL_PROFILE_OWNER_SELECT,
-} from './constants/financial-profile-select.constant';
+import { FINANCIAL_PROFILE_OWNER_SELECT } from './constants/financial-profile-select.constant';
 import { CryptoHelper } from 'src/helpers/crypto.helper';
 import { Role } from '@prisma/client';
 
@@ -165,8 +163,7 @@ export class FinancialProfileService {
     userId?: string,
     role?: Role | string,
   ) {
-    const isSystemManager =
-      role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    const isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
 
     const profile = isSystemManager
       ? await this.prisma.financialProfile.findUnique({

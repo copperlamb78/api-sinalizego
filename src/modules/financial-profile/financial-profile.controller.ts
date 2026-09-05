@@ -207,8 +207,7 @@ export class FinancialProfileController {
   })
   @ApiResponse({
     status: 200,
-    description:
-      'Perfil financeiro retornado com sucesso',
+    description: 'Perfil financeiro retornado com sucesso',
     schema: {
       example: {
         id: 'clsw0s98x000013z81z8z8z8z',
@@ -225,7 +224,11 @@ export class FinancialProfileController {
   async getById(@Param('id') id: string, @Req() req: Request) {
     const userId = req.user?.['sub'];
     const role = req.user?.['role'];
-    return this.financialProfileService.getFinancialProfileById(id, userId, role);
+    return this.financialProfileService.getFinancialProfileById(
+      id,
+      userId,
+      role,
+    );
   }
 
   @ApiBearerAuth()

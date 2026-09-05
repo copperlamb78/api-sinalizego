@@ -107,11 +107,16 @@ describe('AllExceptionsFilter', () => {
   });
 
   it('should handle InternalServerErrorException without leaking details', () => {
-    const exception = new HttpException('Detailed secure system information here', HttpStatus.INTERNAL_SERVER_ERROR);
+    const exception = new HttpException(
+      'Detailed secure system information here',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
 
     filter.catch(exception, mockArgumentsHost);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

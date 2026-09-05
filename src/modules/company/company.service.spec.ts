@@ -823,7 +823,10 @@ describe('CompanyService', () => {
         id: 'tra_payout_1',
       });
       mockPrisma.transaction.create.mockResolvedValue({ id: 'tx-payout-1' });
-      mockPrisma.transaction.update.mockResolvedValue({ id: 'tx-payout-1', status: TransactionStatus.CONFIRMED });
+      mockPrisma.transaction.update.mockResolvedValue({
+        id: 'tx-payout-1',
+        status: TransactionStatus.CONFIRMED,
+      });
 
       const executedCount = await service.executeWeeklyFreePayouts();
 

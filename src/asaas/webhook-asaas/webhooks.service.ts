@@ -140,7 +140,9 @@ export class WebhooksService {
           // Revalidação com a API Asaas (A11 / A20)
           let verifiedPayment = payment;
           try {
-            const remotePayment = await this.asaasService.getPaymentById(payment.id);
+            const remotePayment = await this.asaasService.getPaymentById(
+              payment.id,
+            );
             if (remotePayment && remotePayment.id) {
               verifiedPayment = remotePayment;
               this.logger.log(
@@ -195,7 +197,10 @@ export class WebhooksService {
           }
 
           // 2. Conferência Estrita de Valor (Anti-Fraude de Pagamento Menor)
-          if (verifiedPayment.value !== undefined && verifiedPayment.value !== null) {
+          if (
+            verifiedPayment.value !== undefined &&
+            verifiedPayment.value !== null
+          ) {
             const paidValue = Number(verifiedPayment.value);
             const expectedValue = Number(transaction.totalValue);
 
@@ -234,11 +239,13 @@ export class WebhooksService {
           const realAsaasFee =
             verifiedPayment?.fee !== undefined && verifiedPayment?.fee !== null
               ? Number(verifiedPayment.fee)
-              : verifiedPayment?.value !== undefined && verifiedPayment?.netValue !== undefined
+              : verifiedPayment?.value !== undefined &&
+                  verifiedPayment?.netValue !== undefined
                 ? Number(
-                    (Number(verifiedPayment.value) - Number(verifiedPayment.netValue)).toFixed(
-                      2,
-                    ),
+                    (
+                      Number(verifiedPayment.value) -
+                      Number(verifiedPayment.netValue)
+                    ).toFixed(2),
                   )
                 : undefined;
 
