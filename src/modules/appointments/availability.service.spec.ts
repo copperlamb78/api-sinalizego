@@ -3,6 +3,7 @@ import { AvailabilityService } from './availability.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApptStatus } from '@prisma/client';
+import { fromZonedTime } from 'date-fns-tz';
 
 describe('AvailabilityService', () => {
   let service: AvailabilityService;
@@ -178,11 +179,17 @@ describe('AvailabilityService', () => {
       });
 
       const futureDate = '2029-08-28';
-      // Existing appointment at 10:00 - 10:30
+      // Existing appointment at 10:00 - 10:30 no fuso de SP
       mockPrisma.appointment.findMany.mockResolvedValue([
         {
-          appointmentDate: new Date('2029-08-28T10:00:00.000Z'),
-          appointmentEndDate: new Date('2029-08-28T10:30:00.000Z'),
+          appointmentDate: fromZonedTime(
+            '2029-08-28T10:00:00',
+            'America/Sao_Paulo',
+          ),
+          appointmentEndDate: fromZonedTime(
+            '2029-08-28T10:30:00',
+            'America/Sao_Paulo',
+          ),
         },
       ]);
 
@@ -222,11 +229,17 @@ describe('AvailabilityService', () => {
       });
 
       const futureDate = '2029-08-28';
-      // 1 appointment at 10:00 - 10:30 with capacity = 2
+      // 1 appointment at 10:00 - 10:30 with capacity = 2 no fuso de SP
       mockPrisma.appointment.findMany.mockResolvedValue([
         {
-          appointmentDate: new Date('2029-08-28T10:00:00.000Z'),
-          appointmentEndDate: new Date('2029-08-28T10:30:00.000Z'),
+          appointmentDate: fromZonedTime(
+            '2029-08-28T10:00:00',
+            'America/Sao_Paulo',
+          ),
+          appointmentEndDate: fromZonedTime(
+            '2029-08-28T10:30:00',
+            'America/Sao_Paulo',
+          ),
         },
       ]);
 
@@ -263,11 +276,17 @@ describe('AvailabilityService', () => {
       });
 
       const futureDate = '2029-08-28';
-      // Existing 30-min appointment at 09:30 - 10:00
+      // Existing 30-min appointment at 09:30 - 10:00 no fuso de SP
       mockPrisma.appointment.findMany.mockResolvedValue([
         {
-          appointmentDate: new Date('2029-08-28T09:30:00.000Z'),
-          appointmentEndDate: new Date('2029-08-28T10:00:00.000Z'),
+          appointmentDate: fromZonedTime(
+            '2029-08-28T09:30:00',
+            'America/Sao_Paulo',
+          ),
+          appointmentEndDate: fromZonedTime(
+            '2029-08-28T10:00:00',
+            'America/Sao_Paulo',
+          ),
         },
       ]);
 
@@ -291,19 +310,41 @@ describe('AvailabilityService', () => {
 
   describe('validateSlotWithinWorkingHours', () => {
     it('should throw BadRequestException if company is closed on the date', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({
+        timezone: 'America/Sao_Paulo',
+      });
       mockPrisma.scheduleException.findFirst.mockResolvedValue({
         isClosed: true,
       });
 
-      const startDate = new Date('2026-12-25T10:00:00.000Z');
-      const endDate = new Date('2026-12-25T10:30:00.000Z');
+      const startDate = fromZonedTime(
+        '2026-12-25T10:00:00',
+        'America/Sao_Paulo',
+      );
+      const endDate = fromZonedTime('2026-12-25T10:30:00', 'America/Sao_Paulo');
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', startDate, endDate),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should throw BadRequestException if appointment is outside working hours', async () => {
+    it('should throw BadRequestException if appointment has non-zero seconds or milliseconds', async () => {
+      const startWithSeconds = new Date('2026-08-24T14:00:15.000Z');
+      const endDate = new Date('2026-08-24T14:30:00.000Z');
+
+      await expect(
+        service.validateSlotWithinWorkingHours(
+          'comp-1',
+          startWithSeconds,
+          endDate,
+        ),
+      ).rejects.toThrow('Horário do agendamento deve conter segundos e milissegundos zerados.');
+    });
+
+    it('should throw BadRequestException if appointment is misaligned with 30-min grid (ex: 09:07)', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({
+        timezone: 'America/Sao_Paulo',
+      });
       mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
       mockPrisma.workingHour.findUnique.mockResolvedValue({
         dayOfWeek: 1,
@@ -314,8 +355,46 @@ describe('AvailabilityService', () => {
         isClosed: false,
       });
 
-      const earlyStart = new Date('2026-08-24T08:00:00.000Z');
-      const earlyEnd = new Date('2026-08-24T08:30:00.000Z');
+      const misalignedStart = fromZonedTime(
+        '2026-08-24T09:07:00',
+        'America/Sao_Paulo',
+      );
+      const misalignedEnd = fromZonedTime(
+        '2026-08-24T09:37:00',
+        'America/Sao_Paulo',
+      );
+
+      await expect(
+        service.validateSlotWithinWorkingHours(
+          'comp-1',
+          misalignedStart,
+          misalignedEnd,
+        ),
+      ).rejects.toThrow('não está alinhado com a grade de agendamentos');
+    });
+
+    it('should throw BadRequestException if appointment is outside working hours', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({
+        timezone: 'America/Sao_Paulo',
+      });
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '18:00',
+        lunchStartTime: null,
+        lunchEndTime: null,
+        isClosed: false,
+      });
+
+      const earlyStart = fromZonedTime(
+        '2026-08-24T08:00:00',
+        'America/Sao_Paulo',
+      );
+      const earlyEnd = fromZonedTime(
+        '2026-08-24T08:30:00',
+        'America/Sao_Paulo',
+      );
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', earlyStart, earlyEnd),
@@ -323,6 +402,9 @@ describe('AvailabilityService', () => {
     });
 
     it('should throw BadRequestException if appointment intercepts lunch break', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({
+        timezone: 'America/Sao_Paulo',
+      });
       mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
       mockPrisma.workingHour.findUnique.mockResolvedValue({
         dayOfWeek: 1,
@@ -333,15 +415,24 @@ describe('AvailabilityService', () => {
         isClosed: false,
       });
 
-      const lunchStart = new Date('2026-08-24T12:15:00.000Z');
-      const lunchEnd = new Date('2026-08-24T12:45:00.000Z');
+      const lunchStart = fromZonedTime(
+        '2026-08-24T12:00:00',
+        'America/Sao_Paulo',
+      );
+      const lunchEnd = fromZonedTime(
+        '2026-08-24T12:30:00',
+        'America/Sao_Paulo',
+      );
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', lunchStart, lunchEnd),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should pass validation when slot is within working hours and outside lunch', async () => {
+    it('should pass validation when slot is within working hours and outside lunch (America/Sao_Paulo)', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({
+        timezone: 'America/Sao_Paulo',
+      });
       mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
       mockPrisma.workingHour.findUnique.mockResolvedValue({
         dayOfWeek: 1,
@@ -352,11 +443,48 @@ describe('AvailabilityService', () => {
         isClosed: false,
       });
 
-      const validStart = new Date('2026-08-24T14:00:00.000Z');
-      const validEnd = new Date('2026-08-24T14:30:00.000Z');
+      const validStart = fromZonedTime(
+        '2026-08-24T16:00:00',
+        'America/Sao_Paulo',
+      );
+      const validEnd = fromZonedTime(
+        '2026-08-24T16:30:00',
+        'America/Sao_Paulo',
+      );
 
       await expect(
         service.validateSlotWithinWorkingHours('comp-1', validStart, validEnd),
+      ).resolves.not.toThrow();
+    });
+
+    it('should pass validation for Manaus timezone (America/Manaus) with 1h difference in UTC', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue({
+        timezone: 'America/Manaus',
+      });
+      mockPrisma.scheduleException.findFirst.mockResolvedValue(null);
+      mockPrisma.workingHour.findUnique.mockResolvedValue({
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '18:00',
+        lunchStartTime: null,
+        lunchEndTime: null,
+        isClosed: false,
+      });
+
+      // 16:00 em Manaus (UTC-4) é 20:00Z
+      const manausStart = fromZonedTime(
+        '2026-08-24T16:00:00',
+        'America/Manaus',
+      );
+      const manausEnd = fromZonedTime(
+        '2026-08-24T16:30:00',
+        'America/Manaus',
+      );
+
+      expect(manausStart.toISOString()).toBe('2026-08-24T20:00:00.000Z');
+
+      await expect(
+        service.validateSlotWithinWorkingHours('comp-1', manausStart, manausEnd, 'America/Manaus'),
       ).resolves.not.toThrow();
     });
   });
