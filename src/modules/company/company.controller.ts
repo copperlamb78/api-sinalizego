@@ -35,6 +35,7 @@ import {
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
+import { CompanyTransactionsDto } from './dto/company-transactions.dto';
 import { Role } from '@prisma/client';
 
 @ApiTags('Empresas')
@@ -385,6 +386,27 @@ export class CompanyController {
   async getWithdrawals(@Req() req: Request) {
     const userId = req.user?.['sub'];
     return this.companyService.getCompanyWithdrawalHistory(userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Get('transactions')
+  @ApiOperation({
+    summary:
+      'Consulta o extrato financeiro completo da empresa (depósitos, saques, taxas e estornos)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Extrato financeiro retornado com sucesso',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado.' })
+  async getTransactions(
+    @Req() req: Request,
+    @Query() query: CompanyTransactionsDto,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.companyService.getCompanyTransactions(userId, query);
   }
 
   @Get('slug/:slug')
