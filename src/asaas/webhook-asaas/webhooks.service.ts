@@ -241,7 +241,8 @@ export class WebhooksService {
 
           // 2. Conferência Estrita de Valor (Anti-Fraude de Pagamento Menor)
           const paidValue = Number(
-            verifiedPayment.value !== undefined && verifiedPayment.value !== null
+            verifiedPayment.value !== undefined &&
+              verifiedPayment.value !== null
               ? verifiedPayment.value
               : payment.value,
           );
