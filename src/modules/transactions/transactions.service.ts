@@ -28,6 +28,7 @@ export class TransactionsService {
         platformFeeAmount: true,
         company: {
           select: {
+            isActive: true,
             financialProfile: {
               select: {
                 walletId: true,
@@ -45,6 +46,12 @@ export class TransactionsService {
 
     if (!appointment) {
       throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    if (!appointment.company?.isActive) {
+      throw new BadRequestException(
+        'Empresa inativa ou suspensa para recebimento de pagamentos.',
+      );
     }
 
     if (appointment.clientId !== userId) {
