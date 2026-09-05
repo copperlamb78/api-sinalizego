@@ -1,5 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsDateString,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateAppointmentsDto {
   @ApiProperty({
@@ -25,4 +30,13 @@ export class CreateAppointmentsDto {
   @IsNotEmpty({ message: 'A data do agendamento é obrigatória' })
   @IsDateString({}, { message: 'Formato de data inválido. Use ISO 8601.' })
   appointmentDate: string;
+
+  @ApiPropertyOptional({
+    description:
+      'CPF ou CNPJ do cliente para emissão de cobrança (necessário caso ainda não informado no perfil)',
+    example: '12345678909',
+  })
+  @IsOptional()
+  @IsString()
+  cpfCnpj?: string;
 }
