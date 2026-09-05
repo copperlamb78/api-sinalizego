@@ -30,9 +30,7 @@ import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
 import { CompanyTransactionsDto } from './dto/company-transactions.dto';
 import { AsaasService } from 'src/asaas/asaas.service';
-import {
-  MIN_FREE_WEEKLY_PAYOUT,
-} from 'src/common/constants/billing.constant';
+import { MIN_FREE_WEEKLY_PAYOUT } from 'src/common/constants/billing.constant';
 import { Cron } from '@nestjs/schedule';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
