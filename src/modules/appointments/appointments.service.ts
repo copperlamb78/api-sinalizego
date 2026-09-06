@@ -146,7 +146,7 @@ export class AppointmentsService {
           'Identificador de grupo de serviço inválido.',
         );
       }
-      await tx.$executeRaw`SELECT id FROM "ServiceGroup" WHERE id = ${service.serviceGroupId}::uuid FOR UPDATE`;
+      await tx.$executeRaw`SELECT id FROM "ServiceGroup" WHERE id = ${service.serviceGroupId} FOR UPDATE`;
 
       const now = new Date();
 
