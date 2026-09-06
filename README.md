@@ -353,7 +353,8 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 |--------|------|-----------|------|-------|
 | `POST` | `/fundadores/inscricao` | Inscrição de novos usuários na promoção dos 20 Fundadores (criação atômica de usuário, empresa e assento/lista de espera) | ❌ | — |
 | `GET` | `/fundadores/vagas` | Consulta pública em tempo real de vagas restantes dos 20 Fundadores e contagem de lista de espera | ❌ | — |
-| `GET` | `/fundadores/meu-status` | Consulta o status da vaga, metas ativas e contagem de agendamentos concluídos da empresa autenticada | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/company/fundador` | Consulta o status da vaga, lista de espera e progresso de metas da empresa autenticada | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `POST` | `/company/fundador/aceitar-vaga` | Aceita oferta de vaga liberada da lista de espera | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
 
 ---
 
@@ -363,9 +364,10 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 | Método | Rota | Descrição | Auth | Roles |
 |--------|------|-----------|------|-------|
-| `GET` | `/indicacao/meu-codigo` | Retorna o código e link exclusivo de indicação do estabelecimento autenticado | 🔑 JWT | `INTERNAL_USERS` |
-| `GET` | `/indicacao/minhas-indicacoes` | Retorna histórico de indicações do estabelecimento com status, métricas e dias promocionais acumulados | 🔑 JWT | `INTERNAL_USERS` |
-| `PATCH` | `/indicacao/:referralId/revisar` | Revisão manual de indicações sob suspeita de fraude na fila de análise (aprovação ou rejeição administrativa) | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `POST` | `/company/indicacao/codigo` | Gera ou retorna o link e código exclusivo de indicação do estabelecimento autenticado | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/company/indicacoes` | Retorna histórico de indicações do estabelecimento com status, métricas e dias promocionais acumulados | 🔑 JWT | `INTERNAL_NO_EMPLOYEE` |
+| `GET` | `/admin/indicacoes` | Lista indicações em análise manual (`REVIEW`) aguardando auditoria administrativa | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `PATCH` | `/admin/indicacoes/:id/revisar` | Revisão manual de indicações sob suspeita de fraude na fila de análise (aprovação ou rejeição administrativa) | 🔑 JWT | `SYSTEM_MANAGERS` |
 
 ---
 
