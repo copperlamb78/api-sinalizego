@@ -22,6 +22,9 @@ import { MailModule } from './modules/mail/mail.module';
 import { WorkingHoursModule } from './modules/working-hours/working-hours.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
+import { FeesModule } from './modules/fees/fees.module';
+import { FoundersModule } from './modules/founders/founders.module';
+import { ReferralsModule } from './modules/referrals/referrals.module';
 import { validate } from './common/env.validation';
 
 @Module({
@@ -55,6 +58,9 @@ import { validate } from './common/env.validation';
     WorkingHoursModule,
     AdminModule,
     InvoiceModule,
+    FeesModule,
+    FoundersModule,
+    ReferralsModule,
   ],
   controllers: [AppController],
   providers: [
