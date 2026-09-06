@@ -143,6 +143,7 @@ describe('AsaasService', () => {
         barberNetValue: 19.01, // 20.00 - 0.99
         platformFee: 2.0,
         asaasFee: 1.49, // real fee returned by Asaas
+        barberFeeApplied: 0.99,
       });
     });
 
