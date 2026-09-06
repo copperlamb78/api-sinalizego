@@ -280,4 +280,54 @@ export class MailService {
       return false;
     }
   }
+
+  /**
+   * Envia e-mail de alerta ao Super Admin sobre indicação suspeita colocada em REVIEW.
+   */
+  async sendReferralReviewAlertEmail(
+    to: string,
+    data: {
+      referralId: string;
+      referrerName: string;
+      referredName: string;
+      riskFlags: string[];
+    },
+  ): Promise<boolean> {
+    try {
+      const flagsText = data.riskFlags.join(', ');
+      const htmlContent = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
+          <h2 style="color: #d97706;">⚠️ Alerta de Auditoria — Indicação em Revisão Manual</h2>
+          <p>Uma indicação entre empresas foi suspensa para <strong>REVIEW</strong> por colisão de dados cadastrais:</p>
+          <ul style="background: #fef3c7; padding: 16px 24px; border-radius: 8px;">
+            <li><strong>ID da Indicação:</strong> ${data.referralId}</li>
+            <li><strong>Empresa Indicadora:</strong> ${data.referrerName}</li>
+            <li><strong>Empresa Indicada:</strong> ${data.referredName}</li>
+            <li><strong>Flags de Risco:</strong> ${flagsText}</li>
+          </ul>
+          <p>Acesse a rota de auditoria do Super Admin para validar manualmente se trata-se de caso legítimo ou auto-indicação.</p>
+        </div>
+      `;
+
+      await this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject: `⚠️ Indicação em Revisão Manual — ${data.referredName}`,
+        sender: {
+          name: this.senderName,
+          email: this.senderEmail,
+        },
+        to: [{ email: to, name: 'Super Admin SinalizeGO' }],
+        htmlContent,
+      });
+
+      this.logger.log(
+        `Alerta de revisão de indicação #${data.referralId} enviado para Super Admin (${to})`,
+      );
+      return true;
+    } catch (error: any) {
+      this.logger.error(
+        `Falha ao enviar alerta de revisão de indicação para ${to}: ${error?.message || error}`,
+      );
+      return false;
+    }
+  }
 }
