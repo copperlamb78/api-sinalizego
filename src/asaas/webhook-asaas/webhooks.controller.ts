@@ -49,6 +49,14 @@ export class WebhooksController {
         );
       }
 
+      if (event?.startsWith('ACCOUNT_STATUS_')) {
+        return await this.webhooksService.handleAccountStatusEvent(
+          event,
+          payload,
+          eventId,
+        );
+      }
+
       if (!payment?.id) {
         return { received: true };
       }
