@@ -1,5 +1,11 @@
-import { ApiProperty, OmitType } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class CreateCompanyDto {
   // --- TELA 1: DADOS DO USUÁRIO ---
@@ -63,6 +69,14 @@ export class CreateCompanyDto {
   @IsString()
   @IsNotEmpty()
   number: string;
+
+  @ApiPropertyOptional({
+    example: 'XYZ12345',
+    description: 'Código de indicação de outra barbearia cadastrada (opcional)',
+  })
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }
 
 export class CreateCompanyWithoutUserDto extends OmitType(CreateCompanyDto, [
