@@ -31,6 +31,12 @@ import { validate } from './common/env.validation';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: [
+        process.env.NODE_ENV === 'production'
+          ? '.env.production'
+          : '.env.development',
+        '.env',
+      ],
       validate,
     }),
     ScheduleModule.forRoot(),
