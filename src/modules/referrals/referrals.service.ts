@@ -42,10 +42,28 @@ export class ReferralsService {
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
   ) {
-    this.frontendUrl =
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isTest = process.env.NODE_ENV === 'test';
+    const configuredUrl =
       this.configService.get<string>('FRONTEND_URL') ||
-      process.env.FRONTEND_URL ||
-      'https://app.sinalizego.com';
+      process.env.FRONTEND_URL;
+
+    if (
+      !isProduction &&
+      configuredUrl &&
+      (configuredUrl.includes('sinalizego.vercel.app') ||
+        configuredUrl.includes('sinalizego.com'))
+    ) {
+      this.frontendUrl = 'http://localhost:5173';
+    } else if (!configuredUrl) {
+      this.frontendUrl = isProduction
+        ? 'https://app.sinalizego.com'
+        : isTest
+          ? 'http://localhost:3000'
+          : 'http://localhost:5173';
+    } else {
+      this.frontendUrl = configuredUrl;
+    }
   }
 
   /**
