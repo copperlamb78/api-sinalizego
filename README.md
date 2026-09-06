@@ -39,7 +39,7 @@
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` e eventos de NFS-e (`INVOICE_AUTHORIZED`, `INVOICE_ERROR`) com alerta por e-mail |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 404 testes unitários automatizados (36 suítes) cobrindo 100% dos módulos, controllers, services, helpers, regras financeiras, emissão e webhooks de NFS-e, onboarding com autocura de perfis, CPF inline, No-Show com travas temporais, Escrow Hold, saques e permissões |
+| 🧪 **Suíte de Testes Completa** | 431 testes unitários automatizados (39 suítes) cobrindo 100% dos módulos, controllers, services, helpers, promoções N8 (Fundadores) e N9 (Indicação) com motor de overrides de taxas, gestão de vagas/lista de espera, emissão e webhooks de NFS-e, onboarding com autocura de perfis, CPF inline, No-Show com travas temporais, Escrow Hold, saques e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -342,6 +342,30 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 | `GET` | `/company/invoices/:id/appointments` | Consultar extrato detalhado dos agendamentos cobertos por uma NFS-e específica | 🔑 JWT | `INTERNAL_USERS` |
 | `GET` | `/admin/invoices` | Listagem global consolidada de todas as NFS-e emitidas na plataforma (Admin) | 🔑 JWT | `SYSTEM_MANAGERS` |
 | `GET` | `/admin/invoices/:id/appointments` | Consultar extrato de agendamentos de uma NFS-e no painel administrativo | 🔑 JWT | `SYSTEM_MANAGERS` |
+
+---
+
+### 🌟 Founders — Promoção Fundadores (N8)
+
+> Gestão do programa de 20 Assentos Fundadores com taxa de split Pix reduzida para R$ 0,49 por 1 ano, controle atômico de vagas, lista de espera ordenada, ativação no 1º atendimento concluído e avaliação de metas progressivas (20 atendimentos no mês 1 e 40 no mês 2).
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `POST` | `/fundadores/inscricao` | Inscrição de novos usuários na promoção dos 20 Fundadores (criação atômica de usuário, empresa e assento/lista de espera) | ❌ | — |
+| `GET` | `/fundadores/vagas` | Consulta pública em tempo real de vagas restantes dos 20 Fundadores e contagem de lista de espera | ❌ | — |
+| `GET` | `/fundadores/meu-status` | Consulta o status da vaga, metas ativas e contagem de agendamentos concluídos da empresa autenticada | 🔑 JWT | `INTERNAL_USERS` |
+
+---
+
+### 🤝 Referrals — Programa de Indicação (N9)
+
+> Gestão do ecossistema de indicações com link e código exclusivo por estabelecimento, concessão imediata de 15 dias de taxa R$ 0,49 para indicador e indicado após aprovação da subconta no Asaas, fila de espera (`QUEUED`) para indicadores que já são Fundadores ativos, teto anual de 90 dias (1 ano da 1ª indicação) e motor antifraude com fila de auditoria manual.
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `GET` | `/indicacao/meu-codigo` | Retorna o código e link exclusivo de indicação do estabelecimento autenticado | 🔑 JWT | `INTERNAL_USERS` |
+| `GET` | `/indicacao/minhas-indicacoes` | Retorna histórico de indicações do estabelecimento com status, métricas e dias promocionais acumulados | 🔑 JWT | `INTERNAL_USERS` |
+| `PATCH` | `/indicacao/:referralId/revisar` | Revisão manual de indicações sob suspeita de fraude na fila de análise (aprovação ou rejeição administrativa) | 🔑 JWT | `SYSTEM_MANAGERS` |
 
 ---
 
@@ -690,21 +714,42 @@ src/
     │   ├── transactions.service.ts
     │   └── transactions.service.spec.ts
     │
-    └── 🧾 invoice/
-        ├── invoice.module.ts
-        ├── invoice.controller.ts
-        ├── invoice.service.ts
-        ├── invoice.service.spec.ts
+    ├── 🧾 invoice/
+    │   ├── invoice.module.ts
+    │   ├── invoice.controller.ts
+    │   ├── invoice.service.ts
+    │   ├── invoice.service.spec.ts
+    │   └── dto/
+    │       ├── list-company-invoices.dto.ts
+    │       └── list-admin-invoices.dto.ts
+    │
+    ├── 💰 fees/
+    │   ├── fees.module.ts
+    │   ├── fees.service.ts
+    │   └── fees.service.spec.ts
+    │
+    ├── 🌟 founders/
+    │   ├── founders.module.ts
+    │   ├── founders.controller.ts
+    │   ├── founders.service.ts
+    │   ├── founders.service.spec.ts
+    │   └── dto/
+    │       └── create-founder.dto.ts
+    │
+    └── 🤝 referrals/
+        ├── referrals.module.ts
+        ├── referrals.controller.ts
+        ├── referrals.service.ts
+        ├── referrals.service.spec.ts
         └── dto/
-            ├── list-company-invoices.dto.ts
-            └── list-admin-invoices.dto.ts
+            └── review-referral.dto.ts
 ```
 
 ---
 
 ## 🧪 Testes Unitários
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **36 suítes de teste e 409 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **39 suítes de teste e 431 testes unitários automatizados**.
 
 Para rodar todos os testes:
 
@@ -713,6 +758,10 @@ npm test
 ```
 
 ### O que é coberto pelos testes:
+- **Promoções Fundadores (N8) & Indicação (N9) (`FoundersModule`, `ReferralsModule`, `FeesModule`):**
+  - Motor dinâmico de taxas de split Pix (`FeesService`), garantindo que barbeiros elegíveis paguem apenas R$ 0,49 (`MIN_PROMO_BARBER_FEE`), com absorção transparente do diferencial de R$ 0,50 pela plataforma e registro imutável em cada transação (`Transaction.barberFeeApplied`, `Transaction.promoSubsidy`).
+  - Gestão de Assentos Fundadores (N8): Inscrição transacional com 20 vagas (`FOUNDERS_TOTAL_SEATS`), lista de espera ordenada (`FounderWaitlist`), expiração de reservas em 14 dias sem aprovação da subconta, ativação de 1 ano de benefício no primeiro agendamento concluído (`COMPLETED`) e acompanhamento de metas progressivas (20 e 40 agendamentos nos 2 primeiros meses).
+  - Programa de Indicação (N9): Geração de código e link exclusivo de indicação por estabelecimento, ativação imediata de 15 dias de taxa reduzida (R$ 0,49) para ambos (indicador e indicado) assim que a subconta do indicado for aprovada pelo Asaas (`ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED`), enfileiramento automático de dias (`QUEUED`) caso o indicador já seja Fundador ativo para início pós-término da anuidade, teto anual de 90 dias computado a partir da primeira indicação, e checagem antifraude em múltiplas camadas (mesma chave Pix, documento ou telefone) com encaminhamento para auditoria manual (`REVIEW`) e notificação imediata por e-mail para os administradores.
 - **Autenticação & Tokens:** Login, geração e renovação de JWT/refresh token, validação estrita de status ativo (`isActive === true`) no login, no refresh e em cada requisição autenticada no `JwtStrategy`, e logout com invalidação de token.
 - **Recuperação de Senha:** Proteção contra enumeração de e-mail, assinatura dinâmica stateless com `JWT_SECRET + user.password`, rejeição de tokens expirados/usados e redefinição de senha com invalidação de refresh token.
 - **E-mails Transacionais & Lembretes D-1 (`MailModule`):** Disparo assíncrono e resiliente via Brevo API com novo layout Dark Mode institucional (`#0B1120`, `#0F172A`, `#1E293B`, `#14B8A6`, `#EF4444`) e templates dedicados:
