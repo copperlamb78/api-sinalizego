@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { SlugHelper } from './helpers/create-slug.helper';
 import { AuthService } from '../auth/auth.service';
 import { AsaasService } from 'src/asaas/asaas.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import {
   BadRequestException,
   ConflictException,
@@ -24,6 +25,10 @@ describe('CompanyService', () => {
   let slugHelper: SlugHelper;
   let authService: AuthService;
   let asaasService: AsaasService;
+
+  const mockReferralsService = {
+    attachReferral: jest.fn().mockResolvedValue(null),
+  };
 
   const mockPrisma = {
     user: {
@@ -95,6 +100,10 @@ describe('CompanyService', () => {
         {
           provide: AsaasService,
           useValue: mockAsaasService,
+        },
+        {
+          provide: ReferralsService,
+          useValue: mockReferralsService,
         },
       ],
     }).compile();
