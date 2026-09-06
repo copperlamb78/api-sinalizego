@@ -11,6 +11,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { BARBER_ASAAS_PIX_FEE } from 'src/common/constants/billing.constant';
 
 import { MailService } from 'src/modules/mail/mail.service';
+import { FoundersService } from 'src/modules/founders/founders.service';
+import { ReferralsService } from 'src/modules/referrals/referrals.service';
 
 @Injectable()
 export class WebhooksService {
@@ -20,6 +22,8 @@ export class WebhooksService {
     private readonly prisma: PrismaService,
     private readonly asaasService: AsaasService,
     private readonly mailService: MailService,
+    private readonly foundersService: FoundersService,
+    private readonly referralsService: ReferralsService,
   ) {}
 
   /**
@@ -34,6 +38,9 @@ export class WebhooksService {
     rawPayload?: any,
   ) {
     try {
+      if (event && event.startsWith('ACCOUNT_STATUS_')) {
+        return await this.handleAccountStatusEvent(event, rawPayload, eventId);
+      }
       if (!payment?.id) {
         return { received: true, ignored: true, reason: 'Missing payment.id' };
       }
@@ -296,19 +303,22 @@ export class WebhooksService {
                     )
                   : undefined;
 
+          const appliedBarberFee =
+            transaction.barberFeeApplied !== null &&
+            transaction.barberFeeApplied !== undefined
+              ? Number(transaction.barberFeeApplied)
+              : BARBER_ASAAS_PIX_FEE;
+
           const platformAbsorbedFee =
             realAsaasFee !== undefined &&
             !isNaN(realAsaasFee) &&
-            realAsaasFee > BARBER_ASAAS_PIX_FEE
-              ? Number((realAsaasFee - BARBER_ASAAS_PIX_FEE).toFixed(2))
+            realAsaasFee > appliedBarberFee
+              ? Number((realAsaasFee - appliedBarberFee).toFixed(2))
               : 0;
 
-          if (
-            realAsaasFee !== undefined &&
-            realAsaasFee > BARBER_ASAAS_PIX_FEE
-          ) {
+          if (realAsaasFee !== undefined && realAsaasFee > appliedBarberFee) {
             this.logger.warn(
-              `[MARGEM][${correlationId}] Tarifa Asaas real R$ ${realAsaasFee.toFixed(2)} excede a parte fixa do barbeiro (R$ ${BARBER_ASAAS_PIX_FEE.toFixed(2)}). Plataforma absorvendo R$ ${platformAbsorbedFee.toFixed(2)} em ${payment.id}.`,
+              `[MARGEM][${correlationId}] Tarifa Asaas real R$ ${realAsaasFee.toFixed(2)} excede a taxa aplicada do barbeiro (R$ ${appliedBarberFee.toFixed(2)}). Plataforma absorvendo R$ ${platformAbsorbedFee.toFixed(2)} em ${payment.id}.`,
             );
           }
 
@@ -997,6 +1007,119 @@ export class WebhooksService {
         error: true,
         message: 'Processed with error recovery',
       };
+    }
+  }
+
+  /**
+   * Processa eventos de situação cadastral de subcontas (ACCOUNT_STATUS_*)
+   */
+  async handleAccountStatusEvent(
+    event: string,
+    rawPayload: any,
+    eventId?: string,
+  ) {
+    try {
+      const walletId =
+        typeof rawPayload?.account === 'object'
+          ? rawPayload?.account?.id
+          : rawPayload?.account || rawPayload?.walletId;
+      if (!walletId) {
+        return { received: true, ignored: true, reason: 'Missing account.id' };
+      }
+
+      const correlationId = `acc_evt_${Date.now()}_${walletId}`;
+      const eventKey = eventId || `${event}_${walletId}_${Date.now()}`;
+
+      // 1. Idempotência Atômica
+      try {
+        await this.prisma.webhookEvent.create({
+          data: {
+            eventId: eventKey,
+            event,
+            paymentId: walletId,
+            payload: rawPayload,
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          return { received: true, alreadyProcessed: true };
+        }
+      }
+
+      const accountStatus = rawPayload?.accountStatus;
+      const isApproved =
+        event === 'ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED' ||
+        accountStatus?.general === 'APPROVED';
+
+      this.logger.log(
+        `[Webhook Asaas][${correlationId}] Evento cadastral ${event} para subconta #${walletId}. Situação geral: ${accountStatus?.general || 'N/A'}.`,
+      );
+
+      const profile = await this.prisma.financialProfile.findUnique({
+        where: { walletId },
+        include: {
+          companies: {
+            where: { isActive: true },
+            select: { id: true },
+          },
+        },
+      });
+
+      if (!profile) {
+        this.logger.warn(
+          `[Webhook Asaas][${correlationId}] Perfil financeiro com walletId #${walletId} não encontrado no sistema.`,
+        );
+        return { received: true, warning: 'FinancialProfile not found' };
+      }
+
+      // 2. Atualiza situação cadastral no perfil financeiro
+      await this.prisma.financialProfile.update({
+        where: { id: profile.id },
+        data: {
+          approvalStatus: accountStatus?.general || event,
+          ...(isApproved
+            ? {
+                isApproved: true,
+                approvedAt: new Date(),
+              }
+            : {}),
+        },
+      });
+
+      // 3. Dispara gatilhos de promoções caso a subconta esteja aprovada
+      if (isApproved) {
+        for (const company of profile.companies) {
+          // Gatilho 1: Fundadores (RESERVED -> SECURED)
+          await this.foundersService
+            .onSubaccountApproved(company.id)
+            .catch((err) => {
+              this.logger.error(
+                `[Webhook Asaas][${correlationId}] Erro no gatilho de Fundadores para empresa #${company.id}: ${err.message}`,
+              );
+            });
+
+          // Gatilho 2: Indicação (PENDING -> ACTIVATED / REVIEW)
+          await this.referralsService
+            .onSubaccountApproved(company.id)
+            .catch((err) => {
+              this.logger.error(
+                `[Webhook Asaas][${correlationId}] Erro no gatilho de Indicação para empresa #${company.id}: ${err.message}`,
+              );
+            });
+        }
+      }
+
+      return {
+        received: true,
+        walletId,
+        isApproved,
+        event,
+      };
+    } catch (err: any) {
+      this.logger.error(
+        `[Webhook Asaas] Erro ao processar evento cadastral ${event}: ${err?.message || err}`,
+      );
+      return { received: true, error: err?.message };
     }
   }
 
