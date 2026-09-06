@@ -33,6 +33,7 @@ import { AsaasService } from 'src/asaas/asaas.service';
 import { MIN_FREE_WEEKLY_PAYOUT } from 'src/common/constants/billing.constant';
 import { Cron } from '@nestjs/schedule';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { ReferralsService } from '../referrals/referrals.service';
 
 @Injectable()
 export class CompanyService {
@@ -43,6 +44,7 @@ export class CompanyService {
     private readonly slugHelper: SlugHelper,
     private readonly authService: AuthService,
     private readonly asaasService: AsaasService,
+    private readonly referralsService: ReferralsService,
   ) {}
 
   async createCompanyWithUser(data: CreateCompanyDto) {
@@ -102,6 +104,17 @@ export class CompanyService {
       companyUser.id,
       tokens.refreshToken,
     );
+
+    // Se houver código de indicação, vincula com tolerância a falha
+    if (data.referralCode && companyUser.companies.length > 0) {
+      await this.referralsService
+        .attachReferral(companyUser.companies[0].id, data.referralCode)
+        .catch((err) => {
+          this.logger.error(
+            `[Cadastro] Falha ao processar código de indicação: ${err.message}`,
+          );
+        });
+    }
 
     return {
       message: 'Empresa criada com sucesso',
@@ -387,9 +400,11 @@ export class CompanyService {
       throw new NotFoundException('Empresa não encontrada.');
     }
 
+    const { referralCode: _referralCode, ...updateData } = data;
+
     return this.prisma.company.update({
       where: { id: companyExists.id },
-      data: data,
+      data: updateData,
     });
   }
 
