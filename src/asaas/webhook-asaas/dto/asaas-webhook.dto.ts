@@ -24,6 +24,20 @@ export class AsaasWebhookDto {
   invoice?: any;
 
   @ApiPropertyOptional({
+    description: 'Objeto de subconta enviado em eventos de situação cadastral',
+  })
+  @IsOptional()
+  @IsObject()
+  account?: any;
+
+  @ApiPropertyOptional({
+    description: 'Objeto de situação cadastral da conta enviado pelo webhook',
+  })
+  @IsOptional()
+  @IsObject()
+  accountStatus?: any;
+
+  @ApiPropertyOptional({
     description: 'O ID do evento no Asaas',
     example: 'evt_123456',
   })
