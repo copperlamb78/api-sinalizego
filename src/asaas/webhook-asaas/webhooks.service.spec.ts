@@ -5,12 +5,16 @@ import { AsaasService } from '../asaas.service';
 import { ApptStatus, TransactionStatus } from '@prisma/client';
 
 import { MailService } from 'src/modules/mail/mail.service';
+import { FoundersService } from 'src/modules/founders/founders.service';
+import { ReferralsService } from 'src/modules/referrals/referrals.service';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
   let prisma: PrismaService;
   let asaasService: AsaasService;
   let mailService: MailService;
+  let foundersService: FoundersService;
+  let referralsService: ReferralsService;
 
   const mockPrisma = {
     transaction: {
@@ -32,6 +36,10 @@ describe('WebhooksService', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    financialProfile: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     $transaction: jest.fn((promises) => Promise.all(promises)),
   };
 
@@ -51,6 +59,14 @@ describe('WebhooksService', () => {
     sendInvoiceErrorAlertEmail: jest.fn().mockResolvedValue(true),
   };
 
+  const mockFoundersService = {
+    onSubaccountApproved: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockReferralsService = {
+    onSubaccountApproved: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -67,6 +83,14 @@ describe('WebhooksService', () => {
           provide: MailService,
           useValue: mockMailService,
         },
+        {
+          provide: FoundersService,
+          useValue: mockFoundersService,
+        },
+        {
+          provide: ReferralsService,
+          useValue: mockReferralsService,
+        },
       ],
     }).compile();
 
@@ -74,6 +98,8 @@ describe('WebhooksService', () => {
     prisma = module.get<PrismaService>(PrismaService);
     asaasService = module.get<AsaasService>(AsaasService);
     mailService = module.get<MailService>(MailService);
+    foundersService = module.get<FoundersService>(FoundersService);
+    referralsService = module.get<ReferralsService>(ReferralsService);
     jest.clearAllMocks();
   });
 
@@ -608,6 +634,66 @@ describe('WebhooksService', () => {
           companyName: 'Barbearia Modelo',
           errorMessage: 'Certificado digital da prefeitura expirado',
         }),
+      );
+    });
+  });
+
+  describe('Account Status Webhook (Subaccount Approval)', () => {
+    const rawPayload = {
+      event: 'ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED',
+      account: 'wallet-sub-1',
+      accountStatus: {
+        general: 'APPROVED',
+      },
+    };
+
+    it('should ignore duplicate account status event idempotently', async () => {
+      mockPrisma.webhookEvent.create.mockRejectedValueOnce({
+        code: 'P2002',
+        message: 'Unique constraint',
+      });
+
+      const result = await service.handleAsaasEvent(
+        'ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED',
+        null,
+        'evt-acc-1',
+        rawPayload,
+      );
+
+      expect(result).toEqual({ received: true, alreadyProcessed: true });
+    });
+
+    it('should update financial profile and trigger Founders and Referrals hooks when approved', async () => {
+      mockPrisma.webhookEvent.create.mockResolvedValue({});
+      mockPrisma.financialProfile.findUnique.mockResolvedValue({
+        id: 'fp-1',
+        walletId: 'wallet-sub-1',
+        companies: [{ id: 'comp-1' }],
+      });
+      mockPrisma.financialProfile.update.mockResolvedValue({});
+
+      const result = await service.handleAsaasEvent(
+        'ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED',
+        null,
+        'evt-acc-2',
+        rawPayload,
+      );
+
+      expect(result.received).toBe(true);
+      expect(result.isApproved).toBe(true);
+      expect(mockPrisma.financialProfile.update).toHaveBeenCalledWith({
+        where: { id: 'fp-1' },
+        data: expect.objectContaining({
+          isApproved: true,
+          approvalStatus: 'APPROVED',
+          approvedAt: expect.any(Date),
+        }),
+      });
+      expect(mockFoundersService.onSubaccountApproved).toHaveBeenCalledWith(
+        'comp-1',
+      );
+      expect(mockReferralsService.onSubaccountApproved).toHaveBeenCalledWith(
+        'comp-1',
       );
     });
   });
