@@ -8,12 +8,15 @@ import {
 } from '@nestjs/common';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { FeesService } from '../fees/fees.service';
+import { BARBER_ASAAS_PIX_FEE } from 'src/common/constants/billing.constant';
 
 @Injectable()
 export class TransactionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly asaas: AsaasService,
+    private readonly feesService: FeesService,
   ) {}
 
   async createPixForAppointment(appointmentId: string, userId: string) {
@@ -21,6 +24,7 @@ export class TransactionsService {
       where: { id: appointmentId },
       select: {
         id: true,
+        companyId: true,
         clientId: true,
         status: true,
         expiresAt: true,
@@ -109,12 +113,22 @@ export class TransactionsService {
     const deposit = Number(appointment.downPaymentAmount); // do banco, nunca do body
     const platformFee = Number(appointment.platformFeeAmount); // do banco, nunca do body ou recálculo
 
+    const effectiveFeeResult = await this.feesService.getEffectiveBarberFee(
+      appointment.companyId,
+    );
+
     const pixData = await this.asaas.createPixChargeWithSplit(
       asaasCustomerId,
       walletId,
       deposit,
       appointment.id,
       platformFee,
+      effectiveFeeResult.fee,
+    );
+
+    const barberFeeApplied = pixData.barberFeeApplied ?? effectiveFeeResult.fee;
+    const promoSubsidy = Number(
+      Math.max(0, BARBER_ASAAS_PIX_FEE - barberFeeApplied).toFixed(2),
     );
 
     await this.prisma.transaction.create({
@@ -124,6 +138,9 @@ export class TransactionsService {
         netValue: pixData.barberNetValue,
         platformFee: pixData.platformFee,
         asaasFee: pixData.asaasFee,
+        barberFeeApplied: barberFeeApplied,
+        promoSubsidy: promoSubsidy > 0 ? promoSubsidy : 0,
+        feeOverrideId: effectiveFeeResult.overrideId,
         status: 'PENDING',
         type: 'DEPOSIT',
         billingType: 'PIX',
