@@ -79,6 +79,13 @@ model Company {
   scheduleExceptions ScheduleException[]
   invoices           PlatformInvoice[]
 
+  feeOverrides       FeeOverride[]
+  founderSeat        FounderSeat?
+  founderWaitlist    FounderWaitlist?
+  referralCode       ReferralCode?
+  referralsSent      Referral[]          @relation("ReferralsSent")
+  referralReceived   Referral?           @relation("ReferralsReceived")
+
   @@index([userId])
 }
 
@@ -249,6 +256,11 @@ model FinancialProfile {
   isActive   Boolean   @default(true)
   disabledAt DateTime?
 
+  // Situação cadastral no Asaas
+  isApproved     Boolean   @default(false)
+  approvedAt     DateTime?
+  approvalStatus String?
+
   @@index([userId])
 }
 
@@ -285,6 +297,11 @@ model Transaction {
   platformFee         Decimal @db.Decimal(10, 2) // A sua parte da grana (ex: 2.00)
   asaasFee            Decimal @db.Decimal(10, 2) // Parte do asaas (ex: 0,99)
   platformAbsorbedFee Decimal @default(0) @db.Decimal(10, 2) // Parcela da tarifa Asaas absorvida pela plataforma (tarifaReal - parte do barbeiro)
+
+  barberFeeApplied    Decimal? @db.Decimal(10, 2) // Taxa de split Pix efetiva aplicada (ex: 0.49 ou 0.99)
+  promoSubsidy        Decimal? @db.Decimal(10, 2) // Subsídio da plataforma (0.99 - barberFeeApplied)
+  feeOverrideId       String?
+  feeOverride         FeeOverride? @relation(fields: [feeOverrideId], references: [id])
 
   // Status e Tipo
   status         TransactionStatus @default(PENDING)
@@ -368,4 +385,142 @@ model PlatformInvoice {
   @@index([periodYear, periodMonth])
   @@map("platform_invoices")
 }
+
+// ----------------------------------------------------------------------------
+// PROMOÇÕES: MECANISMO COMPARTILHADO (FeeOverride)
+// ----------------------------------------------------------------------------
+enum FeeOverrideSource {
+  FOUNDER
+  REFERRAL_RECIPIENT
+  REFERRAL_SENDER
+}
+
+enum FeeOverrideStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  QUEUED // Aguardando início (ex: indicação acumulada para Fundador ativo)
+}
+
+model FeeOverride {
+  id            String            @id @default(uuid())
+  companyId     String
+  barberPixFee  Decimal           @db.Decimal(10, 2)
+  startsAt      DateTime
+  endsAt        DateTime
+  source        FeeOverrideSource
+  sourceId      String?           // FounderSeat.id ou Referral.id
+  status        FeeOverrideStatus @default(ACTIVE)
+  revokedReason String?
+  createdAt     DateTime          @default(now())
+
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+
+  @@index([companyId, status, startsAt, endsAt])
+}
+
+// ----------------------------------------------------------------------------
+// PROMOÇÃO 1: FUNDADORES (N8)
+// ----------------------------------------------------------------------------
+enum FounderSeatStatus {
+  RESERVED  // Inscrição realizada, aguardando aprovação da subconta Asaas (prazo de 14 dias)
+  SECURED   // Subconta Asaas aprovada, override de 0,49 ativo, aguardando 1º COMPLETED
+  PROVING   // 1º COMPLETED ocorreu, janela de metas de 60 dias ativa (20 no mês 1, 40 no mês 2)
+  ACTIVE    // Metas cumpridas nos 2 meses, fundador ativo pelo restante dos 12 meses
+  FORFEITED // Vaga perdida (por expiração de reserva, não bater meta ou suspensão)
+}
+
+model FounderSeat {
+  id                String            @id @default(uuid())
+  seatNumber        Int               // 1..20
+  companyId         String            @unique
+  status            FounderSeatStatus @default(RESERVED)
+  reservedAt        DateTime          @default(now())
+  reserveExpiresAt  DateTime          // reservedAt + 14d
+  securedAt         DateTime?         // Momento em que a subconta Asaas foi aprovada
+  activatedAt       DateTime?         // Momento do 1º agendamento COMPLETED
+  provingEndsAt     DateTime?         // activatedAt + 60d
+  month1Target      Int               @default(20)
+  month1Count       Int               @default(0)
+  month1EvaluatedAt DateTime?
+  month1Passed      Boolean?
+  month2Target      Int               @default(40)
+  month2Count       Int               @default(0)
+  month2EvaluatedAt DateTime?
+  month2Passed      Boolean?
+  forfeitedAt       DateTime?
+  forfeitReason     String?
+  surveyConsentAt   DateTime          @default(now())
+  feeOverrideId     String?           @unique
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([seatNumber])
+  @@index([status])
+}
+
+enum WaitlistStatus {
+  WAITING
+  OFFERED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model FounderWaitlist {
+  id             String         @id @default(uuid())
+  position       Int            @unique
+  companyId      String         @unique
+  appliedAt      DateTime       @default(now())
+  offeredAt      DateTime?
+  offerExpiresAt DateTime?      // offeredAt + 7d
+  status         WaitlistStatus @default(WAITING)
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+// ----------------------------------------------------------------------------
+// PROMOÇÃO 2: INDICAÇÃO (N9)
+// ----------------------------------------------------------------------------
+model ReferralCode {
+  id                String     @id @default(uuid())
+  code              String     @unique // Código de 8 caracteres
+  referrerCompanyId String     @unique
+  active            Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+
+  referrerCompany   Company    @relation(fields: [referrerCompanyId], references: [id], onDelete: Cascade)
+  referrals         Referral[]
+}
+
+enum ReferralStatus {
+  PENDING   // Cadastrado com código, aguardando aprovação de subconta do indicado
+  REVIEW    // Sinais de risco/fraude detectados, aguardando aprovação manual do Super Admin
+  ACTIVATED // Aprovado pelo Asaas (ou Super Admin) e 15 dias concedidos para ambos
+  REJECTED  // Rejeitado por auditoria manual
+  REVOKED   // Revogado por desativação ou suspensão na janela
+}
+
+model Referral {
+  id                 String         @id @default(uuid())
+  codeId             String
+  referrerCompanyId  String
+  referredCompanyId  String         @unique
+  status             ReferralStatus @default(PENDING)
+  riskFlags          String[]       // Indícios detectados (ex: SAME_PIX, SAME_CPF, SAME_PHONE)
+  registeredAt       DateTime       @default(now())
+  activatedAt        DateTime?
+  rejectedReason     String?
+  cycleYearStart     DateTime?      // Marco do ciclo de 1 ano para apuração do teto de 90 dias
+  referrerOverrideId String?
+  referredOverrideId String?
+
+  code               ReferralCode   @relation(fields: [codeId], references: [id])
+  referrerCompany    Company        @relation("ReferralsSent", fields: [referrerCompanyId], references: [id], onDelete: Cascade)
+  referredCompany    Company        @relation("ReferralsReceived", fields: [referredCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([referrerCompanyId, status])
+}
+
 
