@@ -30,6 +30,8 @@ import {
 } from 'src/common/constants/billing.constant';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
+import { FoundersService } from '../founders/founders.service';
+
 @Injectable()
 export class AppointmentsService {
   private readonly logger = new Logger(AppointmentsService.name);
@@ -41,6 +43,7 @@ export class AppointmentsService {
     private readonly asaasService: AsaasService,
     private readonly availabilityService: AvailabilityService,
     private readonly mailService: MailService,
+    private readonly foundersService: FoundersService,
   ) {}
 
   async createAppointment(data: CreateAppointmentsDto, userId: string) {
@@ -870,7 +873,7 @@ export class AppointmentsService {
       );
     }
 
-    return this.prisma.appointment.update({
+    const updated = await this.prisma.appointment.update({
       where: { id: appointmentId },
       data: {
         status: ApptStatus.COMPLETED,
@@ -902,6 +905,17 @@ export class AppointmentsService {
         },
       },
     });
+
+    // Gatilho de Fundadores (1º COMPLETED ativa a prova de 60 dias)
+    await this.foundersService
+      .onAppointmentCompleted(appointment.companyId)
+      .catch((err) => {
+        this.logger.error(
+          `[Agendamento] Erro no gatilho de Fundadores para empresa #${appointment.companyId}: ${err.message}`,
+        );
+      });
+
+    return updated;
   }
 
   /**
