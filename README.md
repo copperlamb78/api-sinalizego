@@ -39,7 +39,7 @@
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` e eventos de NFS-e (`INVOICE_AUTHORIZED`, `INVOICE_ERROR`) com alerta por e-mail |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 431 testes unitários automatizados (39 suítes) cobrindo 100% dos módulos, controllers, services, helpers, promoções N8 (Fundadores) e N9 (Indicação) com motor de overrides de taxas, gestão de vagas/lista de espera, emissão e webhooks de NFS-e, onboarding com autocura de perfis, CPF inline, No-Show com travas temporais, Escrow Hold, saques e permissões |
+| 🧪 **Suíte de Testes Completa** | 431 testes unitários automatizados (39 suítes) + 141 testes de integração HTTP E2E (8 suítes) com 100% de cobertura dos módulos, controllers, services, helpers, promoções N8 (Fundadores) e N9 (Indicação) com motor de overrides de taxas, gestão de vagas/lista de espera, emissão e webhooks de NFS-e, onboarding com autocura de perfis, CPF inline, No-Show com travas temporais, Escrow Hold, saques e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -749,14 +749,30 @@ src/
 
 ---
 
-## 🧪 Testes Unitários
+## 🧪 Testes Automatizados (Unitários e E2E)
 
-O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **39 suítes de teste e 431 testes unitários automatizados**.
+O projeto possui **100% de cobertura de controladores e regras críticas de serviço**, totalizando **572 testes automatizados** distribuídos entre:
+- **431 testes unitários (39 suítes)**
+- **141 testes de integração HTTP E2E (8 suítes com Jest e Supertest)** cobrindo 100% das rotas e fluxos da API:
+  - `test/promotions.e2e-spec.ts` (20 testes): Regras de negócio de Promoções N8 (Fundadores) e N9 (Indicação), gestão de vagas, lista de espera, verificação de subcontas aprovadas e antifraude.
+  - `test/auth-users.e2e-spec.ts` (29 testes): Autenticação JWT, refresh tokens, logout, recuperação de senha stateless, criação de usuários, atualização cadastral com CPF inline e desativação/ativação de contas.
+  - `test/company-catalog.e2e-spec.ts` (31 testes): Criação e perfil de empresa, vitrine pública por slug, gestão de grupos de serviço com capacidade, catálogo de serviços com trava de onboarding financeiro e uploads seguros com validação de magic bytes no Cloudinary.
+  - `test/appointments-booking.e2e-spec.ts` (21 testes): Grade semanal de horários, exceções e feriados, motor de slots disponíveis por fuso horário, reserva com derivação server-side de sinal/taxa (Zero Trust), geração de cobrança Pix Asaas e cancelamento com estorno ou retenção.
+  - `test/finance-admin.e2e-spec.ts` (21 testes): Subcontas financeiras no Asaas, saques avulsos com dedução de taxa de R$ 5,00, consulta de saldo em custódia (Escrow Hold), dashboard de inteligência global administrativa e webhook Asaas com máquina de estados de confirmação atômica de pagamento.
+  - `test/financial.e2e-spec.ts`: Regras de negócio de taxas e split.
+  - `test/invoice.e2e-spec.ts`: Consolidação mensal e ciclo de vida de NFS-e.
+  - `test/app.e2e-spec.ts`: Health check público e roteamento base.
 
-Para rodar todos os testes:
+Para rodar todos os testes unitários:
 
 ```bash
 npm test
+```
+
+Para rodar os testes de integração HTTP E2E:
+
+```bash
+npm run test:e2e
 ```
 
 ### O que é coberto pelos testes:
