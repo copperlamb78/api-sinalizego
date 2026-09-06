@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { FeeOverride, FeeOverrideSource, FeeOverrideStatus } from '@prisma/client';
+import {
+  FeeOverride,
+  FeeOverrideSource,
+  FeeOverrideStatus,
+} from '@prisma/client';
 import {
   BARBER_ASAAS_PIX_FEE,
   MIN_PROMO_BARBER_FEE,
@@ -141,8 +145,7 @@ export class FeesService {
       });
 
       if (activeCount === 0) {
-        const durationMs =
-          queued.endsAt.getTime() - queued.startsAt.getTime();
+        const durationMs = queued.endsAt.getTime() - queued.startsAt.getTime();
         const newStartsAt = now;
         const newEndsAt = new Date(now.getTime() + durationMs);
 
