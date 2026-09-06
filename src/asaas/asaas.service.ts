@@ -16,6 +16,7 @@ import {
   DEFAULT_ASAAS_GATEWAY_COST,
   DEFAULT_MEI_TAXES,
   DEFAULT_MUNICIPAL_SERVICE_ID,
+  MIN_PROMO_BARBER_FEE,
 } from 'src/common/constants/billing.constant';
 import { CryptoHelper } from 'src/helpers/crypto.helper';
 
@@ -298,6 +299,30 @@ export class AsaasService implements OnModuleInit {
     }
   }
 
+  async getSubAccountStatus(walletId: string): Promise<any> {
+    try {
+      const response = await fetch(
+        `${this.apiUrl}/accounts/${walletId}/status`,
+        {
+          method: 'GET',
+          headers: this.headers,
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      this.logger.error(
+        `[Asaas] Erro ao consultar situação cadastral da subconta #${walletId}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
   async listAllSubAccounts() {
     try {
       const response = await fetch(`${this.apiUrl}/accounts`, {
@@ -552,14 +577,18 @@ export class AsaasService implements OnModuleInit {
     depositValue: number,
     appointmentId: string,
     persistedPlatformFee?: number,
+    effectiveBarberFee?: number,
   ) {
     const platformFee =
       persistedPlatformFee !== undefined
         ? persistedPlatformFee
         : this.calculateTax.calculatePlatformTax(depositValue);
 
-    // O barbeiro paga a taxa configurada do gateway Asaas (ASAAS_PIX_FEE ou BARBER_ASAAS_PIX_FEE)
-    const barberAsaasFee = BARBER_ASAAS_PIX_FEE;
+    // O barbeiro paga a taxa configurada (ou taxa promocional via override)
+    const barberAsaasFee =
+      effectiveBarberFee !== undefined && !isNaN(effectiveBarberFee)
+        ? Math.max(MIN_PROMO_BARBER_FEE, effectiveBarberFee)
+        : BARBER_ASAAS_PIX_FEE;
 
     const totalToCharge = Number((depositValue + platformFee).toFixed(2));
     const barberNetValue = Number(
@@ -663,6 +692,7 @@ export class AsaasService implements OnModuleInit {
         barberNetValue: barberNetValue,
         platformFee: platformFee,
         asaasFee: actualAsaasFee,
+        barberFeeApplied: barberAsaasFee,
       };
     } catch (error: any) {
       if (error instanceof BadRequestException) {
