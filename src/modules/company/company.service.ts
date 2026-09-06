@@ -400,7 +400,8 @@ export class CompanyService {
       throw new NotFoundException('Empresa não encontrada.');
     }
 
-    const { referralCode: _referralCode, ...updateData } = data;
+    const { referralCode: _, ...updateData } = data;
+    void _;
 
     return this.prisma.company.update({
       where: { id: companyExists.id },
