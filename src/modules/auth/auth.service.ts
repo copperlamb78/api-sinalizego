@@ -159,7 +159,16 @@ export class AuthService {
       },
     );
 
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isTest = process.env.NODE_ENV === 'test';
+    const configuredUrl = process.env.FRONTEND_URL;
+
+    let baseUrl = configuredUrl;
+    if (!isProduction && configuredUrl && (configuredUrl.includes('sinalizego.vercel.app') || configuredUrl.includes('sinalizego.com'))) {
+      baseUrl = 'http://localhost:5173';
+    } else if (!configuredUrl) {
+      baseUrl = isProduction ? 'https://sinalizego.vercel.app' : (isTest ? 'http://localhost:3000' : 'http://localhost:5173');
+    }
     const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
     await this.mailService.sendPasswordResetEmail(
