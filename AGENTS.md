@@ -265,10 +265,20 @@ R$ 0.25, computed in integer cents. The fee is charged **on top of** the
 deposit; the Pix total is `deposit + platform fee`.
 
 **Gateway fee split is immutable.** The establishment's share of the Asaas Pix
-fee is **fixed at R$ 0.99** (`BARBER_ASAAS_PIX_FEE`). It must never be derived
-from the live Asaas fee, from `ASAAS_PIX_FEE`, or from `fetchAccountFees()`.
-`AsaasService.gatewayPixCost` is a cost metric only — using it in a split
-calculation is a regression.
+fee is **fixed at R$ 0.99** (`BARBER_ASAAS_PIX_FEE`) by default, except when reduced
+temporarily by promotions N8 (Founders) or N9 (Referral) down to R$ 0.49
+(`MIN_PROMO_BARBER_FEE`). It must never be derived from the live Asaas fee, from
+`ASAAS_PIX_FEE`, or from `fetchAccountFees()`. `AsaasService.gatewayPixCost` is a cost
+metric only — using it in a split calculation is a regression.
+
+**Promotions — Founders (N8) & Referral (N9).**
+- **N8 (Founders):** 20 seats with Pix fee reduced to R$ 0.49 for 1 year from activation.
+  Reservation holds 14 days for subaccount approval; activation on 1st `COMPLETED` appointment;
+  progressive targets of ≥ 20 appointments in month 1 and ≥ 40 in month 2.
+- **N9 (Referral):** Unique referral link. When the referred subaccount is approved,
+  both referrer and referred receive R$ 0.49 fee for 15 days. Referrer can accumulate up to
+  90 days per year (1-year cycle from 1st approved referral). If referrer is an active Founder,
+  referral days queue up (`QUEUED`) and start after the Founder year ends. Fraud flags route to manual review.
 
 **Historical pricing is frozen.** `servicePrice`, `downPaymentAmount` and
 `platformFeeAmount` are persisted on the `Appointment` at creation. Never
