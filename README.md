@@ -80,12 +80,15 @@ npm run start:dev
 
 ### ⚙️ Variáveis de Ambiente
 
+O projeto suporta múltiplos ambientes isolados (`.env.development` para banco de dados local e `.env.production` para produção):
+
 ```env
 PORT=3000
 NODE_ENV="development"
 
-# Conexão com Banco de Dados PostgreSQL
-DATABASE_URL="postgresql://postgres:password123@localhost:5432/sinalizego?schema=public"
+# Conexão com Banco de Dados PostgreSQL (Local ou Supabase)
+DATABASE_URL="postgresql://postgres:password123@localhost:5432/sinalizego_dev?schema=public"
+DIRECT_URL="postgresql://postgres:password123@localhost:5432/sinalizego_dev?schema=public"
 
 # Autenticação e Criptografia
 JWT_SECRET="super_secret_jwt_access_key"
@@ -93,7 +96,7 @@ JWT_REFRESH_SECRET="super_secret_jwt_refresh_key"
 ENCRYPTION_SECRET="super_secret_encryption_key_32_characters_minimum"
 
 # Frontend & CORS
-FRONTEND_URL="http://localhost:3000"
+FRONTEND_URL="http://localhost:5173"
 CORS_ORIGINS="http://localhost:3000,http://localhost:5173"
 ENABLE_SWAGGER_IN_PROD="false"
 
@@ -111,18 +114,22 @@ CLOUDINARY_API_SECRET="your_cloudinary_api_secret"
 
 # Brevo (E-mails Transacionais)
 BREVO_API_KEY="xkeysib-..."
-MAIL_FROM_EMAIL="neodevzone@gmail.com"
-MAIL_FROM_NAME="SinalizeGO Suporte"
+MAIL_FROM_EMAIL="sinalizego@gmail.com"
+MAIL_FROM_NAME="SinalizeGO"
 ```
 
 ### 🏃 Scripts Disponíveis
 
 | Comando | Descrição |
 |---------|-----------|
-| `npm run start:dev` | 🔄 Inicia em modo watch (desenvolvimento) |
-| `npm run start:debug` | 🐛 Inicia em modo debug com watch |
+| `npm run start:dev` | 🔄 Inicia em modo watch com `.env.development` (banco local) |
+| `npm run start:prod` | 🚀 Inicia a build com `.env.production` (Supabase) |
+| `npm run db:push:dev` | 🗄️ Aplica o schema do Prisma no banco local (`sinalizego_dev`) |
+| `npm run db:push:prod` | 🗄️ Aplica o schema do Prisma no banco de produção (Supabase) |
+| `npm run db:studio:dev`| 🖥️ Abre o Prisma Studio conectado ao banco local |
+| `npm run db:studio:prod`| 🖥️ Abre o Prisma Studio conectado ao banco de produção |
+| `npm run db:seed:dev` | 🌱 Popula o banco local com usuários iniciais de teste |
 | `npm run build` | 📦 Compila o projeto com o compilador NestJS |
-| `npm run start:prod` | 🚀 Inicia a build de produção compilada |
 | `npm run lint` | 🔍 Executa o linter (ESLint) com correção automática |
 | `npm run format` | 🎨 Formata o código (Prettier) |
 | `npm run test` | 🧪 Executa a suíte de testes unitários |
