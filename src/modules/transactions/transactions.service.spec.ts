@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TransactionsService } from './transactions.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from 'src/asaas/asaas.service';
+import { FeesService } from '../fees/fees.service';
 import {
   BadRequestException,
   ConflictException,
@@ -30,6 +31,10 @@ describe('TransactionsService', () => {
     createPixChargeWithSplit: jest.fn(),
   };
 
+  const mockFees = {
+    getEffectiveBarberFee: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -42,6 +47,10 @@ describe('TransactionsService', () => {
           provide: AsaasService,
           useValue: mockAsaas,
         },
+        {
+          provide: FeesService,
+          useValue: mockFees,
+        },
       ],
     }).compile();
 
@@ -49,6 +58,10 @@ describe('TransactionsService', () => {
     prisma = module.get<PrismaService>(PrismaService);
     asaas = module.get<AsaasService>(AsaasService);
     jest.clearAllMocks();
+    mockFees.getEffectiveBarberFee.mockResolvedValue({
+      fee: 0.99,
+      isPromotional: false,
+    });
   });
 
   it('should be defined', () => {
@@ -214,6 +227,7 @@ describe('TransactionsService', () => {
         50.0,
         'appointment-1',
         7.5,
+        0.99,
       );
       expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -223,6 +237,57 @@ describe('TransactionsService', () => {
           customerId: 'client-1',
           barberWalletId: 'wallet-1',
           appointmentId: 'appointment-1',
+        }),
+      });
+      expect(result).toEqual(pixResponse);
+    });
+
+    it('should create a Pix charge with promotional fee R$ 0.49 and calculate promoSubsidy', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(validAppointment);
+      mockPrisma.transaction.findFirst.mockResolvedValue(null);
+      mockFees.getEffectiveBarberFee.mockResolvedValue({
+        fee: 0.49,
+        overrideId: 'override-123',
+        isPromotional: true,
+      });
+
+      const pixResponse = {
+        paymentId: 'pay_promo_789',
+        totalValue: 57.5,
+        qrCodePayload: 'payload_promo',
+        qrCodeImage: 'image_promo',
+        expirationDate: new Date(),
+        barberNetValue: 49.51,
+        platformFee: 7.5,
+        asaasFee: 0.49,
+        barberFeeApplied: 0.49,
+      };
+
+      mockAsaas.createPixChargeWithSplit.mockResolvedValue(pixResponse);
+      mockPrisma.transaction.create.mockResolvedValue({
+        id: 'tx-promo',
+        ...pixResponse,
+      });
+
+      const result = await service.createPixForAppointment(
+        'appointment-1',
+        'client-1',
+      );
+
+      expect(mockAsaas.createPixChargeWithSplit).toHaveBeenCalledWith(
+        'cus_12345',
+        'wallet-1',
+        50.0,
+        'appointment-1',
+        7.5,
+        0.49,
+      );
+      expect(mockPrisma.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          asaasPaymentId: 'pay_promo_789',
+          barberFeeApplied: 0.49,
+          promoSubsidy: 0.5,
+          feeOverrideId: 'override-123',
         }),
       });
       expect(result).toEqual(pixResponse);
