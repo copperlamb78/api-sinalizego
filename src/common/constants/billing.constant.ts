@@ -16,6 +16,31 @@ export const MIN_MICROTRANSACTION_DEPOSIT = 15.0;
 export const BARBER_ASAAS_PIX_FEE = 0.99;
 
 /**
+ * Piso mínimo promocional da taxa de split Pix do Barbeiro (R$ 0,49 — Regras N8 e N9).
+ * Sob nenhuma circunstância uma combinação de overrides pode reduzir a taxa abaixo deste valor.
+ */
+export const MIN_PROMO_BARBER_FEE = 0.49;
+
+/**
+ * Constantes do Programa Fundadores (Regra N8)
+ */
+export const FOUNDERS_MAX_SEATS = 20;
+export const FOUNDERS_RESERVE_DAYS = 14;
+export const FOUNDERS_PROVING_DAYS = 60;
+export const FOUNDERS_DURATION_DAYS = 365;
+export const FOUNDERS_MONTH1_TARGET = 20;
+export const FOUNDERS_MONTH2_TARGET = 40;
+export const FOUNDERS_WAITLIST_OFFER_DAYS = 7;
+
+/**
+ * Constantes do Programa de Indicação (Regra N9)
+ */
+export const REFERRAL_PROMO_DAYS = 15;
+export const REFERRAL_MAX_ANNUAL_DAYS = 90;
+export const REFERRAL_CYCLE_DAYS = 365;
+export const SUPER_ADMIN_ALERT_EMAIL = 'sinalizego@gmail.com';
+
+/**
  * Custo padrão de referência do gateway Asaas (R$ 1,99 pós-promoção / R$ 0,99 promocional).
  * Métrica de CUSTO apenas — NUNCA usar no cálculo do split do barbeiro.
  */
