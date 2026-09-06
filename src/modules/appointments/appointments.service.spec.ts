@@ -16,12 +16,14 @@ import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { AvailabilityService } from './availability.service';
 import { MailService } from '../mail/mail.service';
+import { FoundersService } from '../founders/founders.service';
 
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
   let prisma: PrismaService;
   let asaasService: AsaasService;
   let mailService: MailService;
+  let foundersService: FoundersService;
 
   const mockPrisma = {
     appointment: {
@@ -80,6 +82,10 @@ describe('AppointmentsService', () => {
     sendAppointmentReminderEmail: jest.fn().mockResolvedValue(true),
   };
 
+  const mockFoundersService = {
+    onAppointmentCompleted: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -105,6 +111,10 @@ describe('AppointmentsService', () => {
           provide: MailService,
           useValue: mockMailService,
         },
+        {
+          provide: FoundersService,
+          useValue: mockFoundersService,
+        },
       ],
     }).compile();
 
@@ -112,6 +122,7 @@ describe('AppointmentsService', () => {
     prisma = module.get<PrismaService>(PrismaService);
     asaasService = module.get<AsaasService>(AsaasService);
     mailService = module.get<MailService>(MailService);
+    foundersService = module.get<FoundersService>(FoundersService);
     jest.clearAllMocks();
   });
 
