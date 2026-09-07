@@ -8,6 +8,7 @@ import {
   IsBoolean,
   IsDateString,
   IsIn,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional, OmitType, PickType } from '@nestjs/swagger';
@@ -41,6 +42,17 @@ export class AppointmentsSuperFiltersDto {
       'Status inválido. Use PENDING_PAYMENT, CONFIRMED, COMPLETED ou CANCELED.',
   })
   status: ApptStatus;
+
+  @ApiPropertyOptional({
+    example: '2026-09-07',
+    description: 'Data específica do agendamento (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'A data deve estar no formato YYYY-MM-DD.',
+  })
+  date?: string;
 
   @ApiPropertyOptional({
     example: '2024-01-01T00:00:00Z',
