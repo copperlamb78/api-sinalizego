@@ -222,4 +222,38 @@ describe('MailService', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('sendTemporaryPasswordEmail', () => {
+    it('should send temporary password email via BrevoClient', async () => {
+      mockSendTransacEmail.mockResolvedValue({ messageId: 'msg-temp-pwd-1' });
+
+      const result = await service.sendTemporaryPasswordEmail(
+        'cliente@test.com',
+        'Cliente Teste',
+        'SenhaTemp123!',
+      );
+
+      expect(mockSendTransacEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: 'Sua Nova Senha de Acesso — SinalizeGo 🔑',
+          to: [{ email: 'cliente@test.com', name: 'Cliente Teste' }],
+        }),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should return false without throwing when Brevo fails', async () => {
+      mockSendTransacEmail.mockRejectedValue(
+        new Error('Brevo temporary failure'),
+      );
+
+      const result = await service.sendTemporaryPasswordEmail(
+        'cliente@test.com',
+        'Cliente Teste',
+        'SenhaTemp123!',
+      );
+
+      expect(result).toBe(false);
+    });
+  });
 });
