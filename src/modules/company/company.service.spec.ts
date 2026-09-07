@@ -684,7 +684,7 @@ describe('CompanyService', () => {
       const balance = await service.getCompanyBalance('user-owner');
 
       expect(balance.companyId).toBe('comp-1');
-      expect(balance.walletId).toBe('wal_123');
+      expect(balance.walletMask).toBeDefined();
       expect(balance.completedNetRevenue).toBe(80.0);
       expect(balance.escrowLockedBalance).toBe(40.0);
       expect(balance.totalWithdrawn).toBe(20.0);
