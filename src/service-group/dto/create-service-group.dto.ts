@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class CreateServiceGroupDto {
   @ApiProperty({
@@ -25,7 +32,8 @@ export class CreateServiceGroupDto {
 
   @ApiPropertyOptional({
     example: '6e463255-9c3e-47e1-b417-60382e3d2223',
-    description: 'ID da empresa à qual este grupo de serviços pertence (opcional para proprietários)',
+    description:
+      'ID da empresa à qual este grupo de serviços pertence (opcional para proprietários)',
   })
   @IsOptional()
   @IsString()
