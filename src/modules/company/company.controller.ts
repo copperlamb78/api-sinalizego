@@ -410,12 +410,15 @@ export class CompanyController {
     return this.companyService.getCompanyTransactions(userId, query);
   }
 
-
   @Get('public/:idOrSlug')
   @ApiOperation({
-    summary: 'Busca dados públicos da vitrine do estabelecimento por ID ou Slug',
+    summary:
+      'Busca dados públicos da vitrine do estabelecimento por ID ou Slug',
   })
-  @ApiResponse({ status: 200, description: 'Vitrine pública encontrada com sucesso.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Vitrine pública encontrada com sucesso.',
+  })
   @ApiResponse({ status: 404, description: 'Estabelecimento não encontrado.' })
   async getPublicStorefront(@Param('idOrSlug') idOrSlug: string) {
     return this.companyService.findByIdOrSlugPublic(idOrSlug);
