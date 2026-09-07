@@ -498,6 +498,51 @@ export function getPasswordResetEmailTemplate(
 }
 
 /**
+ * 5.1 Template de Senha Provisória Gerada pelo Administrador (Troca Obrigatória no 1º Acesso)
+ */
+export function getTemporaryPasswordEmailTemplate(data: {
+  name: string;
+  temporaryPassword: string;
+  loginUrl?: string;
+}): string {
+  const firstName = data.name ? data.name.trim().split(' ')[0] : 'Usuário';
+  const loginUrl = data.loginUrl || 'https://app.sinalizego.com/login';
+
+  const introHtml = `
+    Olá, <strong>${firstName}</strong>!<br><br>
+    O administrador do sistema gerou uma nova senha de acesso temporária para a sua conta no <strong>SinalizeGO</strong>.<br>
+    Por motivos de segurança, você deverá obrigatoriamente <strong>alterar essa senha para uma nova de sua preferência no seu primeiro acesso</strong>.
+  `;
+
+  const infoCardHtml = `
+    <tr>
+        <td>
+            <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Sua Senha Temporária</span><br>
+            <div style="background: #0F172A; border: 1px solid #334155; border-radius: 8px; padding: 14px; margin-top: 10px; text-align: center;">
+                <span style="color: #38BDF8; font-size: 22px; font-family: monospace; font-weight: bold; letter-spacing: 3px;">${data.temporaryPassword}</span>
+            </div>
+            <p style="color: #F8FAFC; font-size: 13px; line-height: 1.6; margin: 12px 0 0 0;">
+                ⚠️ <strong>Atenção:</strong> Ao entrar com esta senha, você será direcionado(a) imediatamente para cadastrar sua senha pessoal definitiva.
+            </p>
+        </td>
+    </tr>
+  `;
+
+  return baseEmailLayout({
+    title: 'Nova Senha de Acesso — SinalizeGo',
+    previewText: `Sua senha temporária de acesso ao SinalizeGO foi gerada.`,
+    actionTitle: 'Senha Provisória de Acesso 🔑',
+    introHtml,
+    infoCardHtml,
+    cta: {
+      text: 'Acessar a Plataforma',
+      url: loginUrl,
+      bgColor: '#14B8A6',
+    },
+  });
+}
+
+/**
  * 6. Template de Alerta de Erro na Emissão de NFS-e (Admin Alert)
  */
 export function getInvoiceErrorAlertEmailTemplate(data: {
