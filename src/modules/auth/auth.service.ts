@@ -69,6 +69,8 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        phone: user.phone,
+        cpfCnpj: user.cpfCnpj,
         mustChangePassword: user.mustChangePassword,
       },
     };
