@@ -103,7 +103,7 @@ export class TransactionsService {
         totalValue: Number(existingTransaction.totalValue),
         qrCodePayload: qrCodeData.qrCodePayload,
         qrCodeImage: qrCodeData.qrCodeImage,
-        expirationDate: qrCodeData.expirationDate,
+        expirationDate: appointment.expiresAt ?? qrCodeData.expirationDate,
         barberNetValue: Number(existingTransaction.netValue),
         platformFee: Number(existingTransaction.platformFee),
         asaasFee: Number(existingTransaction.asaasFee),
@@ -150,6 +150,9 @@ export class TransactionsService {
       },
     });
 
-    return pixData;
+    return {
+      ...pixData,
+      expirationDate: appointment.expiresAt ?? pixData.expirationDate,
+    };
   }
 }
