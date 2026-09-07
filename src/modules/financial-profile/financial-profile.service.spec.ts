@@ -31,6 +31,15 @@ describe('FinancialProfileService', () => {
       updateMany: jest.fn(),
       findFirst: jest.fn(),
     },
+    pixKey: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
+    },
   };
 
   const mockAsaasService = {
@@ -373,6 +382,159 @@ describe('FinancialProfileService', () => {
         select: FINANCIAL_PROFILE_OWNER_SELECT,
       });
       expect(result).not.toHaveProperty('asaasApiKey');
+    });
+  });
+
+  describe('getPixKeys', () => {
+    it('should return pix keys for the authenticated user', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-1',
+        pixAddressKey: '12345678900',
+        pixAddressKeyType: 'CPF',
+      });
+      mockPrisma.pixKey.findMany.mockResolvedValue([
+        {
+          id: 'pk-1',
+          key: '12345678900',
+          type: 'CPF',
+          isDefault: true,
+          createdAt: new Date(),
+        },
+      ]);
+
+      const result = await service.getPixKeys('user-1');
+      expect(result).toHaveLength(1);
+      expect(result[0].key).toBe('12345678900');
+      expect(result[0].isDefault).toBe(true);
+    });
+
+    it('should transparently migrate legacy pixAddressKey if no PixKey records exist', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({
+        id: 'fp-1',
+        pixAddressKey: 'user@email.com',
+        pixAddressKeyType: 'EMAIL',
+      });
+      mockPrisma.pixKey.findMany.mockResolvedValue([]);
+      mockPrisma.pixKey.create.mockResolvedValue({
+        id: 'pk-migrated',
+        key: 'user@email.com',
+        type: 'EMAIL',
+        isDefault: true,
+        createdAt: new Date(),
+      });
+
+      const result = await service.getPixKeys('user-1');
+      expect(mockPrisma.pixKey.create).toHaveBeenCalledWith({
+        data: {
+          financialProfileId: 'fp-1',
+          key: 'user@email.com',
+          type: 'EMAIL',
+          isDefault: true,
+        },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('pk-migrated');
+    });
+
+    it('should throw NotFoundException if profile does not exist', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
+      await expect(service.getPixKeys('user-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('addPixKey', () => {
+    it('should add a new pix key and mark as default if it is the first one', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({ id: 'fp-1' });
+      mockPrisma.pixKey.findFirst.mockResolvedValue(null);
+      mockPrisma.pixKey.count.mockResolvedValue(0);
+      mockPrisma.pixKey.create.mockResolvedValue({
+        id: 'pk-new',
+        key: '75999998888',
+        type: 'PHONE',
+        isDefault: true,
+        createdAt: new Date(),
+      });
+
+      const result = await service.addPixKey('user-1', {
+        key: '(75) 99999-8888',
+        type: 'PHONE',
+      });
+
+      expect(mockPrisma.pixKey.create).toHaveBeenCalledWith({
+        data: {
+          financialProfileId: 'fp-1',
+          key: '75999998888',
+          type: 'PHONE',
+          isDefault: true,
+        },
+      });
+      expect(mockPrisma.financialProfile.update).toHaveBeenCalledWith({
+        where: { id: 'fp-1' },
+        data: {
+          pixAddressKey: '75999998888',
+          pixAddressKeyType: 'PHONE',
+        },
+      });
+      expect(result.id).toBe('pk-new');
+    });
+
+    it('should throw ConflictException if key is already registered in the profile', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({ id: 'fp-1' });
+      mockPrisma.pixKey.findFirst.mockResolvedValue({ id: 'pk-existing' });
+
+      await expect(
+        service.addPixKey('user-1', {
+          key: 'test@email.com',
+          type: 'EMAIL',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('deletePixKey', () => {
+    it('should delete a pix key and promote remaining key if deleted was default', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({ id: 'fp-1' });
+      mockPrisma.pixKey.findFirst
+        .mockResolvedValueOnce({ id: 'pk-1', isDefault: true })
+        .mockResolvedValueOnce({ id: 'pk-2', key: 'key-2', type: 'EVP' });
+
+      const result = await service.deletePixKey('user-1', 'pk-1');
+
+      expect(mockPrisma.pixKey.delete).toHaveBeenCalledWith({ where: { id: 'pk-1' } });
+      expect(mockPrisma.pixKey.update).toHaveBeenCalledWith({
+        where: { id: 'pk-2' },
+        data: { isDefault: true },
+      });
+      expect(mockPrisma.financialProfile.update).toHaveBeenCalledWith({
+        where: { id: 'fp-1' },
+        data: { pixAddressKey: 'key-2', pixAddressKeyType: 'EVP' },
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('setDefaultPixKey', () => {
+    it('should mark key as default and update profile', async () => {
+      mockPrisma.financialProfile.findFirst.mockResolvedValue({ id: 'fp-1' });
+      mockPrisma.pixKey.findFirst.mockResolvedValue({ id: 'pk-2', key: 'new-default', type: 'EMAIL' });
+      mockPrisma.pixKey.update.mockResolvedValue({
+        id: 'pk-2',
+        key: 'new-default',
+        type: 'EMAIL',
+        isDefault: true,
+      });
+
+      const result = await service.setDefaultPixKey('user-1', 'pk-2');
+
+      expect(mockPrisma.pixKey.updateMany).toHaveBeenCalledWith({
+        where: { financialProfileId: 'fp-1' },
+        data: { isDefault: false },
+      });
+      expect(mockPrisma.financialProfile.update).toHaveBeenCalledWith({
+        where: { id: 'fp-1' },
+        data: { pixAddressKey: 'new-default', pixAddressKeyType: 'EMAIL' },
+      });
+      expect(result.isDefault).toBe(true);
     });
   });
 });
