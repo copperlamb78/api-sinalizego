@@ -292,7 +292,8 @@ export class CompanyController {
       example: {
         companyId: 'clsw0s98x000013z81z8z8z8z',
         businessName: "Barber's Shop",
-        walletId: 'wal_1234567890',
+        walletId: 'wal_••••_7890',
+        walletMask: 'wal_••••_7890',
         availableBalance: 245.0,
         escrowLockedBalance: 120.0,
         completedNetRevenue: 745.0,
