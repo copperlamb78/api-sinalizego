@@ -19,8 +19,21 @@ export class ServiceGroupService {
     userId: string,
     role?: Role | string,
   ) {
+    let targetCompanyId = data.companyId;
+
+    if (!targetCompanyId) {
+      const userCompany = await this.prisma.company.findFirst({
+        where: { userId: userId, isActive: true },
+        select: { id: true },
+      });
+      if (!userCompany) {
+        throw new NotFoundException('Nenhuma empresa ativa encontrada para este usuário.');
+      }
+      targetCompanyId = userCompany.id;
+    }
+
     const company = await this.prisma.company.findUnique({
-      where: { id: data.companyId },
+      where: { id: targetCompanyId },
     });
 
     if (!company) {
@@ -52,7 +65,7 @@ export class ServiceGroupService {
       data: {
         name: data.name,
         capacity: data.capacity,
-        companyId: data.companyId,
+        companyId: targetCompanyId,
       },
     });
   }
