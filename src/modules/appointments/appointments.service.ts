@@ -19,7 +19,7 @@ import {
   AppointmentsFiltersDto,
 } from './dto/appointments-filters.dto';
 import { AppointmentsStatusUpdateDto } from './dto/appointements-update.dto';
-import { ApptStatus, Role } from '@prisma/client';
+import { ApptStatus, Role, CreditStatus } from '@prisma/client';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { AvailabilityService } from './availability.service';
 import { MailService } from '../mail/mail.service';
@@ -223,20 +223,104 @@ export class AppointmentsService {
         );
       }
 
-      return tx.appointment.create({
+      let isFullyCoveredByCredit = false;
+      let matchedCredit: any = null;
+
+      if (data.useCredit) {
+        // Busca o crédito mais antigo disponível do cliente que cubra o sinal
+        const availableCredit = await tx.clientCredit.findFirst({
+          where: {
+            clientId: user.id,
+            companyId: company.id,
+            status: CreditStatus.AVAILABLE,
+            expiresAt: { gt: new Date() },
+            amount: { gte: downPayment },
+          },
+          orderBy: { expiresAt: 'asc' },
+        });
+
+        if (availableCredit) {
+          isFullyCoveredByCredit = true;
+          matchedCredit = availableCredit;
+        }
+      }
+
+      const createdAppointment = await tx.appointment.create({
         data: {
           companyId: company.id,
           serviceId: service.id,
           clientId: user.id,
           appointmentDate: startDate,
           appointmentEndDate: endDate,
-          expiresAt: expirationDate,
+          expiresAt: isFullyCoveredByCredit ? null : expirationDate,
+          status: isFullyCoveredByCredit
+            ? ApptStatus.CONFIRMED
+            : ApptStatus.PENDING_PAYMENT,
           servicePrice: price,
           downPaymentAmount: downPayment,
           platformFeeAmount: platformFee,
         },
       });
+
+      if (isFullyCoveredByCredit && matchedCredit) {
+        // Marca o crédito como utilizado
+        await tx.clientCredit.update({
+          where: { id: matchedCredit.id },
+          data: {
+            status: CreditStatus.USED,
+            usedAt: new Date(),
+            usedAppointmentId: createdAppointment.id,
+          },
+        });
+
+        // Se o valor do crédito era maior que o sinal necessário, cria um novo crédito com a sobra
+        const creditRemaining = Number(matchedCredit.amount) - downPayment;
+        if (creditRemaining > 0) {
+          await tx.clientCredit.create({
+            data: {
+              clientId: user.id,
+              companyId: company.id,
+              amount: creditRemaining,
+              status: CreditStatus.AVAILABLE,
+              expiresAt: matchedCredit.expiresAt,
+            },
+          });
+        }
+
+        // Se o agendamento de origem possuía uma transação CONFIRMED,
+        // move o vínculo da transação para o novo agendamento ativo
+        if (matchedCredit.appointmentId) {
+          const originTx = await tx.transaction.findFirst({
+            where: {
+              appointmentId: matchedCredit.appointmentId,
+              status: TransactionStatus.CONFIRMED,
+            },
+          });
+          if (originTx) {
+            await tx.transaction.update({
+              where: { id: originTx.id },
+              data: { appointmentId: createdAppointment.id },
+            });
+          }
+        }
+      }
+
+      return createdAppointment;
     });
+
+    // Se o agendamento foi confirmado via crédito na criação, dispara o e-mail de confirmação
+    if (appointment.status === ApptStatus.CONFIRMED) {
+      this.mailService
+        .sendAppointmentConfirmationEmail(user.email, {
+          customerName: user.name,
+          companyName: company.businessName,
+          serviceName: service.name,
+          appointmentDate: appointment.appointmentDate,
+          amountPaid: Number(appointment.downPaymentAmount),
+          timezone: company.timezone,
+        })
+        .catch(() => {});
+    }
 
     return appointment;
   }
@@ -848,6 +932,17 @@ export class AppointmentsService {
         isRefunded = false;
         refundAmount = paidAmount;
         retainedDeposit = undefined;
+
+        await this.prisma.clientCredit.create({
+          data: {
+            clientId: appointment.clientId,
+            companyId: appointment.companyId,
+            appointmentId: appointment.id,
+            amount: paidAmount,
+            status: CreditStatus.AVAILABLE,
+            expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 dias
+          },
+        });
       } else {
         // 3. Faixa 3 (< 2h): Cancelamento tardio com retenção integral do sinal para a barbearia como compensação de vacância (Regra N6c)
         retainedDeposit = paidAmount;
@@ -886,6 +981,114 @@ export class AppointmentsService {
     }
 
     return canceledAppointment;
+  }
+
+  /**
+   * Fluxo do Barbeiro: "Indisponível / Alterar Horário" (Salvar a Venda).
+   * Cancela o agendamento atual liberando a grade, converte 100% do sinal pago em crédito de 90 dias
+   * e envia e-mail com link mágico para o cliente escolher um novo horário sem pagar novo sinal.
+   */
+  async rescheduleByOwnerUnavailability(
+    appointmentId: string,
+    userId: string,
+    role?: Role | string,
+  ) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        company: true,
+        service: true,
+        client: true,
+      },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+    if (role === undefined) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado.');
+      }
+      isSystemManager =
+        user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+    }
+
+    const isCompanyOwner = appointment.company?.userId === userId;
+
+    if (!isSystemManager && !isCompanyOwner) {
+      throw new ForbiddenException(
+        'Apenas o estabelecimento pode solicitar o cancelamento com reagendamento por imprevisto.',
+      );
+    }
+
+    if (appointment.status !== ApptStatus.CONFIRMED || !appointment.isActive) {
+      throw new BadRequestException(
+        'Apenas agendamentos confirmados podem ser remarcados com conversão de crédito.',
+      );
+    }
+
+    const paidAmount = Number(appointment.downPaymentAmount);
+
+    // Cancela o agendamento atual liberando o horário
+    const canceledAppointment = await this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        status: ApptStatus.CANCELED,
+        isActive: false,
+        disabledAt: new Date(),
+        disabledBy: userId,
+        retainedDepositAmount: null,
+      },
+    });
+
+    // Cria o crédito do cliente garantindo 100% do sinal por 90 dias
+    const credit = await this.prisma.clientCredit.create({
+      data: {
+        clientId: appointment.clientId,
+        companyId: appointment.companyId,
+        appointmentId: appointment.id,
+        amount: paidAmount,
+        status: CreditStatus.AVAILABLE,
+        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    // Link Mágico direcionando para o agendamento da barbearia
+    const frontendUrl =
+      process.env.FRONTEND_URL || 'https://app.sinalizego.com';
+    const companySlug = appointment.company?.slug || appointment.companyId;
+    const rescheduleUrl = `${frontendUrl}/agendar/${companySlug}?creditApplied=true`;
+
+    // Disparo resiliente de e-mail de imprevisto
+    if (appointment.client?.email) {
+      this.mailService
+        .sendOwnerUnavailabilityRescheduleEmail(appointment.client.email, {
+          customerName: appointment.client.name,
+          companyName: appointment.company?.businessName || 'Estabelecimento',
+          serviceName: appointment.service?.name || 'Serviço',
+          appointmentDate: appointment.appointmentDate,
+          creditAmount: paidAmount,
+          rescheduleUrl,
+          timezone: appointment.company?.timezone,
+        })
+        .catch(() => {});
+    }
+
+    return {
+      success: true,
+      message:
+        'Horário liberado com sucesso. O sinal foi 100% garantido como crédito para o cliente e a notificação para escolher novo horário foi enviada.',
+      creditId: credit.id,
+      creditAmount: paidAmount,
+      rescheduleUrl,
+      appointmentId: canceledAppointment.id,
+    };
   }
 
   async completeAppointment(
