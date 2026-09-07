@@ -76,6 +76,7 @@ export class MailService {
       serviceName: string;
       appointmentDate: Date | string;
       amountPaid: number | string | { toString(): string };
+      appointmentId?: string;
       timezone?: string;
     },
   ): Promise<boolean> {
@@ -96,6 +97,7 @@ export class MailService {
         },
         to: [{ email: to, name: data.customerName || to }],
         htmlContent: getAppointmentConfirmationEmailTemplate({
+          appointmentId: data.appointmentId,
           customerName: data.customerName,
           companyName: data.companyName,
           serviceName: data.serviceName,
@@ -128,6 +130,7 @@ export class MailService {
       appointmentDate: Date | string;
       isRefunded: boolean;
       refundAmount?: number;
+      policy?: 'REFUND' | 'CREDIT' | 'RETAINED';
       timezone?: string;
     },
   ): Promise<boolean> {
@@ -151,6 +154,7 @@ export class MailService {
           formattedDate,
           isRefunded: data.isRefunded,
           refundAmount: data.refundAmount,
+          policy: data.policy,
         }),
       });
 
