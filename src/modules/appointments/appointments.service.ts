@@ -1251,4 +1251,99 @@ export class AppointmentsService {
       return 0;
     }
   }
+
+  /**
+   * Gera o arquivo .ics (iCalendar RFC 5545) para integração nativa com Apple Calendar (iPhone / iOS / Mac), Google e Outlook.
+   * Utiliza quebras de linha CRLF (\r\n) e timestamps ISO 8601 básicos em UTC (Z).
+   */
+  async generateAppointmentIcs(appointmentId: string): Promise<string> {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: {
+        id: true,
+        appointmentDate: true,
+        appointmentEndDate: true,
+        servicePrice: true,
+        downPaymentAmount: true,
+        service: {
+          select: {
+            name: true,
+            durationMinutes: true,
+          },
+        },
+        company: {
+          select: {
+            businessName: true,
+            street: true,
+            number: true,
+            district: true,
+            city: true,
+            state: true,
+          },
+        },
+      },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    const startDate = new Date(appointment.appointmentDate);
+    const durationMinutes = appointment.service?.durationMinutes || 30;
+    const endDate = appointment.appointmentEndDate
+      ? new Date(appointment.appointmentEndDate)
+      : new Date(startDate.getTime() + durationMinutes * 60000);
+
+    const formatUtc = (d: Date) =>
+      d
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '');
+
+    const nowUtc = formatUtc(new Date());
+    const startUtc = formatUtc(startDate);
+    const endUtc = formatUtc(endDate);
+
+    const escapeIcs = (str: string) =>
+      str
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\n/g, '\\n');
+
+    const companyName = appointment.company?.businessName || 'Estabelecimento';
+    const serviceName = appointment.service?.name || 'Serviço';
+    const address = [
+      appointment.company?.street,
+      appointment.company?.number,
+      appointment.company?.district,
+      appointment.company?.city,
+      appointment.company?.state,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const description = `Agendamento confirmado no ${companyName}.\nServiço: ${serviceName}\nAtendimento pontual com cadeira garantida.`;
+
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//SinalizeGO//Agendamento Inteligente//PT',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${appointment.id}@sinalizego.com`,
+      `DTSTAMP:${nowUtc}`,
+      `DTSTART:${startUtc}`,
+      `DTEND:${endUtc}`,
+      `SUMMARY:${escapeIcs(`${serviceName} - ${companyName}`)}`,
+      `DESCRIPTION:${escapeIcs(description)}`,
+      `LOCATION:${escapeIcs(address || companyName)}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ];
+
+    return lines.join('\r\n');
+  }
 }
