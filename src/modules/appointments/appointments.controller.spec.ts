@@ -280,4 +280,37 @@ describe('AppointmentsController', () => {
       expect(result).toEqual(expected);
     });
   });
+
+  describe('getAppointmentIcs', () => {
+    it('should set calendar headers and return ics content', async () => {
+      const id = 'f1e2d3c4-b5a6-0987-6543-210fedcba987';
+      const fakeIcs = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR';
+      mockAppointmentsService.generateAppointmentIcs = jest
+        .fn()
+        .mockResolvedValue(fakeIcs);
+
+      const res = {
+        setHeader: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn().mockReturnValue('sent'),
+      } as any;
+
+      const result = await controller.getAppointmentIcs(id, res);
+
+      expect(
+        mockAppointmentsService.generateAppointmentIcs,
+      ).toHaveBeenCalledWith(id);
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'text/calendar; charset=utf-8',
+      );
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        `attachment; filename="agendamento-${id.slice(0, 8)}.ics"`,
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith(fakeIcs);
+      expect(result).toBe('sent');
+    });
+  });
 });
