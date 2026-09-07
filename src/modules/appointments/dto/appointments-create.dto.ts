@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsOptional,
@@ -39,4 +40,13 @@ export class CreateAppointmentsDto {
   @IsOptional()
   @IsString()
   cpfCnpj?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Indica se o cliente deseja abater o sinal utilizando seus créditos disponíveis nesta empresa',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  useCredit?: boolean;
 }
