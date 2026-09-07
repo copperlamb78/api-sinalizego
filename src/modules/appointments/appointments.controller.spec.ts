@@ -260,10 +260,18 @@ describe('AppointmentsController', () => {
   describe('findOne', () => {
     it('should return appointment details by id', async () => {
       const req = { user: { sub: 'client-1', role: 'CLIENT' } } as any;
-      const expected = { id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987', status: 'CONFIRMED' };
-      mockAppointmentsService.getAppointmentById = jest.fn().mockResolvedValue(expected);
+      const expected = {
+        id: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        status: 'CONFIRMED',
+      };
+      mockAppointmentsService.getAppointmentById = jest
+        .fn()
+        .mockResolvedValue(expected);
 
-      const result = await controller.findOne('f1e2d3c4-b5a6-0987-6543-210fedcba987', req);
+      const result = await controller.findOne(
+        'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+        req,
+      );
       expect(appointmentsService.getAppointmentById).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'client-1',
