@@ -668,12 +668,20 @@ describe('CompanyService', () => {
         pixAddressKeyType: 'CPF',
       });
       mockPrisma.transaction.aggregate.mockImplementation(async (args: any) => {
-        if (
+        const hasCompleted =
           args.where.appointment?.status === ApptStatus.COMPLETED ||
-          args.where.appointment?.OR
-        ) {
+          args.where.appointment?.OR?.some(
+            (cond: any) => cond.status === ApptStatus.COMPLETED,
+          );
+        const hasConfirmed =
+          args.where.appointment?.status === ApptStatus.CONFIRMED ||
+          args.where.appointment?.OR?.some(
+            (cond: any) => cond.status === ApptStatus.CONFIRMED,
+          );
+
+        if (hasCompleted) {
           return { _sum: { netValue: 80.0 } };
-        } else if (args.where.appointment?.status === ApptStatus.CONFIRMED) {
+        } else if (hasConfirmed) {
           return { _sum: { netValue: 40.0 } };
         } else if (args.where.type === TransactionType.WITHDRAWAL) {
           return { _sum: { totalValue: 20.0 } };
