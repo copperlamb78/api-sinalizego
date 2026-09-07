@@ -1,12 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from './admin.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ApptStatus, Role, TransactionStatus } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
 
 describe('AdminService', () => {
   let service: AdminService;
   let prisma: PrismaService;
+  let mailService: MailService;
+
+  const mockMailService = {
+    sendWelcomeEmail: jest.fn().mockResolvedValue(true),
+    sendTemporaryPasswordEmail: jest.fn().mockResolvedValue(true),
+  };
 
   const mockPrisma = {
     appointment: {
@@ -20,6 +31,9 @@ describe('AdminService', () => {
     },
     user: {
       count: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
     },
     company: {
       count: jest.fn(),
@@ -37,11 +51,16 @@ describe('AdminService', () => {
           provide: PrismaService,
           useValue: mockPrisma,
         },
+        {
+          provide: MailService,
+          useValue: mockMailService,
+        },
       ],
     }).compile();
 
     service = module.get<AdminService>(AdminService);
     prisma = module.get<PrismaService>(PrismaService);
+    mailService = module.get<MailService>(MailService);
     jest.clearAllMocks();
   });
 
@@ -377,6 +396,220 @@ describe('AdminService', () => {
           },
         }),
       );
+    });
+  });
+
+  describe('createUser', () => {
+    it('should throw ConflictException if email is already in use', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'existente@test.com',
+      });
+
+      await expect(
+        service.createUser({
+          name: 'Teste',
+          email: 'existente@test.com',
+          phone: '5561999999999',
+          role: Role.CLIENT,
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should create user with provided password and send welcome email', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({
+        id: 'new-user',
+        name: 'Carlos',
+        email: 'carlos@test.com',
+        phone: '5561999999999',
+        role: Role.COMPANY_OWNER,
+        mustChangePassword: false,
+      });
+
+      const result = await service.createUser({
+        name: 'Carlos',
+        email: 'carlos@test.com',
+        phone: '5561999999999',
+        role: Role.COMPANY_OWNER,
+        password: 'SenhaForte123!',
+      });
+
+      expect(result.message).toBe('Usuário criado com sucesso.');
+      expect(result.temporaryPasswordGenerated).toBe(false);
+      expect(mockMailService.sendWelcomeEmail).toHaveBeenCalledWith(
+        'carlos@test.com',
+        'Carlos',
+        Role.COMPANY_OWNER,
+      );
+    });
+
+    it('should generate temporary password and send temporary password email if password omitted', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({
+        id: 'new-user-2',
+        name: 'Ana',
+        email: 'ana@test.com',
+        phone: '5561999999999',
+        role: Role.ADMIN,
+        mustChangePassword: true,
+      });
+
+      const result = await service.createUser({
+        name: 'Ana',
+        email: 'ana@test.com',
+        phone: '5561999999999',
+        role: Role.ADMIN,
+      });
+
+      expect(result.temporaryPasswordGenerated).toBe(true);
+      expect(mockMailService.sendTemporaryPasswordEmail).toHaveBeenCalledWith(
+        'ana@test.com',
+        'Ana',
+        expect.any(String),
+      );
+    });
+  });
+
+  describe('updateUser', () => {
+    it('should throw NotFoundException if user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateUser('non-existent', { name: 'Novo Nome' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException if new email is already in use by another user', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ id: 'user-1', email: 'atual@test.com' })
+        .mockResolvedValueOnce({ id: 'user-2', email: 'outro@test.com' });
+
+      await expect(
+        service.updateUser('user-1', { email: 'outro@test.com' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should update user successfully', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'atual@test.com',
+      });
+      mockPrisma.user.update.mockResolvedValue({
+        id: 'user-1',
+        name: 'Nome Atualizado',
+        email: 'atual@test.com',
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+      });
+
+      const result = await service.updateUser('user-1', {
+        name: 'Nome Atualizado',
+        role: Role.SUPER_ADMIN,
+      });
+
+      expect(result.message).toBe('Usuário atualizado com sucesso.');
+      expect(result.user.name).toBe('Nome Atualizado');
+    });
+  });
+
+  describe('resetUserPassword', () => {
+    it('should throw NotFoundException if user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.resetUserPassword('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should generate temporary password, update user with mustChangePassword=true, and send email', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-reset',
+        name: 'Felipe',
+        email: 'felipe@test.com',
+        isActive: true,
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      const result = await service.resetUserPassword('user-reset');
+
+      expect(result.message).toContain(
+        'Senha temporária gerada e enviada por e-mail',
+      );
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-reset' },
+          data: expect.objectContaining({
+            mustChangePassword: true,
+            refreshToken: null,
+          }),
+        }),
+      );
+      expect(mockMailService.sendTemporaryPasswordEmail).toHaveBeenCalledWith(
+        'felipe@test.com',
+        'Felipe',
+        expect.any(String),
+      );
+    });
+  });
+
+  describe('getUserAudit', () => {
+    it('should throw NotFoundException if user does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getUserAudit('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should return complete user audit info with aggregations and relations', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-audit-1',
+        name: 'Audit User',
+        email: 'audit@test.com',
+        phone: '5561999999999',
+        role: Role.COMPANY_OWNER,
+        isActive: true,
+        cpfCnpj: '12345678909',
+        companies: [
+          {
+            id: 'comp-1',
+            businessName: 'Barbearia Alpha',
+            slug: 'barbearia-alpha',
+            isActive: true,
+            financialProfile: { id: 'fp-1', walletId: 'w-1', isApproved: true },
+          },
+        ],
+      });
+
+      mockPrisma.appointment.groupBy.mockResolvedValue([
+        { status: ApptStatus.COMPLETED, _count: { _all: 5 } },
+      ]);
+      mockPrisma.appointment.aggregate.mockResolvedValue({
+        _sum: { servicePrice: 250, downPaymentAmount: 125 },
+      });
+      mockPrisma.transaction.aggregate.mockResolvedValue({
+        _count: { _all: 3 },
+        _sum: { totalValue: 150 },
+      });
+      mockPrisma.appointment.findMany.mockResolvedValue([
+        {
+          id: 'appt-1',
+          status: ApptStatus.COMPLETED,
+          appointmentDate: new Date(),
+          servicePrice: 50,
+          downPaymentAmount: 25,
+          service: { name: 'Corte Degradê' },
+          company: { businessName: 'Barbearia Alpha', slug: 'barbearia-alpha' },
+        },
+      ]);
+
+      const result = await service.getUserAudit('user-audit-1');
+
+      expect(result.user.name).toBe('Audit User');
+      expect(result.audit.totalAppointments).toBe(5);
+      expect(result.audit.companiesCount).toBe(1);
+      expect(result.audit.recentAppointments).toHaveLength(1);
     });
   });
 });
