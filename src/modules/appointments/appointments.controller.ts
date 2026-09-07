@@ -3,12 +3,14 @@ import {
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
@@ -22,7 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { CreateAppointmentsDto } from './dto/appointments-create.dto';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import {
   AppointmentsSuperFiltersDto,
   AppointmentsAdminFiltersDto,
@@ -184,6 +186,35 @@ export class AppointmentsController {
     const userId = req.user?.['sub'];
     const role = req.user?.['role'];
     return this.appointmentsService.getAppointmentById(id, userId, role);
+  }
+
+  @Get(':id/ics')
+  @ApiOperation({
+    summary:
+      'Gera e faz download do arquivo iCalendar (.ics) compatível nativamente com iPhone (Apple Calendar), Google e Outlook (Público)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Arquivo .ics retornado com sucesso (text/calendar)',
+  })
+  @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
+  async getAppointmentIcs(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const icsContent =
+      await this.appointmentsService.generateAppointmentIcs(id);
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="agendamento-${id.slice(0, 8)}.ics"`,
+    );
+    return res.status(HttpStatus.OK).send(icsContent);
   }
 
   @ApiBearerAuth()
