@@ -8,4 +8,5 @@ export const USER_PUBLIC_SELECT = {
   createdAt: true,
   updatedAt: true,
   disabledAt: true,
+  mustChangePassword: true,
 } as const;
