@@ -52,13 +52,27 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Permite requisições sem origin (mobile apps, Postman, webhooks do Asaas), origens permitidas ou subdomínios da Vercel
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        allowedOrigins.includes('*') ||
-        /\.vercel\.app$/.test(origin)
-      ) {
+      // Permite requisições sem origin (mobile apps, Postman, webhooks do Asaas)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      let isAllowed = false;
+      try {
+        const originUrl = new URL(origin);
+        const host = originUrl.hostname;
+        isAllowed =
+          allowedOrigins.includes(origin) ||
+          allowedOrigins.includes('*') ||
+          /\.vercel\.app$/.test(host) ||
+          /(^|\.)ngrok(-free)?\.(app|dev|io)$/.test(host) ||
+          host === 'localhost' ||
+          host === '127.0.0.1';
+      } catch {
+        isAllowed = allowedOrigins.includes(origin);
+      }
+
+      if (isAllowed) {
         callback(null, true);
       } else {
         callback(
