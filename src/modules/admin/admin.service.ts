@@ -1,16 +1,26 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AdminMetricsDto } from './dto/admin-metrics.dto';
 import { AdminCompaniesQueryDto } from './dto/admin-companies-query.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { ApptStatus, Prisma, Role, TransactionStatus } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
+import { USER_PUBLIC_SELECT } from '../users/constants/user-select.constant';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   /**
    * Métricas Globais da Plataforma e Inteligência Operacional (Super Admin Dashboard)
@@ -462,5 +472,294 @@ export class AdminService {
         : 'Estabelecimento suspenso com sucesso.',
       company: updated,
     };
+  }
+
+  /**
+   * Cria um novo usuário pelo painel administrativo com perfil selecionável
+   */
+  async createUser(dto: AdminCreateUserDto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (existingUser) {
+      throw new ConflictException('E-mail já está em uso.');
+    }
+
+    let password = dto.password;
+    let mustChangePassword = false;
+
+    if (!password) {
+      password = this.generateSecurePassword(10);
+      mustChangePassword = true;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        role: dto.role,
+        password: hashedPassword,
+        mustChangePassword,
+      },
+      select: USER_PUBLIC_SELECT,
+    });
+
+    if (dto.sendEmail !== false) {
+      if (mustChangePassword) {
+        await this.mailService.sendTemporaryPasswordEmail(
+          user.email,
+          user.name,
+          password,
+        );
+      } else {
+        await this.mailService.sendWelcomeEmail(
+          user.email,
+          user.name,
+          user.role,
+        );
+      }
+    }
+
+    return {
+      message: 'Usuário criado com sucesso.',
+      user,
+      temporaryPasswordGenerated: mustChangePassword,
+    };
+  }
+
+  /**
+   * Atualiza dados de um usuário pelo painel administrativo
+   */
+  async updateUser(userId: string, dto: AdminUpdateUserDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    if (dto.email && dto.email !== user.email) {
+      const emailConflict = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (emailConflict) {
+        throw new ConflictException('E-mail já está em uso por outro usuário.');
+      }
+    }
+
+    const updateData: Prisma.UserUpdateInput = {};
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.email !== undefined) updateData.email = dto.email;
+    if (dto.phone !== undefined) updateData.phone = dto.phone;
+    if (dto.role !== undefined) updateData.role = dto.role;
+
+    if (dto.isActive !== undefined) {
+      updateData.isActive = dto.isActive;
+      updateData.disabledAt = dto.isActive ? null : new Date();
+      if (!dto.isActive) {
+        updateData.refreshToken = null;
+      }
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: USER_PUBLIC_SELECT,
+    });
+
+    return {
+      message: 'Usuário atualizado com sucesso.',
+      user: updatedUser,
+    };
+  }
+
+  /**
+   * Redefine a senha do usuário para uma senha aleatória provisória enviada por e-mail
+   */
+  async resetUserPassword(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, isActive: true },
+    });
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const temporaryPassword = this.generateSecurePassword(10);
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        refreshToken: null,
+        mustChangePassword: true,
+      },
+    });
+
+    await this.mailService.sendTemporaryPasswordEmail(
+      user.email,
+      user.name,
+      temporaryPassword,
+    );
+
+    return {
+      message: 'Senha temporária gerada e enviada por e-mail com sucesso.',
+      email: user.email,
+    };
+  }
+
+  /**
+   * Retorna dados completos de auditoria de um usuário específico
+   */
+  async getUserAudit(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        disabledAt: true,
+        mustChangePassword: true,
+        cpfCnpj: true,
+        asaasCustomerId: true,
+        createdAt: true,
+        updatedAt: true,
+        companies: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+            providerType: true,
+            city: true,
+            state: true,
+            isActive: true,
+            createdAt: true,
+            financialProfile: {
+              select: {
+                id: true,
+                walletId: true,
+                isApproved: true,
+                approvalStatus: true,
+                cpfCnpj: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const [
+      appointmentsGroup,
+      appointmentsMoneyAgg,
+      transactionsCountAgg,
+      recentAppointments,
+    ] = await Promise.all([
+      this.prisma.appointment.groupBy({
+        by: ['status'],
+        where: { clientId: userId },
+        _count: { _all: true },
+      }),
+      this.prisma.appointment.aggregate({
+        where: { clientId: userId },
+        _sum: {
+          servicePrice: true,
+          downPaymentAmount: true,
+        },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { customerId: userId },
+        _count: { _all: true },
+        _sum: { totalValue: true },
+      }),
+      this.prisma.appointment.findMany({
+        where: { clientId: userId },
+        take: 10,
+        orderBy: { appointmentDate: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          appointmentDate: true,
+          servicePrice: true,
+          downPaymentAmount: true,
+          service: { select: { name: true } },
+          company: { select: { businessName: true, slug: true } },
+        },
+      }),
+    ]);
+
+    const appointmentCounts: Record<string, number> = {};
+    let totalAppointments = 0;
+    for (const item of appointmentsGroup) {
+      appointmentCounts[item.status] = item._count._all;
+      totalAppointments += item._count._all;
+    }
+
+    return {
+      user: {
+        ...user,
+        cpfCnpjMasked: user.cpfCnpj
+          ? user.cpfCnpj.replace(/(\d{3})\d{5}(\d{3})/, '$1.*****.$2')
+          : null,
+      },
+      audit: {
+        totalAppointments,
+        appointmentCounts,
+        totalSpent: Number(
+          (appointmentsMoneyAgg._sum.servicePrice || 0).toFixed(2),
+        ),
+        totalDepositsPaid: Number(
+          (appointmentsMoneyAgg._sum.downPaymentAmount || 0).toFixed(2),
+        ),
+        transactionsCount: transactionsCountAgg._count._all || 0,
+        transactionsTotalValue: Number(
+          (transactionsCountAgg._sum.totalValue || 0).toFixed(2),
+        ),
+        companiesCount: user.companies.length,
+        recentAppointments: recentAppointments.map((a) => ({
+          id: a.id,
+          status: a.status,
+          appointmentDate: a.appointmentDate,
+          serviceName: a.service.name,
+          companyName: a.company.businessName,
+          companySlug: a.company.slug,
+          servicePrice: Number(a.servicePrice),
+          downPaymentAmount: Number(a.downPaymentAmount),
+        })),
+      },
+    };
+  }
+
+  private generateSecurePassword(length = 10): string {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghijkmnopqrstuvwxyz';
+    const digits = '23456789';
+    const special = '!@#$%&*';
+    const all = upper + lower + digits + special;
+
+    let pwd = '';
+    pwd += upper[crypto.randomInt(upper.length)];
+    pwd += lower[crypto.randomInt(lower.length)];
+    pwd += digits[crypto.randomInt(digits.length)];
+    pwd += special[crypto.randomInt(special.length)];
+
+    for (let i = 4; i < length; i++) {
+      pwd += all[crypto.randomInt(all.length)];
+    }
+
+    return pwd
+      .split('')
+      .sort(() => 0.5 - Math.random())
+      .join('');
   }
 }
