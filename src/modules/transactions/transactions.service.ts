@@ -95,19 +95,50 @@ export class TransactionsService {
     });
 
     if (existingTransaction && existingTransaction.asaasPaymentId) {
-      const qrCodeData = await this.asaas.getPixQrCode(
-        existingTransaction.asaasPaymentId,
-      );
-      return {
-        paymentId: existingTransaction.asaasPaymentId,
-        totalValue: Number(existingTransaction.totalValue),
-        qrCodePayload: qrCodeData.qrCodePayload,
-        qrCodeImage: qrCodeData.qrCodeImage,
-        expirationDate: appointment.expiresAt ?? qrCodeData.expirationDate,
-        barberNetValue: Number(existingTransaction.netValue),
-        platformFee: Number(existingTransaction.platformFee),
-        asaasFee: Number(existingTransaction.asaasFee),
-      };
+      try {
+        const qrCodeData = await this.asaas.getPixQrCode(
+          existingTransaction.asaasPaymentId,
+        );
+        return {
+          paymentId: existingTransaction.asaasPaymentId,
+          totalValue: Number(existingTransaction.totalValue),
+          qrCodePayload: qrCodeData.qrCodePayload,
+          qrCodeImage: qrCodeData.qrCodeImage,
+          expirationDate: appointment.expiresAt ?? qrCodeData.expirationDate,
+          barberNetValue: Number(existingTransaction.netValue),
+          platformFee: Number(existingTransaction.platformFee),
+          asaasFee: Number(existingTransaction.asaasFee),
+        };
+      } catch (err: any) {
+        // Se a cobrança não puder mais ser paga, verifica se já foi liquidada/recebida no Asaas
+        try {
+          const paymentData = await this.asaas.getPaymentById(
+            existingTransaction.asaasPaymentId,
+          );
+          if (
+            paymentData?.status === 'RECEIVED' ||
+            paymentData?.status === 'CONFIRMED' ||
+            paymentData?.status === 'RECEIVED_IN_CASH'
+          ) {
+            await this.prisma.$transaction([
+              this.prisma.transaction.update({
+                where: { id: existingTransaction.id },
+                data: { status: 'CONFIRMED' },
+              }),
+              this.prisma.appointment.update({
+                where: { id: appointment.id },
+                data: { status: 'CONFIRMED' },
+              }),
+            ]);
+            throw new ConflictException(
+              'Este agendamento já foi pago e confirmado com sucesso!',
+            );
+          }
+        } catch (innerErr) {
+          if (innerErr instanceof ConflictException) throw innerErr;
+        }
+        throw err;
+      }
     }
 
     const deposit = Number(appointment.downPaymentAmount); // do banco, nunca do body
