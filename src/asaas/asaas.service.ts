@@ -221,7 +221,6 @@ export class AsaasService implements OnModuleInit {
             'PAYMENT_UPDATED',
             'PAYMENT_CONFIRMED',
             'PAYMENT_RECEIVED',
-            'PAYMENT_RECEIVED_IN_CASH',
             'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED',
             'PAYMENT_ANTICIPATED',
             'PAYMENT_OVERDUE',
@@ -252,9 +251,8 @@ export class AsaasService implements OnModuleInit {
         this.logger.error(
           `[Asaas] Falha ao criar subconta: ${JSON.stringify(responseData)}`,
         );
-        throw new BadRequestException(
-          'Não foi possível criar a subconta no gateway de pagamentos.',
-        );
+        const userMessage = this.mapAsaasAccountError(responseData);
+        throw new BadRequestException(userMessage);
       }
 
       return responseData as AsaasAccountResponse;
@@ -1100,5 +1098,139 @@ export class AsaasService implements OnModuleInit {
       );
       return null;
     }
+  }
+
+  /**
+   * Mapeia erros de validação retornados pelo Asaas para mensagens claras e acionáveis
+   * que orientam o usuário sobre exatamente qual campo ajustar.
+   */
+  private mapAsaasAccountError(responseData: any): string {
+    if (!responseData) {
+      return 'Não foi possível ativar a conta no gateway de pagamentos. Verifique os dados informados.';
+    }
+
+    if (Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+      const messages = responseData.errors
+        .map((err: any) => {
+          const desc = (err.description || '').trim();
+          const code = (err.code || '').toLowerCase();
+          const lowerDesc = desc.toLowerCase();
+
+          // 1. Celular / Telefone
+          if (
+            code.includes('phone') ||
+            lowerDesc.includes('celular') ||
+            lowerDesc.includes('telefone') ||
+            lowerDesc.includes('mobilephone')
+          ) {
+            return 'Celular inválido: informe um número de celular real com DDD válido (ex: 75991234567). Números sequenciais ou repetidos (ex: 999999999) são rejeitados pelo gateway.';
+          }
+
+          // 2. CEP
+          if (
+            code.includes('postalcode') ||
+            lowerDesc.includes('cep') ||
+            lowerDesc.includes('postalcode')
+          ) {
+            return 'CEP inválido ou não localizado: verifique o CEP informado e confira se possui 8 dígitos.';
+          }
+
+          // 3. CPF / CNPJ
+          if (
+            code.includes('cpf') ||
+            code.includes('cnpj') ||
+            lowerDesc.includes('cpf') ||
+            lowerDesc.includes('cnpj')
+          ) {
+            if (
+              lowerDesc.includes('já') ||
+              lowerDesc.includes('exist') ||
+              code.includes('duplicate')
+            ) {
+              return 'Este CPF ou CNPJ já possui uma conta cadastrada no Asaas. Caso já tenha conta, utilize os mesmos dados do titular.';
+            }
+            return 'CPF ou CNPJ inválido: confira se os dígitos foram digitados corretamente.';
+          }
+
+          // 4. E-mail
+          if (
+            code.includes('email') ||
+            lowerDesc.includes('e-mail') ||
+            lowerDesc.includes('email')
+          ) {
+            if (
+              lowerDesc.includes('já') ||
+              lowerDesc.includes('exist') ||
+              code.includes('duplicate')
+            ) {
+              return 'O e-mail informado já está em uso em outra conta no gateway de pagamentos. Por favor, utilize outro e-mail.';
+            }
+            return 'E-mail inválido: verifique o formato do e-mail informado.';
+          }
+
+          // 5. Data de nascimento
+          if (
+            code.includes('birthdate') ||
+            lowerDesc.includes('nascimento') ||
+            lowerDesc.includes('birthdate')
+          ) {
+            return 'Data de nascimento inválida: o titular precisa ter pelo menos 18 anos completos.';
+          }
+
+          // 6. Renda / Faturamento
+          if (
+            code.includes('income') ||
+            lowerDesc.includes('renda') ||
+            lowerDesc.includes('faturamento')
+          ) {
+            return 'Renda ou faturamento mensal estimado inválido: informe um valor numérico superior a R$ 100,00.';
+          }
+
+          // 7. Chave Pix
+          if (code.includes('pix') || lowerDesc.includes('chave pix')) {
+            return 'Chave Pix inválida para o tipo selecionado: certifique-se de que a chave está ativa e no formato correto.';
+          }
+
+          // 8. Endereço / Número / Bairro / Logradouro
+          if (
+            lowerDesc.includes('logradouro') ||
+            lowerDesc.includes('endereço') ||
+            lowerDesc.includes('rua')
+          ) {
+            return 'Endereço/Logradouro incompleto ou inválido: confira o nome da rua ou avenida.';
+          }
+          if (
+            lowerDesc.includes('número') ||
+            lowerDesc.includes('numero') ||
+            code.includes('addressnumber')
+          ) {
+            return 'Número do endereço obrigatório: informe o número predial ou "SN" se não houver.';
+          }
+          if (lowerDesc.includes('bairro') || code.includes('province')) {
+            return 'Bairro obrigatório: confira o nome do bairro informado.';
+          }
+
+          // Se a descrição for legível em português (já fornecida pelo Asaas)
+          if (desc && !desc.includes('{') && !desc.includes('Exception')) {
+            return desc;
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+
+      if (messages.length > 0) {
+        return messages.join(' • ');
+      }
+    }
+
+    if (
+      typeof responseData.message === 'string' &&
+      responseData.message.trim()
+    ) {
+      return responseData.message;
+    }
+
+    return 'Não foi possível ativar a conta no gateway de pagamentos. Verifique os dados preenchidos.';
   }
 }
