@@ -310,7 +310,6 @@ export class CompanyService {
     return companies;
   }
 
-
   /**
    * Busca dados públicos da vitrine por ID ou Slug (acesso público para catálogo e checkout)
    */
@@ -1083,9 +1082,10 @@ export class CompanyService {
     );
 
     const rawWallet = financialProfile.walletId || '';
-    const walletMask = rawWallet.length >= 8
-      ? `${rawWallet.slice(0, 4)}••••••••${rawWallet.slice(-4)}`
-      : '••••••••';
+    const walletMask =
+      rawWallet.length >= 8
+        ? `${rawWallet.slice(0, 4)}••••••••${rawWallet.slice(-4)}`
+        : '••••••••';
 
     return {
       companyId: company.id,
