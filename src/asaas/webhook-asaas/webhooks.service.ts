@@ -359,6 +359,7 @@ export class WebhooksService {
           if (appointment.client?.email) {
             this.mailService
               .sendAppointmentConfirmationEmail(appointment.client.email, {
+                appointmentId: appointment.id,
                 customerName: appointment.client.name,
                 companyName:
                   appointment.company?.businessName || 'Estabelecimento',
@@ -411,6 +412,7 @@ export class WebhooksService {
           if (appointment.client?.email) {
             this.mailService
               .sendAppointmentConfirmationEmail(appointment.client.email, {
+                appointmentId: appointment.id,
                 customerName: appointment.client.name,
                 companyName:
                   appointment.company?.businessName || 'Estabelecimento',
