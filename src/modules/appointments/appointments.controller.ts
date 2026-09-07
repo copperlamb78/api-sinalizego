@@ -180,10 +180,7 @@ export class AppointmentsController {
   })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
-  async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: Request,
-  ) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     const userId = req.user?.['sub'];
     const role = req.user?.['role'];
     return this.appointmentsService.getAppointmentById(id, userId, role);
