@@ -54,6 +54,11 @@ describe('AppointmentsService', () => {
     companyService: {
       findFirst: jest.fn(),
     },
+    clientCredit: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     $executeRaw: jest.fn().mockResolvedValue(1),
     $transaction: jest.fn((cb) =>
       typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb),
@@ -80,6 +85,7 @@ describe('AppointmentsService', () => {
     sendAppointmentConfirmationEmail: jest.fn().mockResolvedValue(true),
     sendAppointmentCancellationEmail: jest.fn().mockResolvedValue(true),
     sendAppointmentReminderEmail: jest.fn().mockResolvedValue(true),
+    sendOwnerUnavailabilityRescheduleEmail: jest.fn().mockResolvedValue(true),
   };
 
   const mockFoundersService = {
@@ -1418,6 +1424,7 @@ describe('AppointmentsService', () => {
       await service.deactivateAppointment('appt-1', 'owner-1');
 
       expect(mockAsaasService.refundPayment).not.toHaveBeenCalled();
+      expect(mockPrisma.clientCredit.create).toHaveBeenCalled();
       expect(mockPrisma.appointment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -1671,4 +1678,85 @@ describe('AppointmentsService', () => {
       expect(ics).toContain('END:VCALENDAR');
     });
   });
+
+  describe('rescheduleByOwnerUnavailability (Salvar a Venda)', () => {
+    it('deve cancelar agendamento por imprevisto, gerar 100% de crédito e disparar e-mail com link mágico', async () => {
+      const appt = {
+        id: 'appt-unavail-1',
+        clientId: 'client-1',
+        companyId: 'company-1',
+        status: ApptStatus.CONFIRMED,
+        isActive: true,
+        appointmentDate: new Date('2026-09-10T14:00:00.000Z'),
+        downPaymentAmount: 45.0,
+        company: {
+          id: 'company-1',
+          userId: 'owner-1',
+          businessName: 'Barbearia Top',
+          slug: 'barbearia-top',
+          timezone: 'America/Sao_Paulo',
+        },
+        service: {
+          name: 'Corte e Barba',
+        },
+        client: {
+          name: 'Maria Santos',
+          email: 'maria@test.com',
+        },
+      };
+
+      mockPrisma.appointment.findUnique.mockResolvedValue(appt);
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...appt,
+        status: ApptStatus.CANCELED,
+        isActive: false,
+      });
+      mockPrisma.clientCredit.create.mockResolvedValue({
+        id: 'credit-new-1',
+        amount: 45.0,
+      });
+
+      const result = await service.rescheduleByOwnerUnavailability(
+        'appt-unavail-1',
+        'owner-1',
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.creditAmount).toBe(45.0);
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ApptStatus.CANCELED,
+            retainedDepositAmount: null,
+          }),
+        }),
+      );
+      expect(mockPrisma.clientCredit.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            clientId: 'client-1',
+            companyId: 'company-1',
+            amount: 45.0,
+            status: 'AVAILABLE',
+          }),
+        }),
+      );
+    });
+
+    it('deve lançar ForbiddenException se quem tenta remarcar não é dono nem admin', async () => {
+      const appt = {
+        id: 'appt-unavail-1',
+        company: { userId: 'owner-real' },
+        status: ApptStatus.CONFIRMED,
+        isActive: true,
+      };
+      mockPrisma.appointment.findUnique.mockResolvedValue(appt);
+      mockPrisma.user.findUnique.mockResolvedValue({ role: Role.CLIENT });
+
+      await expect(
+        service.rescheduleByOwnerUnavailability('appt-unavail-1', 'intruder-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });
+
