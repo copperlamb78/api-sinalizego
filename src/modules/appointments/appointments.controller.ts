@@ -166,6 +166,30 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  @ApiOperation({ summary: 'Retorna os detalhes de um agendamento por ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Agendamento encontrado com sucesso',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
+    return this.appointmentsService.getAppointmentById(id, userId, role);
+  }
+
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...INTERNAL_NO_EMPLOYEE)
   @Patch(':id/complete')
