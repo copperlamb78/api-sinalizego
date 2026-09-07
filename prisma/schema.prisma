@@ -30,6 +30,7 @@ model User {
   appointments      Appointment[]
   financialProfiles FinancialProfile[]
   transactions      Transaction[]
+  clientCredits     ClientCredit[]
 }
 
 enum Role {
@@ -86,6 +87,7 @@ model Company {
   referralCode       ReferralCode?
   referralsSent      Referral[]          @relation("ReferralsSent")
   referralReceived   Referral?           @relation("ReferralsReceived")
+  clientCredits      ClientCredit[]
 
   @@index([userId])
 }
@@ -158,6 +160,8 @@ model Appointment {
   client          User             @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   transactions    Transaction[]
   platformInvoice PlatformInvoice? @relation(fields: [platformInvoiceId], references: [id])
+  generatedCredits ClientCredit[]   @relation("GeneratedCredits")
+  usedCredits      ClientCredit[]   @relation("UsedCredits")
 
   @@index([companyId])
   @@index([companyId, platformInvoiceId])
@@ -250,6 +254,7 @@ model FinancialProfile {
 
   companies    Company[]
   transactions Transaction[]
+  pixKeys      PixKey[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -523,5 +528,58 @@ model Referral {
 
   @@index([referrerCompanyId, status])
 }
+
+// ----------------------------------------------------------------------------
+// CRÉDITOS DE CLIENTES (Regra N6b - Arts. 417 a 420 Código Civil)
+// ----------------------------------------------------------------------------
+enum CreditStatus {
+  AVAILABLE
+  USED
+  EXPIRED
+}
+
+model ClientCredit {
+  id                String       @id @default(uuid())
+  clientId          String
+  companyId         String
+  appointmentId     String?
+  amount            Decimal      @db.Decimal(10, 2)
+  status            CreditStatus @default(AVAILABLE)
+  expiresAt         DateTime
+  usedAt            DateTime?
+  usedAppointmentId String?
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  client            User         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  company           Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  originAppointment Appointment? @relation("GeneratedCredits", fields: [appointmentId], references: [id], onDelete: SetNull)
+  usedAppointment   Appointment? @relation("UsedCredits", fields: [usedAppointmentId], references: [id], onDelete: SetNull)
+
+  @@index([clientId, status])
+  @@index([companyId, status])
+  @@map("client_credits")
+}
+
+// ----------------------------------------------------------------------------
+// CHAVES PIX PARA TRANSFERÊNCIA E SAQUE (FINANCIAL PROFILE)
+// ----------------------------------------------------------------------------
+model PixKey {
+  id                 String           @id @default(uuid())
+  financialProfileId String
+  key                String
+  type               String           // CPF, CNPJ, EMAIL, PHONE, EVP
+  isDefault          Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  financialProfile   FinancialProfile @relation(fields: [financialProfileId], references: [id], onDelete: Cascade)
+
+  @@index([financialProfileId])
+  @@map("pix_keys")
+}
+
+
 
 
