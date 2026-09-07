@@ -7,6 +7,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from 'src/asaas/asaas.service';
 import { CreateFinancialProfileDto } from './dto/create-financial-profile.dto';
+import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import {
   AdminFiltersFinancialProfileDto,
   FiltersFinancialProfileDto,
@@ -318,4 +319,229 @@ export class FinancialProfileService {
 
     return balance;
   }
+
+  /**
+   * Retorna todas as chaves Pix cadastradas no perfil financeiro do usuário logado.
+   * Realiza migração transparente caso o perfil possua pixAddressKey mas nenhum registro em PixKey.
+   */
+  async getPixKeys(userId: string) {
+    const profile = await this.prisma.financialProfile.findFirst({
+      where: { userId, isActive: true },
+      select: { id: true, pixAddressKey: true, pixAddressKeyType: true },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Perfil financeiro não encontrado para este usuário.');
+    }
+
+    let keys = await this.prisma.pixKey.findMany({
+      where: { financialProfileId: profile.id },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    // Migração suave: se não houver registros em PixKey mas o perfil já possuir pixAddressKey salvo
+    if (keys.length === 0 && profile.pixAddressKey && profile.pixAddressKeyType) {
+      const migrated = await this.prisma.pixKey.create({
+        data: {
+          financialProfileId: profile.id,
+          key: profile.pixAddressKey,
+          type: profile.pixAddressKeyType,
+          isDefault: true,
+        },
+      });
+      keys = [migrated];
+    }
+
+    return keys.map((k) => ({
+      id: k.id,
+      key: k.key,
+      type: k.type,
+      isDefault: k.isDefault,
+      createdAt: k.createdAt,
+    }));
+  }
+
+  /**
+   * Cadastra uma nova chave Pix para recebimento de saques no perfil financeiro.
+   */
+  async addPixKey(userId: string, data: CreatePixKeyDto) {
+    const profile = await this.prisma.financialProfile.findFirst({
+      where: { userId, isActive: true },
+      select: { id: true, pixAddressKey: true },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Perfil financeiro não encontrado para este usuário.');
+    }
+
+    const cleanKey = data.type === 'PHONE'
+      ? data.key.replace(/\D/g, '')
+      : data.type === 'CPF' || data.type === 'CNPJ'
+        ? data.key.replace(/\D/g, '')
+        : data.key.trim();
+
+    const existingKey = await this.prisma.pixKey.findFirst({
+      where: {
+        financialProfileId: profile.id,
+        key: cleanKey,
+      },
+    });
+
+    if (existingKey) {
+      throw new ConflictException('Esta chave Pix já está cadastrada no seu perfil financeiro.');
+    }
+
+    const currentKeysCount = await this.prisma.pixKey.count({
+      where: { financialProfileId: profile.id },
+    });
+
+    const shouldBeDefault = data.isDefault || currentKeysCount === 0;
+
+    if (shouldBeDefault) {
+      // Remove o default das outras chaves
+      await this.prisma.pixKey.updateMany({
+        where: { financialProfileId: profile.id },
+        data: { isDefault: false },
+      });
+    }
+
+    const newPixKey = await this.prisma.pixKey.create({
+      data: {
+        financialProfileId: profile.id,
+        key: cleanKey,
+        type: data.type,
+        isDefault: shouldBeDefault,
+      },
+    });
+
+    // Se for a chave padrão, sincroniza com o FinancialProfile para saques imediatos e crons
+    if (shouldBeDefault) {
+      await this.prisma.financialProfile.update({
+        where: { id: profile.id },
+        data: {
+          pixAddressKey: cleanKey,
+          pixAddressKeyType: data.type,
+        },
+      });
+    }
+
+    return {
+      id: newPixKey.id,
+      key: newPixKey.key,
+      type: newPixKey.type,
+      isDefault: newPixKey.isDefault,
+      createdAt: newPixKey.createdAt,
+    };
+  }
+
+  /**
+   * Remove uma chave Pix cadastrada.
+   */
+  async deletePixKey(userId: string, pixKeyId: string) {
+    const profile = await this.prisma.financialProfile.findFirst({
+      where: { userId, isActive: true },
+      select: { id: true },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Perfil financeiro não encontrado.');
+    }
+
+    const key = await this.prisma.pixKey.findFirst({
+      where: { id: pixKeyId, financialProfileId: profile.id },
+    });
+
+    if (!key) {
+      throw new NotFoundException('Chave Pix não encontrada neste perfil financeiro.');
+    }
+
+    await this.prisma.pixKey.delete({
+      where: { id: pixKeyId },
+    });
+
+    // Se a chave deletada era a chave padrão, promove a próxima chave restante
+    if (key.isDefault) {
+      const remainingKey = await this.prisma.pixKey.findFirst({
+        where: { financialProfileId: profile.id },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (remainingKey) {
+        await this.prisma.pixKey.update({
+          where: { id: remainingKey.id },
+          data: { isDefault: true },
+        });
+
+        await this.prisma.financialProfile.update({
+          where: { id: profile.id },
+          data: {
+            pixAddressKey: remainingKey.key,
+            pixAddressKeyType: remainingKey.type,
+          },
+        });
+      } else {
+        await this.prisma.financialProfile.update({
+          where: { id: profile.id },
+          data: {
+            pixAddressKey: null,
+            pixAddressKeyType: null,
+          },
+        });
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Chave Pix removida com sucesso.',
+    };
+  }
+
+  /**
+   * Define uma chave Pix existente como a principal para saques.
+   */
+  async setDefaultPixKey(userId: string, pixKeyId: string) {
+    const profile = await this.prisma.financialProfile.findFirst({
+      where: { userId, isActive: true },
+      select: { id: true },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Perfil financeiro não encontrado.');
+    }
+
+    const key = await this.prisma.pixKey.findFirst({
+      where: { id: pixKeyId, financialProfileId: profile.id },
+    });
+
+    if (!key) {
+      throw new NotFoundException('Chave Pix não encontrada neste perfil financeiro.');
+    }
+
+    await this.prisma.pixKey.updateMany({
+      where: { financialProfileId: profile.id },
+      data: { isDefault: false },
+    });
+
+    const updatedKey = await this.prisma.pixKey.update({
+      where: { id: pixKeyId },
+      data: { isDefault: true },
+    });
+
+    await this.prisma.financialProfile.update({
+      where: { id: profile.id },
+      data: {
+        pixAddressKey: updatedKey.key,
+        pixAddressKeyType: updatedKey.type,
+      },
+    });
+
+    return {
+      id: updatedKey.id,
+      key: updatedKey.key,
+      type: updatedKey.type,
+      isDefault: updatedKey.isDefault,
+      message: 'Chave Pix definida como principal com sucesso.',
+    };
+  }
 }
+
