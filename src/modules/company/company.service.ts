@@ -310,6 +310,91 @@ export class CompanyService {
     return companies;
   }
 
+
+  /**
+   * Busca dados públicos da vitrine por ID ou Slug (acesso público para catálogo e checkout)
+   */
+  async findByIdOrSlugPublic(identifier: string) {
+    const isUUID =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        identifier,
+      );
+    const where = isUUID
+      ? { id: identifier, isActive: true }
+      : { slug: identifier, isActive: true };
+
+    const company = await this.prisma.company.findFirst({
+      where,
+      select: {
+        id: true,
+        businessName: true,
+        slug: true,
+        providerType: true,
+        whatsapp: true,
+        chairsCount: true,
+        district: true,
+        street: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        number: true,
+        logoPhoto: true,
+        bannerPhoto: true,
+        timezone: true,
+        createdAt: true,
+        workingHours: {
+          select: {
+            id: true,
+            dayOfWeek: true,
+            startTime: true,
+            endTime: true,
+            lunchStartTime: true,
+            lunchEndTime: true,
+            isClosed: true,
+          },
+          orderBy: {
+            dayOfWeek: 'asc',
+          },
+        },
+        serviceGroups: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            capacity: true,
+            services: {
+              where: {
+                isActive: true,
+              },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                durationMinutes: true,
+                totalPrice: true,
+                downPaymentPercent: true,
+              },
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Estabelecimento não encontrado.');
+    }
+
+    return company;
+  }
+
   async findBySlug(slug: string) {
     const company = await this.prisma.company.findUnique({
       where: { slug: slug, isActive: true },
