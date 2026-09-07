@@ -27,7 +27,9 @@ export class ServiceGroupService {
         select: { id: true },
       });
       if (!userCompany) {
-        throw new NotFoundException('Nenhuma empresa ativa encontrada para este usuário.');
+        throw new NotFoundException(
+          'Nenhuma empresa ativa encontrada para este usuário.',
+        );
       }
       targetCompanyId = userCompany.id;
     }
