@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsString, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateServiceGroupDto {
   @ApiProperty({
@@ -23,11 +23,11 @@ export class CreateServiceGroupDto {
   @Max(50, { message: 'A capacidade máxima é de 50 profissionais.' })
   capacity: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '6e463255-9c3e-47e1-b417-60382e3d2223',
-    description: 'ID da empresa à qual este grupo de serviços pertence',
+    description: 'ID da empresa à qual este grupo de serviços pertence (opcional para proprietários)',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  companyId: string;
+  companyId?: string;
 }
