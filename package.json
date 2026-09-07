@@ -19,6 +19,7 @@
     "db:seed": "prisma db seed",
     "db:seed:dev": "node -e \"process.env.NODE_ENV='development'; require('dotenv').config({ path: '.env.development' }); require('child_process').execSync('npx prisma db seed', { stdio: 'inherit', env: process.env })\"",
     "db:generate": "prisma generate",
+    "seed:admin": "npx ts-node -r tsconfig-paths/register scripts/create-super-admin.ts",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
