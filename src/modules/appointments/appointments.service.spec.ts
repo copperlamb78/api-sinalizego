@@ -1598,4 +1598,50 @@ describe('AppointmentsService', () => {
       expect(result).toEqual(appt);
     });
   });
+
+  describe('generateAppointmentIcs', () => {
+    it('should throw NotFoundException if appointment is not found', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(null);
+      await expect(
+        service.generateAppointmentIcs('non-existent'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should generate valid RFC 5545 iCalendar string with CRLF and UTC dates', async () => {
+      const appt = {
+        id: 'appt-123',
+        appointmentDate: new Date('2026-09-09T10:00:00.000Z'),
+        appointmentEndDate: new Date('2026-09-09T10:45:00.000Z'),
+        service: {
+          name: 'Corte Degradê',
+          durationMinutes: 45,
+        },
+        company: {
+          businessName: 'Barbearia Vintage',
+          street: 'Av. Brasil',
+          number: '1000',
+          district: 'Centro',
+          city: 'São Paulo',
+          state: 'SP',
+        },
+      };
+      mockPrisma.appointment.findUnique.mockResolvedValue(appt);
+
+      const ics = await service.generateAppointmentIcs('appt-123');
+
+      expect(ics).toContain('BEGIN:VCALENDAR\r\n');
+      expect(ics).toContain('VERSION:2.0\r\n');
+      expect(ics).toContain('BEGIN:VEVENT\r\n');
+      expect(ics).toContain('UID:appt-123@sinalizego.com\r\n');
+      expect(ics).toContain('DTSTART:20260909T100000Z\r\n');
+      expect(ics).toContain('DTEND:20260909T104500Z\r\n');
+      expect(ics).toContain('SUMMARY:Corte Degradê - Barbearia Vintage\r\n');
+      expect(ics).toContain(
+        'LOCATION:Av. Brasil\\, 1000\\, Centro\\, São Paulo\\, SP\r\n',
+      );
+      expect(ics).toContain('STATUS:CONFIRMED\r\n');
+      expect(ics).toContain('END:VEVENT\r\n');
+      expect(ics).toContain('END:VCALENDAR');
+    });
+  });
 });
