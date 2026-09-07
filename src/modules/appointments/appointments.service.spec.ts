@@ -1556,7 +1556,11 @@ describe('AppointmentsService', () => {
       };
       mockPrisma.appointment.findUnique.mockResolvedValue(appt);
 
-      const result = await service.getAppointmentById('appt-1', 'client-1', 'CLIENT');
+      const result = await service.getAppointmentById(
+        'appt-1',
+        'client-1',
+        'CLIENT',
+      );
       expect(result).toEqual(appt);
     });
 
@@ -1569,7 +1573,11 @@ describe('AppointmentsService', () => {
       };
       mockPrisma.appointment.findUnique.mockResolvedValue(appt);
 
-      const result = await service.getAppointmentById('appt-1', 'owner-1', 'COMPANY_OWNER');
+      const result = await service.getAppointmentById(
+        'appt-1',
+        'owner-1',
+        'COMPANY_OWNER',
+      );
       expect(result).toEqual(appt);
     });
 
@@ -1582,7 +1590,11 @@ describe('AppointmentsService', () => {
       };
       mockPrisma.appointment.findUnique.mockResolvedValue(appt);
 
-      const result = await service.getAppointmentById('appt-1', 'admin-1', 'ADMIN');
+      const result = await service.getAppointmentById(
+        'appt-1',
+        'admin-1',
+        'ADMIN',
+      );
       expect(result).toEqual(appt);
     });
   });
