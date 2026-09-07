@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { FinancialProfileService } from './financial-profile.service';
 import { CreateFinancialProfileDto } from './dto/create-financial-profile.dto';
+import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import {
   AdminFiltersFinancialProfileDto,
   FiltersFinancialProfileDto,
@@ -334,4 +336,94 @@ export class FinancialProfileController {
     const userId = req.user?.['sub'];
     return this.financialProfileService.getFinancialProfileBalance(id, userId);
   }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Get('pix-keys')
+  @ApiOperation({
+    summary: 'Lista as chaves Pix cadastradas para saque no perfil financeiro',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de chaves Pix retornada com sucesso',
+  })
+  async getPixKeys(@Req() req: Request) {
+    const userId = req.user?.['sub'];
+    return this.financialProfileService.getPixKeys(userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Post('pix-keys')
+  @ApiOperation({
+    summary: 'Cadastra uma nova chave Pix para recebimento de saques',
+  })
+  @ApiBody({ type: CreatePixKeyDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Chave Pix cadastrada com sucesso',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Esta chave Pix já está cadastrada',
+  })
+  async addPixKey(@Body() dto: CreatePixKeyDto, @Req() req: Request) {
+    const userId = req.user?.['sub'];
+    return this.financialProfileService.addPixKey(userId, dto);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Delete('pix-keys/:id')
+  @ApiOperation({
+    summary: 'Remove uma chave Pix cadastrada',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID da chave Pix (UUID)',
+    example: 'd9b23114-1fa3-47a0-9254-69568529668c',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chave Pix removida com sucesso',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chave Pix não encontrada',
+  })
+  async deletePixKey(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.financialProfileService.deletePixKey(userId, id);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Patch('pix-keys/:id/default')
+  @ApiOperation({
+    summary: 'Define uma chave Pix como a principal para saques',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID da chave Pix (UUID)',
+    example: 'd9b23114-1fa3-47a0-9254-69568529668c',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chave Pix definida como principal com sucesso',
+  })
+  async setDefaultPixKey(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    return this.financialProfileService.setDefaultPixKey(userId, id);
+  }
 }
+
