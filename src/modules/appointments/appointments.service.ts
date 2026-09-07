@@ -408,7 +408,7 @@ export class AppointmentsService {
   ) {
     const userCompanies = await this.prisma.company.findMany({
       where: { userId },
-      select: { id: true },
+      select: { id: true, timezone: true },
     });
 
     const companyIds = userCompanies.map((company) => company.id);
@@ -434,17 +434,38 @@ export class AppointmentsService {
     const page = filters?.page ? Math.max(1, Number(filters.page)) : 1;
     const limit = filters?.limit
       ? Math.min(100, Math.max(1, Number(filters.limit)))
-      : 20;
+      : filters?.date
+        ? 100
+        : 20;
     const skip = (page - 1) * limit;
 
     if (filters) {
       if (filters.clientId) whereClause.clientId = filters.clientId;
       if (filters.serviceId) whereClause.serviceId = filters.serviceId;
       if (filters.status) whereClause.status = filters.status;
-      if (filters.startDate)
-        whereClause.appointmentDate = { gte: new Date(filters.startDate) };
-      if (filters.endDate)
-        whereClause.appointmentEndDate = { lte: new Date(filters.endDate) };
+
+      // Filtro por dia específico na agenda operacional (convertendo horário de parede para UTC via company.timezone)
+      if (filters.date) {
+        const companyTz =
+          userCompanies.find((c) => c.id === filters.companyId)?.timezone ||
+          userCompanies[0]?.timezone ||
+          'America/Sao_Paulo';
+
+        const startOfDay = fromZonedTime(`${filters.date}T00:00:00`, companyTz);
+        const endOfDay = fromZonedTime(`${filters.date}T23:59:59.999`, companyTz);
+
+        whereClause.appointmentDate = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+        orderByClause = { appointmentDate: 'asc' };
+      } else {
+        if (filters.startDate)
+          whereClause.appointmentDate = { gte: new Date(filters.startDate) };
+        if (filters.endDate)
+          whereClause.appointmentEndDate = { lte: new Date(filters.endDate) };
+      }
+
       if (filters.servicePrice)
         whereClause.servicePrice = { gte: filters.servicePrice };
       if (filters.downPaymentAmount)
@@ -452,7 +473,7 @@ export class AppointmentsService {
       if (filters.isActive !== undefined)
         whereClause.isActive = filters.isActive;
       if (filters.orderBy) {
-        orderByClause = { createdAt: filters.orderBy };
+        orderByClause = { appointmentDate: filters.orderBy };
       }
     }
 
