@@ -640,15 +640,15 @@ describe('AppointmentsService', () => {
 
       expect(mockPrisma.company.findMany).toHaveBeenCalledWith({
         where: { userId: 'owner-without-company' },
-        select: { id: true },
+        select: { id: true, timezone: true },
       });
       expect(result).toEqual([]);
     });
 
     it('should scope query to all companies owned by user when no companyId filter is passed', async () => {
       mockPrisma.company.findMany.mockResolvedValue([
-        { id: 'company-1' },
-        { id: 'company-2' },
+        { id: 'company-1', timezone: 'America/Sao_Paulo' },
+        { id: 'company-2', timezone: 'America/Sao_Paulo' },
       ]);
       const expected = [{ id: 'appointment-1', companyId: 'company-1' }];
       mockPrisma.appointment.findMany.mockResolvedValue(expected);
@@ -666,7 +666,7 @@ describe('AppointmentsService', () => {
     });
 
     it('should throw ForbiddenException if user tries to query a companyId they do not own (IDOR)', async () => {
-      mockPrisma.company.findMany.mockResolvedValue([{ id: 'company-1' }]);
+      mockPrisma.company.findMany.mockResolvedValue([{ id: 'company-1', timezone: 'America/Sao_Paulo' }]);
 
       await expect(
         service.getAppointmentByCompanyId('owner-1', {
@@ -677,8 +677,8 @@ describe('AppointmentsService', () => {
 
     it('should allow querying specific companyId if user is the owner', async () => {
       mockPrisma.company.findMany.mockResolvedValue([
-        { id: 'company-1' },
-        { id: 'company-2' },
+        { id: 'company-1', timezone: 'America/Sao_Paulo' },
+        { id: 'company-2', timezone: 'America/Sao_Paulo' },
       ]);
       const expected = [{ id: 'appointment-1', companyId: 'company-1' }];
       mockPrisma.appointment.findMany.mockResolvedValue(expected);
@@ -691,6 +691,33 @@ describe('AppointmentsService', () => {
         where: { companyId: 'company-1' },
         orderBy: { createdAt: 'desc' },
         take: 20,
+        skip: 0,
+        select: expect.any(Object),
+      });
+      expect(result).toEqual(expected);
+    });
+
+    it('should filter appointments by specific day (date) converting to company timezone', async () => {
+      mockPrisma.company.findMany.mockResolvedValue([
+        { id: 'company-1', timezone: 'America/Sao_Paulo' },
+      ]);
+      const expected = [{ id: 'appointment-1', companyId: 'company-1' }];
+      mockPrisma.appointment.findMany.mockResolvedValue(expected);
+
+      const result = await service.getAppointmentByCompanyId('owner-1', {
+        date: '2026-09-07',
+      } as any);
+
+      expect(mockPrisma.appointment.findMany).toHaveBeenCalledWith({
+        where: {
+          companyId: { in: ['company-1'] },
+          appointmentDate: {
+            gte: new Date('2026-09-07T03:00:00.000Z'),
+            lte: new Date('2026-09-08T02:59:59.999Z'),
+          },
+        },
+        orderBy: { appointmentDate: 'asc' },
+        take: 100,
         skip: 0,
         select: expect.any(Object),
       });
