@@ -997,10 +997,16 @@ export class CompanyService {
       'America/Sao_Paulo',
     );
 
+    const rawWallet = financialProfile.walletId || '';
+    const walletMask = rawWallet.length >= 8
+      ? `${rawWallet.slice(0, 4)}••••••••${rawWallet.slice(-4)}`
+      : '••••••••';
+
     return {
       companyId: company.id,
       businessName: company.businessName,
-      walletId: financialProfile.walletId,
+      walletId: walletMask,
+      walletMask,
       availableBalance: balanceMetrics.availableBalance,
       escrowLockedBalance: balanceMetrics.escrowLockedBalance,
       completedNetRevenue: balanceMetrics.completedNetRevenue,
