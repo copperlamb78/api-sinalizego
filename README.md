@@ -39,7 +39,7 @@
 | ⚡ **Webhooks em Tempo Real** | Processamento automático dos eventos `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` e eventos de NFS-e (`INVOICE_AUTHORIZED`, `INVOICE_ERROR`) com alerta por e-mail |
 | 🛡️ **Padronização Global de Erros** | `AllExceptionsFilter` capturando `HttpException`, erros do Prisma e falhas genéricas com payload padronizado |
 | 💓 **Health Check Público** | Endpoint `GET /api/v1/health` e `GET /health` sem autenticação para monitoramento contínuo de uptime e status |
-| 🧪 **Suíte de Testes Completa** | 431 testes unitários automatizados (39 suítes) + 141 testes de integração HTTP E2E (8 suítes) com 100% de cobertura dos módulos, controllers, services, helpers, promoções N8 (Fundadores) e N9 (Indicação) com motor de overrides de taxas, gestão de vagas/lista de espera, emissão e webhooks de NFS-e, onboarding com autocura de perfis, CPF inline, No-Show com travas temporais, Escrow Hold, saques e permissões |
+| 🧪 **Suíte de Testes Completa** | 447 testes unitários automatizados (39 suítes) + 141 testes de integração HTTP E2E (8 suítes) com 100% de cobertura dos módulos, controllers, services, helpers, promoções N8 (Fundadores) e N9 (Indicação) com motor de overrides de taxas, gestão de vagas/lista de espera, emissão e webhooks de NFS-e, onboarding com autocura de perfis, CPF inline, No-Show com travas temporais, Escrow Hold, saques e permissões |
 | 📖 **Swagger UI** | Documentação interativa em `/api` |
 
 ---
@@ -352,6 +352,22 @@ A API utiliza **RBAC (Role-Based Access Control)** com níveis de permissão e g
 
 ---
 
+### 🛡️ Admin — Super Admin & Gestão Global
+
+> Centro de comando executivo da plataforma com inteligência operacional (Platform Intelligence), métricas consolidadas (GMV, receita bruta do SaaS, custos absorvidos de Pix e lucro líquido), moderação de estabelecimentos, gestão de usuários com atribuição de papéis (Roles), redefinição de senha com troca obrigatória no 1º acesso e auditoria profunda de compliance.
+
+| Método | Rota | Descrição | Auth | Roles |
+|--------|------|-----------|------|-------|
+| `GET` | `/admin/dashboard/metrics` | Métricas executivas globais (GMV, SaaS Revenue, Custos Pix, Lucro Líquido, Crescimento e Top Tenants) | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `GET` | `/admin/companies` | Listagem administrativa global de estabelecimentos com paginação e busca | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `PATCH` | `/admin/companies/:id/toggle-status` | Ativar ou suspender administrativamente um estabelecimento | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `POST` | `/admin/users` | Criação de usuário pelo administrador com escolha de Role (gera senha provisória se omitida) | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `PATCH` | `/admin/users/:userId` | Atualização cadastral de dados, Role ou status ativo de um usuário | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `POST` | `/admin/users/:userId/reset-password` | Redefinir senha de usuário gerando senha provisória enviada por e-mail com troca obrigatória no 1º login | 🔑 JWT | `SYSTEM_MANAGERS` |
+| `GET` | `/admin/users/:userId/audit` | Auditoria completa de usuário (histórico de agendamentos, gastos, transações e subcontas Asaas) | 🔑 JWT | `SYSTEM_MANAGERS` |
+
+---
+
 ### 🌟 Founders — Promoção Fundadores (N8)
 
 > Gestão do programa de 20 Assentos Fundadores com taxa de split Pix reduzida para R$ 0,49 por 1 ano, controle atômico de vagas, lista de espera ordenada, ativação no 1º atendimento concluído e avaliação de metas progressivas (20 atendimentos no mês 1 e 40 no mês 2).
@@ -407,6 +423,7 @@ erDiagram
         enum role "CLIENT | COMPANY_OWNER | EMPLOYEE | ADMIN | SUPER_ADMIN"
         string refreshToken
         boolean isActive
+        boolean mustChangePassword
         datetime createdAt
         datetime updatedAt
         datetime disabledAt
