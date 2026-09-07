@@ -1,13 +1,16 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -16,6 +19,8 @@ import {
 import { AdminService } from './admin.service';
 import { AdminMetricsDto } from './dto/admin-metrics.dto';
 import { AdminCompaniesQueryDto } from './dto/admin-companies-query.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
@@ -133,5 +138,102 @@ export class AdminController {
   @Patch('companies/:id/toggle-status')
   async toggleCompanyStatus(@Param('id') id: string) {
     return this.adminService.toggleCompanyStatus(id);
+  }
+
+  @ApiOperation({
+    summary: 'Criação Administrativa de Usuário com Seleção de Role',
+    description:
+      'Permite ao administrador criar um usuário com qualquer nível de acesso (CLIENT, PROVIDER, COMPANY_OWNER, EMPLOYEE, ADMIN, SUPER_ADMIN). Se a senha não for fornecida, gera uma senha temporária aleatória e a envia por e-mail com troca obrigatória no 1º acesso.',
+  })
+  @ApiBody({ type: AdminCreateUserDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Usuário criado com sucesso pelo administrador.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'E-mail já está em uso.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso proibido para papéis não administrativos.',
+  })
+  @Post('users')
+  async createUser(@Body() dto: AdminCreateUserDto) {
+    return this.adminService.createUser(dto);
+  }
+
+  @ApiOperation({
+    summary: 'Atualização Administrativa de Usuário',
+    description:
+      'Permite ao administrador editar dados cadastrais, perfil de acesso (Role) ou status ativo/inativo de um usuário.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'UUID do usuário a ser atualizado',
+  })
+  @ApiBody({ type: AdminUpdateUserDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Usuário atualizado com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Usuário não encontrado.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'E-mail já está em uso por outro usuário.',
+  })
+  @Patch('users/:userId')
+  async updateUser(
+    @Param('userId') userId: string,
+    @Body() dto: AdminUpdateUserDto,
+  ) {
+    return this.adminService.updateUser(userId, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Redefinição Administrativa de Senha (Troca Obrigatória)',
+    description:
+      'Gera uma nova senha aleatória segura para o usuário, define a flag de troca obrigatória no primeiro acesso, invalida sessões ativas e envia a nova senha por e-mail transacional via Brevo.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'UUID do usuário que terá a senha redefinida',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Senha temporária gerada e enviada com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Usuário não encontrado.',
+  })
+  @Post('users/:userId/reset-password')
+  async resetUserPassword(@Param('userId') userId: string) {
+    return this.adminService.resetUserPassword(userId);
+  }
+
+  @ApiOperation({
+    summary: 'Auditoria Completa de Usuário',
+    description:
+      'Retorna raio-x detalhado do usuário para compliance e auditoria: perfil, empresas vinculadas, histórico agregado de agendamentos (concluídos, cancelados), transações financeiras e dados de integração Asaas.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'UUID do usuário a ser auditado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dados de auditoria do usuário retornados com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Usuário não encontrado.',
+  })
+  @Get('users/:userId/audit')
+  async getUserAudit(@Param('userId') userId: string) {
+    return this.adminService.getUserAudit(userId);
   }
 }
