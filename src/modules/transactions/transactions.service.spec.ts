@@ -239,7 +239,10 @@ describe('TransactionsService', () => {
           appointmentId: 'appointment-1',
         }),
       });
-      expect(result).toEqual(pixResponse);
+      expect(result).toEqual({
+        ...pixResponse,
+        expirationDate: validAppointment.expiresAt,
+      });
     });
 
     it('should create a Pix charge with promotional fee R$ 0.49 and calculate promoSubsidy', async () => {
@@ -290,7 +293,10 @@ describe('TransactionsService', () => {
           feeOverrideId: 'override-123',
         }),
       });
-      expect(result).toEqual(pixResponse);
+      expect(result).toEqual({
+        ...pixResponse,
+        expirationDate: validAppointment.expiresAt,
+      });
     });
   });
 });
