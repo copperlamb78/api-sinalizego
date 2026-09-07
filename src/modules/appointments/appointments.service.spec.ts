@@ -1525,4 +1525,65 @@ describe('AppointmentsService', () => {
       expect(result).toBe(0);
     });
   });
+
+  describe('getAppointmentById', () => {
+    it('should throw NotFoundException if appointment does not exist', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getAppointmentById('non-existent', 'user-1', 'CLIENT'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException (anti-IDOR) if user is not client, owner, or system manager', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue({
+        id: 'appt-1',
+        clientId: 'client-1',
+        company: { userId: 'owner-1' },
+      });
+
+      await expect(
+        service.getAppointmentById('appt-1', 'intruder-user', 'CLIENT'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should return appointment if user is the client', async () => {
+      const appt = {
+        id: 'appt-1',
+        clientId: 'client-1',
+        status: 'CONFIRMED',
+        company: { userId: 'owner-1' },
+      };
+      mockPrisma.appointment.findUnique.mockResolvedValue(appt);
+
+      const result = await service.getAppointmentById('appt-1', 'client-1', 'CLIENT');
+      expect(result).toEqual(appt);
+    });
+
+    it('should return appointment if user is the company owner', async () => {
+      const appt = {
+        id: 'appt-1',
+        clientId: 'client-1',
+        status: 'CONFIRMED',
+        company: { userId: 'owner-1' },
+      };
+      mockPrisma.appointment.findUnique.mockResolvedValue(appt);
+
+      const result = await service.getAppointmentById('appt-1', 'owner-1', 'COMPANY_OWNER');
+      expect(result).toEqual(appt);
+    });
+
+    it('should return appointment if user is a system manager (ADMIN)', async () => {
+      const appt = {
+        id: 'appt-1',
+        clientId: 'client-1',
+        status: 'CONFIRMED',
+        company: { userId: 'owner-1' },
+      };
+      mockPrisma.appointment.findUnique.mockResolvedValue(appt);
+
+      const result = await service.getAppointmentById('appt-1', 'admin-1', 'ADMIN');
+      expect(result).toEqual(appt);
+    });
+  });
 });
