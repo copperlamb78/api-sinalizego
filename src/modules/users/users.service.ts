@@ -111,6 +111,7 @@ export class UsersService {
       data: {
         password: newHashedPassword,
         refreshToken: null, // Invalida sessões ativas com o refresh token antigo
+        mustChangePassword: false,
       },
     });
 
