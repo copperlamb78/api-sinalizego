@@ -10,6 +10,10 @@ describe('AdminController', () => {
     getDashboardMetrics: jest.fn(),
     listCompanies: jest.fn(),
     toggleCompanyStatus: jest.fn(),
+    createUser: jest.fn(),
+    updateUser: jest.fn(),
+    resetUserPassword: jest.fn(),
+    getUserAudit: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -95,6 +99,70 @@ describe('AdminController', () => {
       const result = await controller.toggleCompanyStatus('comp-1');
 
       expect(service.toggleCompanyStatus).toHaveBeenCalledWith('comp-1');
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('createUser', () => {
+    it('should call adminService.createUser with dto and return result', async () => {
+      const dto = {
+        name: 'Novo Admin',
+        email: 'admin@test.com',
+        phone: '5561999999999',
+        role: 'ADMIN' as any,
+      };
+      const expected = {
+        message: 'Usuário criado com sucesso.',
+        user: { id: 'u-1', ...dto },
+      };
+      mockAdminService.createUser.mockResolvedValue(expected);
+
+      const result = await controller.createUser(dto);
+
+      expect(service.createUser).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('updateUser', () => {
+    it('should call adminService.updateUser with userId and dto and return result', async () => {
+      const dto = { name: 'Nome Atualizado' };
+      const expected = { message: 'Usuário atualizado com sucesso.' };
+      mockAdminService.updateUser.mockResolvedValue(expected);
+
+      const result = await controller.updateUser('u-1', dto);
+
+      expect(service.updateUser).toHaveBeenCalledWith('u-1', dto);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('resetUserPassword', () => {
+    it('should call adminService.resetUserPassword with userId and return result', async () => {
+      const expected = {
+        message: 'Senha temporária gerada e enviada por e-mail com sucesso.',
+        email: 'user@test.com',
+      };
+      mockAdminService.resetUserPassword.mockResolvedValue(expected);
+
+      const result = await controller.resetUserPassword('u-1');
+
+      expect(service.resetUserPassword).toHaveBeenCalledWith('u-1');
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getUserAudit', () => {
+    it('should call adminService.getUserAudit with userId and return result', async () => {
+      const expected = {
+        user: { id: 'u-1' },
+        audit: { totalAppointments: 10 },
+      };
+      mockAdminService.getUserAudit.mockResolvedValue(expected);
+
+      const result = await controller.getUserAudit('u-1');
+
+      expect(service.getUserAudit).toHaveBeenCalledWith('u-1');
       expect(result).toEqual(expected);
     });
   });
