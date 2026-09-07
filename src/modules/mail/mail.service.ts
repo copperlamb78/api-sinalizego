@@ -10,6 +10,7 @@ import {
   getPasswordResetEmailTemplate,
   getTemporaryPasswordEmailTemplate,
   getWelcomeEmailTemplate,
+  getOwnerUnavailabilityEmailTemplate,
 } from './templates/email.templates';
 
 @Injectable()
@@ -165,6 +166,56 @@ export class MailService {
     } catch (error: any) {
       this.logger.error(
         `Falha ao enviar e-mail de cancelamento para ${to}: ${error?.message || error}`,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Envia e-mail de notificação de imprevisto do estabelecimento com link mágico para reagendamento e crédito garantido (Salvar a Venda).
+   */
+  async sendOwnerUnavailabilityRescheduleEmail(
+    to: string,
+    data: {
+      customerName: string;
+      companyName: string;
+      serviceName: string;
+      appointmentDate: Date | string;
+      creditAmount: number;
+      rescheduleUrl: string;
+      timezone?: string;
+    },
+  ): Promise<boolean> {
+    try {
+      const formattedDate = formatAppointmentDateTime(
+        data.appointmentDate,
+        data.timezone || 'America/Sao_Paulo',
+      );
+
+      await this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject: `Imprevisto no Horário — Seu sinal virou crédito em ${data.companyName}`,
+        sender: {
+          name: this.senderName,
+          email: this.senderEmail,
+        },
+        to: [{ email: to, name: data.customerName || to }],
+        htmlContent: getOwnerUnavailabilityEmailTemplate({
+          customerName: data.customerName,
+          companyName: data.companyName,
+          serviceName: data.serviceName,
+          formattedDate,
+          creditAmount: data.creditAmount,
+          rescheduleUrl: data.rescheduleUrl,
+        }),
+      });
+
+      this.logger.log(
+        `E-mail de imprevisto e reagendamento com crédito enviado com sucesso para ${to}`,
+      );
+      return true;
+    } catch (error: any) {
+      this.logger.error(
+        `Falha ao enviar e-mail de imprevisto para ${to}: ${error?.message || error}`,
       );
       return false;
     }
