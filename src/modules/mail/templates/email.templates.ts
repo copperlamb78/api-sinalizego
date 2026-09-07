@@ -3,6 +3,14 @@
  * Identidade Visual Oficial Dark Mode (Paleta: #0B1120, #0F172A, #1E293B, #14B8A6, #EF4444, #F8FAFC)
  */
 
+export function getBaseAppUrl(): string {
+  const envUrl = process.env.FRONTEND_URL || process.env.APP_URL;
+  if (envUrl && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+  return 'https://app.sinalizego.com';
+}
+
 interface BaseEmailLayoutProps {
   title: string;
   previewText?: string;
@@ -211,7 +219,9 @@ export function getWelcomeEmailTemplate(name: string, role?: string): string {
     infoCardHtml,
     cta: {
       text: isOwner ? 'Completar Meu Perfil' : 'Acessar Plataforma',
-      url: 'https://app.sinalizego.com',
+      url: isOwner
+        ? `${getBaseAppUrl()}/onboarding/empresa`
+        : `${getBaseAppUrl()}/login`,
       bgColor: '#14B8A6',
     },
   });
@@ -221,6 +231,7 @@ export function getWelcomeEmailTemplate(name: string, role?: string): string {
  * 2. Template de Confirmação de Agendamento (Payment Confirmed)
  */
 export function getAppointmentConfirmationEmailTemplate(data: {
+  appointmentId?: string;
   customerName: string;
   companyName: string;
   serviceName: string;
@@ -302,6 +313,7 @@ export function getAppointmentConfirmationEmailTemplate(data: {
  * 3. Template de Lembrete de Agendamento (D-1 Reminder)
  */
 export function getAppointmentReminderEmailTemplate(data: {
+  appointmentId?: string;
   customerName: string;
   companyName: string;
   serviceName: string;
@@ -368,17 +380,50 @@ export function getAppointmentCancellationEmailTemplate(data: {
   companyName: string;
   serviceName: string;
   formattedDate: string;
-  isRefunded: boolean;
+  isRefunded?: boolean;
   refundAmount?: number;
+  policy?: 'REFUND' | 'CREDIT' | 'RETAINED';
 }): string {
   const firstName = data.customerName
     ? data.customerName.trim().split(' ')[0]
     : 'Cliente';
 
+  const isRefund =
+    data.policy === 'REFUND' ||
+    (data.isRefunded && data.policy !== 'RETAINED' && data.policy !== 'CREDIT');
+  const isCredit = data.policy === 'CREDIT';
+
   const introHtml = `
     Olá, <strong>${firstName}</strong>!<br><br>
     Informamos que o seu agendamento no estabelecimento <strong>${data.companyName}</strong> foi cancelado. Confira abaixo os detalhes e a situação do seu sinal:
   `;
+
+  let refundStatusBlockHtml = '';
+  if (isRefund) {
+    refundStatusBlockHtml = `<div>
+      <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
+      <span style="color: #14B8A6; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Estorno Autorizado com Sucesso 💰</span>
+      <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
+        Conforme a política de cancelamento (antecedência superior a 24 horas), o valor do sinal de <strong>R$ ${data.refundAmount ? Number(data.refundAmount).toFixed(2) : '0.00'}</strong> foi autorizado para estorno via Pix e será devolvido para a sua conta bancária de origem.
+      </p>
+    </div>`;
+  } else if (isCredit) {
+    refundStatusBlockHtml = `<div>
+      <span style="color: #F59E0B; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Sinal</span><br>
+      <span style="color: #F59E0B; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Convertido em Crédito 🎟️</span>
+      <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
+        Conforme a política de cancelamento (entre 2h e 24h de antecedência), o valor de <strong>R$ ${data.refundAmount ? Number(data.refundAmount).toFixed(2) : '0.00'}</strong> foi convertido em créditos para você utilizar em novos agendamentos neste estabelecimento com validade de 90 dias (Arts. 417 a 420 do Código Civil).
+      </p>
+    </div>`;
+  } else {
+    refundStatusBlockHtml = `<div>
+      <span style="color: #EF4444; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
+      <span style="color: #EF4444; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Retido ⚠️</span>
+      <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
+        Conforme a política de cancelamento (antecedência inferior a 2 horas), o sinal foi retido pelo estabelecimento como indenização pela reserva da vaga (Arts. 417 a 420 do Código Civil).
+      </p>
+    </div>`;
+  }
 
   const infoCardHtml = `
     <!-- Linha 1: Serviço -->
@@ -408,27 +453,7 @@ export function getAppointmentCancellationEmailTemplate(data: {
     <!-- Linha 3: Status do Reembolso Pix -->
     <tr>
         <td style="padding-top: 20px; border-top: 1px solid rgba(248, 250, 252, 0.1);">
-            ${
-              data.isRefunded
-                ? `<div>
-                    <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
-                    <span style="color: #14B8A6; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Estorno Realizado com Sucesso 💰</span>
-                    <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
-                        ${
-                          data.refundAmount
-                            ? `O valor de <strong>R$ ${Number(data.refundAmount).toFixed(2)}</strong> pago via Pix foi estornado para a sua conta.`
-                            : 'O valor do estorno via Pix foi devolvido para a sua conta.'
-                        }
-                    </p>
-                </div>`
-                : `<div>
-                    <span style="color: #EF4444; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
-                    <span style="color: #EF4444; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Retido ⚠️</span>
-                    <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
-                        Conforme a política de cancelamento, o sinal mínimo foi retido pelo estabelecimento como indenização pela reserva da vaga (Arts. 417 a 420 do Código Civil).
-                    </p>
-                </div>`
-            }
+            ${refundStatusBlockHtml}
         </td>
     </tr>
   `;
@@ -442,7 +467,7 @@ export function getAppointmentCancellationEmailTemplate(data: {
     infoCardHtml,
     cta: {
       text: 'Fazer Novo Agendamento',
-      url: 'https://app.sinalizego.com',
+      url: `${getBaseAppUrl()}/explorar`,
       bgColor: '#14B8A6',
     },
   });
@@ -506,7 +531,7 @@ export function getTemporaryPasswordEmailTemplate(data: {
   loginUrl?: string;
 }): string {
   const firstName = data.name ? data.name.trim().split(' ')[0] : 'Usuário';
-  const loginUrl = data.loginUrl || 'https://app.sinalizego.com/login';
+  const loginUrl = data.loginUrl || `${getBaseAppUrl()}/login`;
 
   const introHtml = `
     Olá, <strong>${firstName}</strong>!<br><br>
