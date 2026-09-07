@@ -608,3 +608,78 @@ export function getInvoiceErrorAlertEmailTemplate(data: {
     infoCardHtml,
   });
 }
+
+/**
+ * 8. Template de Imprevisto do Estabelecimento (Salvar a Venda / Reagendamento com Crédito)
+ */
+export function getOwnerUnavailabilityEmailTemplate(data: {
+  customerName: string;
+  companyName: string;
+  serviceName: string;
+  formattedDate: string;
+  creditAmount: number;
+  rescheduleUrl: string;
+}): string {
+  const firstName = data.customerName
+    ? data.customerName.trim().split(' ')[0]
+    : 'Cliente';
+
+  const introHtml = `
+    Olá, <strong>${firstName}</strong>!<br><br>
+    O estabelecimento <strong>${data.companyName}</strong> teve um imprevisto e não poderá te atender no horário de <strong>${data.formattedDate}</strong>.<br><br>
+    Mas não se preocupe! <strong>Seu sinal está 100% garantido</strong>. O valor de <strong>R$ ${Number(data.creditAmount).toFixed(2)}</strong> já está disponível na sua conta como crédito válido por 90 dias.<br><br>
+    Clique no botão abaixo para escolher um novo horário sem pagar nada a mais pelo sinal:
+  `;
+
+  const infoCardHtml = `
+    <!-- Linha 1: Serviço -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <span style="color: #94A3B8; font-size: 13px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Serviço</span><br>
+            <span style="color: #F8FAFC; font-size: 18px; font-weight: bold; margin-top: 5px; display: inline-block;">${data.serviceName}</span>
+        </td>
+    </tr>
+    <!-- Linha 2: Estabelecimento & Horário Liberado -->
+    <tr>
+        <td style="padding-bottom: 20px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                    <td width="50%">
+                        <span style="color: #94A3B8; font-size: 13px;">Estabelecimento</span><br>
+                        <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">${data.companyName}</span>
+                    </td>
+                    <td width="50%">
+                        <span style="color: #94A3B8; font-size: 13px;">Horário Anterior</span><br>
+                        <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">${data.formattedDate}</span>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    <!-- Linha 3: Crédito Garantido -->
+    <tr>
+        <td style="background-color: #0F172A; border-radius: 8px; padding: 16px; border: 1px solid #14B8A6;">
+            <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase;">Saldo em Garantia</span><br>
+            <span style="color: #14B8A6; font-size: 20px; font-weight: bold; margin-top: 4px; display: inline-block;">R$ ${Number(data.creditAmount).toFixed(2)} Disponível 🎟️</span>
+            <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
+                Seu crédito já está vinculado ao seu perfil para reagendamento imediato sem novo pagamento de sinal.
+            </p>
+        </td>
+    </tr>
+  `;
+
+  return baseEmailLayout({
+    title: `Imprevisto no Horário — Seu crédito está garantido em ${data.companyName}`,
+    previewText: `Imprevisto no seu horário em ${data.companyName}. Seu crédito de R$ ${Number(data.creditAmount).toFixed(2)} está garantido!`,
+    actionTitle: 'Imprevisto no Atendimento ⏰',
+    actionTitleColor: '#F59E0B',
+    introHtml,
+    infoCardHtml,
+    cta: {
+      text: 'Escolher Novo Horário Agora',
+      url: data.rescheduleUrl,
+      bgColor: '#14B8A6',
+    },
+  });
+}
+
