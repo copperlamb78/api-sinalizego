@@ -398,4 +398,42 @@ export class AppointmentsController {
       role,
     );
   }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...INTERNAL_NO_EMPLOYEE)
+  @Post([':id/owner-unavailability', ':id/reschedule-unavailability'])
+  @ApiOperation({
+    summary:
+      'Libera o horário por imprevisto do estabelecimento, garantindo 100% do sinal como crédito de 90 dias e enviando link mágico para o cliente escolher novo horário (Salvar a Venda)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do agendamento (UUID)',
+    example: 'f1e2d3c4-b5a6-0987-6543-210fedcba987',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Horário liberado e crédito gerado com sucesso para o cliente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Status inválido ou agendamento inativo',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
+  async rescheduleByOwnerUnavailability(
+    @Param('id', ParseUUIDPipe) appointmentId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.['sub'];
+    const role = req.user?.['role'];
+    return this.appointmentsService.rescheduleByOwnerUnavailability(
+      appointmentId,
+      userId,
+      role,
+    );
+  }
 }
+
