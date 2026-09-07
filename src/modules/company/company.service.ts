@@ -25,6 +25,7 @@ import {
   Role,
   TransactionStatus,
   TransactionType,
+  CreditStatus,
 } from '@prisma/client';
 import { DashboardMetricsDto } from './dto/dashboard-metrics.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
@@ -395,70 +396,79 @@ export class CompanyService {
   }
 
   async findBySlug(slug: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { slug: slug, isActive: true },
-      select: {
-        id: true,
-        businessName: true,
-        slug: true,
-        providerType: true,
-        whatsapp: true,
-        chairsCount: true,
-        district: true,
-        street: true,
-        city: true,
-        state: true,
-        zipCode: true,
-        number: true,
-        logoPhoto: true,
-        bannerPhoto: true,
-        timezone: true,
-        createdAt: true,
-        workingHours: {
-          select: {
-            id: true,
-            dayOfWeek: true,
-            startTime: true,
-            endTime: true,
-            lunchStartTime: true,
-            lunchEndTime: true,
-            isClosed: true,
-          },
-          orderBy: {
-            dayOfWeek: 'asc',
-          },
+    const storefrontSelect = {
+      id: true,
+      businessName: true,
+      slug: true,
+      providerType: true,
+      whatsapp: true,
+      chairsCount: true,
+      district: true,
+      street: true,
+      city: true,
+      state: true,
+      zipCode: true,
+      number: true,
+      logoPhoto: true,
+      bannerPhoto: true,
+      timezone: true,
+      createdAt: true,
+      workingHours: {
+        select: {
+          id: true,
+          dayOfWeek: true,
+          startTime: true,
+          endTime: true,
+          lunchStartTime: true,
+          lunchEndTime: true,
+          isClosed: true,
         },
-        serviceGroups: {
-          where: {
-            isActive: true,
-          },
-          select: {
-            id: true,
-            name: true,
-            capacity: true,
-            services: {
-              where: {
-                isActive: true,
-              },
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                durationMinutes: true,
-                totalPrice: true,
-                downPaymentPercent: true,
-              },
-              orderBy: {
-                createdAt: 'asc',
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
+        orderBy: {
+          dayOfWeek: 'asc' as const,
         },
       },
+      serviceGroups: {
+        where: {
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          capacity: true,
+          services: {
+            where: {
+              isActive: true,
+            },
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              durationMinutes: true,
+              totalPrice: true,
+              downPaymentPercent: true,
+            },
+            orderBy: {
+              createdAt: 'asc' as const,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'asc' as const,
+        },
+      },
+    };
+
+    let company = await this.prisma.company.findUnique({
+      where: { slug: slug, isActive: true },
+      select: storefrontSelect,
     });
+
+    if (!company) {
+      company = await this.prisma.company.findFirst({
+        where: { id: slug, isActive: true },
+        select: storefrontSelect,
+      });
+    }
 
     if (!company) {
       throw new NotFoundException('Estabelecimento não encontrado.');
@@ -776,15 +786,27 @@ export class CompanyService {
       where: {
         appointment: {
           companyId: company.id,
-          isActive: true,
-          status: ApptStatus.CONFIRMED,
+          OR: [
+            {
+              isActive: true,
+              status: ApptStatus.CONFIRMED,
+            },
+            {
+              status: ApptStatus.CANCELED,
+              generatedCredits: {
+                some: {
+                  status: CreditStatus.AVAILABLE,
+                },
+              },
+            },
+          ],
         },
         type: TransactionType.DEPOSIT,
         status: TransactionStatus.CONFIRMED,
       },
       _sum: { netValue: true },
     });
-    escrowLockedBalance = Number(escrowTxAgg._sum.netValue || 0);
+    escrowLockedBalance = Number(escrowTxAgg._sum?.netValue || 0);
 
     const validCount =
       completedCount + confirmedCount + canceledCount + noShowCount;
@@ -969,8 +991,20 @@ export class CompanyService {
           type: TransactionType.DEPOSIT,
           status: TransactionStatus.CONFIRMED,
           appointment: {
-            status: ApptStatus.CONFIRMED,
-            retainedDepositAmount: null,
+            OR: [
+              {
+                status: ApptStatus.CONFIRMED,
+                retainedDepositAmount: null,
+              },
+              {
+                status: ApptStatus.CANCELED,
+                generatedCredits: {
+                  some: {
+                    status: CreditStatus.AVAILABLE,
+                  },
+                },
+              },
+            ],
           },
         },
         _sum: { netValue: true },
@@ -987,9 +1021,9 @@ export class CompanyService {
       }),
     ]);
 
-    const completedNetRevenue = Number(completedAgg._sum.netValue || 0);
-    const escrowLockedBalance = Number(escrowAgg._sum.netValue || 0);
-    const totalWithdrawn = Number(withdrawalsAgg._sum.totalValue || 0);
+    const completedNetRevenue = Number(completedAgg._sum?.netValue || 0);
+    const escrowLockedBalance = Number(escrowAgg._sum?.netValue || 0);
+    const totalWithdrawn = Number(withdrawalsAgg._sum?.totalValue || 0);
     const rawBalance = Number(
       (completedNetRevenue - totalWithdrawn).toFixed(2),
     );
