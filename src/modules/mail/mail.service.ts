@@ -8,6 +8,7 @@ import {
   getAppointmentReminderEmailTemplate,
   getInvoiceErrorAlertEmailTemplate,
   getPasswordResetEmailTemplate,
+  getTemporaryPasswordEmailTemplate,
   getWelcomeEmailTemplate,
 } from './templates/email.templates';
 
@@ -239,6 +240,42 @@ export class MailService {
     } catch (error: any) {
       this.logger.error(
         `Falha ao enviar e-mail de recuperação para ${to}: ${error?.message || error}`,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Envia e-mail com senha temporária gerada pelo administrador com aviso de troca obrigatória.
+   */
+  async sendTemporaryPasswordEmail(
+    to: string,
+    name: string,
+    temporaryPassword: string,
+    loginUrl?: string,
+  ): Promise<boolean> {
+    try {
+      await this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject: 'Sua Nova Senha de Acesso — SinalizeGo 🔑',
+        sender: {
+          name: this.senderName,
+          email: this.senderEmail,
+        },
+        to: [{ email: to, name: name || to }],
+        htmlContent: getTemporaryPasswordEmailTemplate({
+          name,
+          temporaryPassword,
+          loginUrl,
+        }),
+      });
+
+      this.logger.log(
+        `E-mail de senha temporária enviado com sucesso para ${to}`,
+      );
+      return true;
+    } catch (error: any) {
+      this.logger.error(
+        `Falha ao enviar e-mail de senha temporária para ${to}: ${error?.message || error}`,
       );
       return false;
     }
