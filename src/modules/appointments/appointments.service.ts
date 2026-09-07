@@ -774,10 +774,17 @@ export class AppointmentsService {
       );
     }
 
-    // Regra de Cancelamento & Estorno (Conformidade CDC Art. 51 / Código Civil Arts. 417 a 420)
+    // Regra de Cancelamento & Estorno (Conformidade CDC Art. 51 / Código Civil Arts. 417 a 420 - Regra N6)
     const hoursDifference =
       (new Date(appointment.appointmentDate).getTime() - Date.now()) /
       (1000 * 60 * 60);
+
+    const policy: 'REFUND' | 'CREDIT' | 'RETAINED' =
+      hoursDifference > 24
+        ? 'REFUND'
+        : hoursDifference >= 2
+          ? 'CREDIT'
+          : 'RETAINED';
 
     let isRefunded = false;
     let refundAmount: number | undefined = undefined;
@@ -791,41 +798,40 @@ export class AppointmentsService {
         },
       });
 
-      if (transaction?.asaasPaymentId) {
-        const paidAmount = Number(appointment.downPaymentAmount);
+      const paidAmount = Number(appointment.downPaymentAmount);
 
-        if (hoursDifference > 24) {
-          // 1. Faixa 1 (> 24h): Estorno Pix do sinal pago S (taxa da plataforma retida - Regra N6a)
-          const depositToRefund = paidAmount;
+      if (policy === 'REFUND') {
+        // 1. Faixa 1 (> 24h): Estorno Pix do sinal pago S (taxa da plataforma retida - Regra N6a)
+        isRefunded = true;
+        refundAmount = paidAmount;
+
+        if (transaction?.asaasPaymentId) {
           try {
             await this.asaasService.refundPayment(
               transaction.asaasPaymentId,
-              depositToRefund,
+              paidAmount,
               'Cancelamento com antecedência superior a 24 horas (estorno do sinal).',
             );
             await this.prisma.transaction.update({
               where: { id: transaction.id },
               data: { status: TransactionStatus.REFUNDED },
             });
-            isRefunded = true;
-            refundAmount = depositToRefund;
           } catch (err: any) {
             this.logger.error(
-              `[Estorno Asaas] Falha ao processar estorno do sinal no agendamento #${appointment.id}: ${err?.message || err}`,
+              `[Estorno Asaas] Falha ao comunicar estorno no gateway para cobrança ${transaction.asaasPaymentId} (agendamento #${appointment.id}): ${err?.message || err}. Registro mantido para conciliação.`,
             );
           }
-        } else if (hoursDifference >= 2) {
-          // 2. Faixa 2 (2h a 24h): Sinal de garantia vira crédito para o cliente usar no estabelecimento (Regra N6b)
-          // O sinal não é estornado via Asaas e não entra como retenção de vacância imediata
-          isRefunded = false;
-          refundAmount = undefined;
-          retainedDeposit = undefined;
-        } else {
-          // 3. Faixa 3 (< 2h): Cancelamento tardio com retenção integral do sinal para a barbearia a título de compensação de vacância (Regra N6c)
-          retainedDeposit = paidAmount;
-          isRefunded = false;
-          refundAmount = undefined;
         }
+      } else if (policy === 'CREDIT') {
+        // 2. Faixa 2 (2h a 24h): Sinal de garantia vira crédito para o cliente usar no estabelecimento (Regra N6b)
+        isRefunded = false;
+        refundAmount = paidAmount;
+        retainedDeposit = undefined;
+      } else {
+        // 3. Faixa 3 (< 2h): Cancelamento tardio com retenção integral do sinal para a barbearia como compensação de vacância (Regra N6c)
+        retainedDeposit = paidAmount;
+        isRefunded = false;
+        refundAmount = undefined;
       }
     }
 
@@ -851,6 +857,8 @@ export class AppointmentsService {
           appointmentDate: appointment.appointmentDate,
           isRefunded,
           refundAmount,
+          policy:
+            appointment.status === ApptStatus.CONFIRMED ? policy : undefined,
           timezone: appointment.company?.timezone,
         })
         .catch(() => {});
