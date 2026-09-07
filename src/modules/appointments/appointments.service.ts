@@ -561,6 +561,71 @@ export class AppointmentsService {
     return appointments;
   }
 
+  async getAppointmentById(
+    appointmentId: string,
+    userId: string,
+    role?: Role | string,
+  ) {
+    const isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: {
+        id: true,
+        appointmentDate: true,
+        appointmentEndDate: true,
+        servicePrice: true,
+        downPaymentAmount: true,
+        platformFeeAmount: true,
+        retainedDepositAmount: true,
+        status: true,
+        expiresAt: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        companyId: true,
+        clientId: true,
+        serviceId: true,
+        company: {
+          select: {
+            id: true,
+            businessName: true,
+            slug: true,
+            userId: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            name: true,
+            durationMinutes: true,
+          },
+        },
+      },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    const isClient = appointment.clientId === userId;
+    const isOwner = appointment.company?.userId === userId;
+
+    if (!isSystemManager && !isClient && !isOwner) {
+      throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    return appointment;
+  }
+
   async updateAppointmentStatus(
     appointmentId: string,
     userId: string,
