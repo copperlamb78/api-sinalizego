@@ -69,6 +69,7 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       },
     };
   }
@@ -106,6 +107,10 @@ export class AuthService {
         name: true,
         email: true,
         role: true,
+        phone: true,
+        cpfCnpj: true,
+        isActive: true,
+        mustChangePassword: true,
       },
     });
 
@@ -164,10 +169,19 @@ export class AuthService {
     const configuredUrl = process.env.FRONTEND_URL;
 
     let baseUrl = configuredUrl;
-    if (!isProduction && configuredUrl && (configuredUrl.includes('sinalizego.vercel.app') || configuredUrl.includes('sinalizego.com'))) {
+    if (
+      !isProduction &&
+      configuredUrl &&
+      (configuredUrl.includes('sinalizego.vercel.app') ||
+        configuredUrl.includes('sinalizego.com'))
+    ) {
       baseUrl = 'http://localhost:5173';
     } else if (!configuredUrl) {
-      baseUrl = isProduction ? 'https://sinalizego.vercel.app' : (isTest ? 'http://localhost:3000' : 'http://localhost:5173');
+      baseUrl = isProduction
+        ? 'https://sinalizego.vercel.app'
+        : isTest
+          ? 'http://localhost:3000'
+          : 'http://localhost:5173';
     }
     const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
@@ -226,6 +240,7 @@ export class AuthService {
       data: {
         password: hashedPassword,
         refreshToken: null, // Desloga sessões ativas
+        mustChangePassword: false,
       },
     });
 
