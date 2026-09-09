@@ -15,6 +15,7 @@
 ## 2026-08-27 - Database Aggregation in Admin Service
 **Learning:** Found an instance in `admin.service.ts` where transactions were fetched via `.findMany()` just to sum the `asaasFee`, creating unnecessary memory footprint.
 **Action:** Replaced it with `.aggregate({ _sum: { asaasFee: true } })` to perform computation natively in the database, reducing memory consumption and processing time.
+## 2026-09-04 - [Array Filter Memory Optimization]\n**Learning:** Using `.filter().length` on an array inside a hot loop (like O(N*M)) creates an unnecessary intermediate array in memory and iterates entirely over the data even if the target threshold (e.g. `maxCapacity`) is quickly reached.\n**Action:** Use a standard `for` loop that implements early break conditions to count matches without allocating new arrays, reducing memory overhead and CPU cycles.
 ## 2026-08-29 - Date parsing in O(N) loops
 **Learning:** `new Date(Date.UTC(...))` is extremely slow when executed repeatedly inside a hot inner loop for availability checking.
 **Action:** Extract the base date parsing `dayStartFilter.getTime()` before the loop and compute the slot timestamps using basic math (`dayStartMs + minutes * 60000`) instead to avoid expensive `Date` instantiations per iteration.
