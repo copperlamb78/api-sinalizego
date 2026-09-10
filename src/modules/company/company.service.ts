@@ -1,3 +1,5 @@
+import { CalculateTax } from '../../helpers/calculate-tax.helper';
+import { CalculateDeposit } from '../../helpers/calculate-deposit.helper';
 import {
   BadRequestException,
   ConflictException,
@@ -46,6 +48,8 @@ export class CompanyService {
     private readonly authService: AuthService,
     private readonly asaasService: AsaasService,
     private readonly referralsService: ReferralsService,
+    private readonly calculateTax: CalculateTax,
+    private readonly calculateDeposit: CalculateDeposit,
   ) {}
 
   async createCompanyWithUser(data: CreateCompanyDto) {
@@ -474,7 +478,27 @@ export class CompanyService {
       throw new NotFoundException('Estabelecimento não encontrado.');
     }
 
-    return company;
+    const mappedServiceGroups = company.serviceGroups.map((group) => ({
+      ...group,
+      services: group.services.map((service) => {
+        const price = Number(service.totalPrice);
+        const deposit = this.calculateDeposit.calculateDeposit(
+          price,
+          service.downPaymentPercent,
+        );
+        return {
+          ...service,
+          totalPrice: price,
+          downPaymentAmount: deposit,
+          platformTax: this.calculateTax.calculatePlatformTax(deposit),
+        };
+      }),
+    }));
+
+    return {
+      ...company,
+      serviceGroups: mappedServiceGroups,
+    };
   }
 
   async getCompanyBySlug(slug: string) {
