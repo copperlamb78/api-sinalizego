@@ -246,7 +246,7 @@ export function getAppointmentConfirmationEmailTemplate(data: {
 
   const introHtml = `
     Olá, <strong>${firstName}</strong>!<br><br>
-    Seu pagamento via Pix para o serviço no estabelecimento <strong>${data.companyName}</strong> foi confirmado com sucesso. Abaixo estão os detalhes completos do seu agendamento:
+    Seu pagamento via ${data.paymentMethod || 'Pix'} para o serviço no estabelecimento <strong>${data.companyName}</strong> foi confirmado com sucesso. Abaixo estão os detalhes completos do seu agendamento:
   `;
 
   const infoCardHtml = `
@@ -286,7 +286,7 @@ export function getAppointmentConfirmationEmailTemplate(data: {
                         <span style="color: #F8FAFC; font-size: 16px; font-weight: bold;">Confirmado ✅</span>
                     </td>
                     <td width="50%">
-                        <span style="color: #14B8A6; font-size: 13px; font-weight: bold;">Sinal Pago (Pix)</span><br>
+                        <span style="color: #14B8A6; font-size: 13px; font-weight: bold;">Sinal Pago (${data.paymentMethod || 'Pix'})</span><br>
                         <span style="color: #14B8A6; font-size: 20px; font-weight: bold;">R$ ${data.amountPaid}</span>
                     </td>
                 </tr>
