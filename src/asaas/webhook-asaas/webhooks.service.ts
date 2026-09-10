@@ -365,6 +365,7 @@ export class WebhooksService {
                   appointment.company?.businessName || 'Estabelecimento',
                 serviceName: appointment.service?.name || 'Serviço',
                 appointmentDate: appointment.appointmentDate,
+                paymentMethod: 'Pix',
                 amountPaid: transaction.totalValue,
                 timezone: appointment.company?.timezone,
               })
