@@ -79,6 +79,7 @@ export class MailService {
       amountPaid: number | string | { toString(): string };
       appointmentId?: string;
       timezone?: string;
+      paymentMethod?: string;
     },
   ): Promise<boolean> {
     try {
@@ -104,6 +105,7 @@ export class MailService {
           serviceName: data.serviceName,
           formattedDate,
           amountPaid: paidFormatted,
+          paymentMethod: data.paymentMethod || 'Pix',
         }),
       });
 
