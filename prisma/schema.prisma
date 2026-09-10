@@ -67,6 +67,7 @@ model Company {
   bannerPhoto String?
 
   timezone String @default("America/Sao_Paulo")
+  themePalette String @default("default")
 
   platformCustomerId String? // ID do cliente na conta mestre do Asaas para emissão de NFS-e
 
