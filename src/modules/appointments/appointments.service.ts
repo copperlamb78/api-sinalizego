@@ -171,10 +171,40 @@ export class AppointmentsService {
         );
       }
 
-      // 3. Trava de Concorrência & Anti-DoS: Limite de no máximo 2 agendamentos ativos simultâneos por cliente (ativo até o término do corte)
+      // 3. Trava de Concorrência & Anti-DoS: Limite de no máximo 2 agendamentos ativos na mesma semana por barbearia
+      const aptDay = startDate.getUTCDay();
+      const diffToMonday = aptDay === 0 ? -6 : 1 - aptDay;
+      const weekStart = new Date(
+        Date.UTC(
+          startDate.getUTCFullYear(),
+          startDate.getUTCMonth(),
+          startDate.getUTCDate() + diffToMonday,
+          0,
+          0,
+          0,
+          0,
+        ),
+      );
+      const weekEnd = new Date(
+        Date.UTC(
+          startDate.getUTCFullYear(),
+          startDate.getUTCMonth(),
+          startDate.getUTCDate() + diffToMonday + 6,
+          23,
+          59,
+          59,
+          999,
+        ),
+      );
+
       const activeAppointmentsCount = await tx.appointment.count({
         where: {
           clientId: user.id,
+          companyId: data.companyId,
+          appointmentDate: {
+            gte: weekStart,
+            lte: weekEnd,
+          },
           isActive: true,
           OR: [
             {
@@ -191,7 +221,7 @@ export class AppointmentsService {
 
       if (activeAppointmentsCount >= MAX_ACTIVE_APPOINTMENTS_PER_CLIENT) {
         throw new BadRequestException(
-          `Você atingiu o limite de ${MAX_ACTIVE_APPOINTMENTS_PER_CLIENT} agendamentos ativos simultâneos. Conclua ou aguarde a realização dos seus agendamentos para criar novas reservas.`,
+          `Você atingiu o limite de ${MAX_ACTIVE_APPOINTMENTS_PER_CLIENT} agendamentos ativos para esta semana nesta barbearia. Conclua seus agendamentos ou escolha outra semana para criar novas reservas.`,
         );
       }
 
@@ -537,7 +567,10 @@ export class AppointmentsService {
           'America/Sao_Paulo';
 
         const startOfDay = fromZonedTime(`${filters.date}T00:00:00`, companyTz);
-        const endOfDay = fromZonedTime(`${filters.date}T23:59:59.999`, companyTz);
+        const endOfDay = fromZonedTime(
+          `${filters.date}T23:59:59.999`,
+          companyTz,
+        );
 
         whereClause.appointmentDate = {
           gte: startOfDay,
@@ -698,6 +731,20 @@ export class AppointmentsService {
             businessName: true,
             slug: true,
             userId: true,
+            street: true,
+            number: true,
+            district: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            whatsapp: true,
+            themePalette: true,
+          },
+        },
+        usedCredits: {
+          select: {
+            id: true,
+            amount: true,
           },
         },
         client: {
