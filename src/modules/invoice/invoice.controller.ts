@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -84,5 +85,69 @@ export class InvoiceController {
   })
   async getAdminInvoiceAppointments(@Param('id') id: string) {
     return this.invoiceService.getInvoiceAppointments(id, undefined, true);
+  }
+
+  @Roles(...INTERNAL_USERS)
+  @Get('company/invoices/:id/pdf')
+  @ApiOperation({ summary: 'Download seguro direto do PDF da NFS-e' })
+  async downloadCompanyInvoicePdf(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const userId = req.user?.['sub'];
+    const { buffer, contentType, filename } =
+      await this.invoiceService.getInvoiceFileStream(id, 'pdf', userId, false);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  }
+
+  @Roles(...INTERNAL_USERS)
+  @Get('company/invoices/:id/xml')
+  @ApiOperation({ summary: 'Download seguro direto do XML da NFS-e' })
+  async downloadCompanyInvoiceXml(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const userId = req.user?.['sub'];
+    const { buffer, contentType, filename } =
+      await this.invoiceService.getInvoiceFileStream(id, 'xml', userId, false);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  }
+
+  @Roles(...SYSTEM_MANAGERS)
+  @Get('admin/invoices/:id/pdf')
+  @ApiOperation({ summary: 'Download seguro direto do PDF da NFS-e para Admin' })
+  async downloadAdminInvoicePdf(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType, filename } =
+      await this.invoiceService.getInvoiceFileStream(id, 'pdf', undefined, true);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  }
+
+  @Roles(...SYSTEM_MANAGERS)
+  @Get('admin/invoices/:id/xml')
+  @ApiOperation({ summary: 'Download seguro direto do XML da NFS-e para Admin' })
+  async downloadAdminInvoiceXml(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType, filename } =
+      await this.invoiceService.getInvoiceFileStream(id, 'xml', undefined, true);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
   }
 }
