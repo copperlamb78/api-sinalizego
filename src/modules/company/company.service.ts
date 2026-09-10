@@ -345,6 +345,7 @@ export class CompanyService {
         logoPhoto: true,
         bannerPhoto: true,
         timezone: true,
+        themePalette: true,
         createdAt: true,
         workingHours: {
           select: {
@@ -416,6 +417,7 @@ export class CompanyService {
       logoPhoto: true,
       bannerPhoto: true,
       timezone: true,
+        themePalette: true,
       createdAt: true,
       workingHours: {
         select: {
