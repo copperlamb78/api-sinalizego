@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from 'src/asaas/asaas.service';
@@ -554,5 +554,55 @@ export class InvoiceService {
       },
       appointments,
     };
+  }
+
+  async getInvoiceFileStream(
+    invoiceId: string,
+    type: 'pdf' | 'xml',
+    userId?: string,
+    isAdmin = false,
+  ) {
+    const invoice = await this.prisma.platformInvoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        company: { select: { id: true, userId: true, businessName: true } },
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Nota fiscal não encontrada.');
+    }
+
+    if (!isAdmin && invoice.company.userId !== userId) {
+      throw new NotFoundException('Nota fiscal não encontrada.');
+    }
+
+    const fileUrl = type === 'pdf' ? invoice.pdfUrl : invoice.xmlUrl;
+    if (!fileUrl) {
+      throw new NotFoundException(`Arquivo ${type.toUpperCase()} da nota fiscal ainda não está disponível para download.`);
+    }
+
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new BadRequestException(`Não foi possível recuperar o arquivo ${type.toUpperCase()} do provedor.`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const safeNumber = invoice.invoiceNumber || invoice.id.slice(0, 8);
+      const filename = `nota-fiscal-${safeNumber}.${type}`;
+      const contentType = type === 'pdf' ? 'application/pdf' : 'application/xml';
+
+      return {
+        buffer,
+        contentType,
+        filename,
+      };
+    } catch (err) {
+      if (err instanceof BadRequestException || err instanceof NotFoundException) {
+        throw err;
+      }
+      throw new BadRequestException(`Erro ao processar download do arquivo ${type.toUpperCase()}.`);
+    }
   }
 }
