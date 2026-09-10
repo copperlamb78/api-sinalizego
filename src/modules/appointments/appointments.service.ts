@@ -318,6 +318,7 @@ export class AppointmentsService {
           appointmentDate: appointment.appointmentDate,
           amountPaid: Number(appointment.downPaymentAmount),
           timezone: company.timezone,
+          paymentMethod: 'Crédito em Conta',
         })
         .catch(() => {});
     }
