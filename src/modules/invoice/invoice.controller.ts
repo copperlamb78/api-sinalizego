@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import {
   ApiBearerAuth,
@@ -123,13 +131,17 @@ export class InvoiceController {
 
   @Roles(...SYSTEM_MANAGERS)
   @Get('admin/invoices/:id/pdf')
-  @ApiOperation({ summary: 'Download seguro direto do PDF da NFS-e para Admin' })
-  async downloadAdminInvoicePdf(
-    @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  @ApiOperation({
+    summary: 'Download seguro direto do PDF da NFS-e para Admin',
+  })
+  async downloadAdminInvoicePdf(@Param('id') id: string, @Res() res: Response) {
     const { buffer, contentType, filename } =
-      await this.invoiceService.getInvoiceFileStream(id, 'pdf', undefined, true);
+      await this.invoiceService.getInvoiceFileStream(
+        id,
+        'pdf',
+        undefined,
+        true,
+      );
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -138,13 +150,17 @@ export class InvoiceController {
 
   @Roles(...SYSTEM_MANAGERS)
   @Get('admin/invoices/:id/xml')
-  @ApiOperation({ summary: 'Download seguro direto do XML da NFS-e para Admin' })
-  async downloadAdminInvoiceXml(
-    @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  @ApiOperation({
+    summary: 'Download seguro direto do XML da NFS-e para Admin',
+  })
+  async downloadAdminInvoiceXml(@Param('id') id: string, @Res() res: Response) {
     const { buffer, contentType, filename } =
-      await this.invoiceService.getInvoiceFileStream(id, 'xml', undefined, true);
+      await this.invoiceService.getInvoiceFileStream(
+        id,
+        'xml',
+        undefined,
+        true,
+      );
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
