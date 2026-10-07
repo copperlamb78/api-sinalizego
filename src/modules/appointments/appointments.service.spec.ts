@@ -300,13 +300,13 @@ describe('AppointmentsService', () => {
       );
     });
 
-    it('should throw BadRequestException if client already has 2 concurrent active appointments (Anti-DoS / Concorrência)', async () => {
+    it('should throw BadRequestException if client already has 2 active appointments in the same week (Anti-DoS / Concorrência)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
       mockPrisma.company.findFirst.mockResolvedValue(mockCompany);
       mockPrisma.service.findFirst.mockResolvedValue(mockService);
       mockPrisma.appointment.count
         .mockResolvedValueOnce(0) // 0 cancelamentos
-        .mockResolvedValueOnce(2); // 2 agendamentos ativos
+        .mockResolvedValueOnce(2); // 2 agendamentos ativos na semana
 
       await expect(
         service.createAppointment(
@@ -319,7 +319,7 @@ describe('AppointmentsService', () => {
         ),
       ).rejects.toThrow(
         new BadRequestException(
-          'Você atingiu o limite de 2 agendamentos ativos simultâneos. Conclua ou aguarde a realização dos seus agendamentos para criar novas reservas.',
+          'Você atingiu o limite de 2 agendamentos ativos para esta semana nesta barbearia. Conclua seus agendamentos ou escolha outra semana para criar novas reservas.',
         ),
       );
     });
@@ -672,7 +672,9 @@ describe('AppointmentsService', () => {
     });
 
     it('should throw ForbiddenException if user tries to query a companyId they do not own (IDOR)', async () => {
-      mockPrisma.company.findMany.mockResolvedValue([{ id: 'company-1', timezone: 'America/Sao_Paulo' }]);
+      mockPrisma.company.findMany.mockResolvedValue([
+        { id: 'company-1', timezone: 'America/Sao_Paulo' },
+      ]);
 
       await expect(
         service.getAppointmentByCompanyId('owner-1', {
@@ -1759,4 +1761,3 @@ describe('AppointmentsService', () => {
     });
   });
 });
-
