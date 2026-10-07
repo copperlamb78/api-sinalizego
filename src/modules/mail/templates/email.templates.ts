@@ -239,6 +239,7 @@ export function getAppointmentConfirmationEmailTemplate(data: {
   amountPaid: string;
   servicePrice?: string;
   address?: string;
+  paymentMethod?: string;
 }): string {
   const firstName = data.customerName
     ? data.customerName.trim().split(' ')[0]
@@ -682,4 +683,3 @@ export function getOwnerUnavailabilityEmailTemplate(data: {
     },
   });
 }
-
