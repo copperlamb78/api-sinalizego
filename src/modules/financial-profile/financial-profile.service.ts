@@ -331,7 +331,9 @@ export class FinancialProfileService {
     });
 
     if (!profile) {
-      throw new NotFoundException('Perfil financeiro não encontrado para este usuário.');
+      throw new NotFoundException(
+        'Perfil financeiro não encontrado para este usuário.',
+      );
     }
 
     let keys = await this.prisma.pixKey.findMany({
@@ -340,7 +342,11 @@ export class FinancialProfileService {
     });
 
     // Migração suave: se não houver registros em PixKey mas o perfil já possuir pixAddressKey salvo
-    if (keys.length === 0 && profile.pixAddressKey && profile.pixAddressKeyType) {
+    if (
+      keys.length === 0 &&
+      profile.pixAddressKey &&
+      profile.pixAddressKeyType
+    ) {
       const migrated = await this.prisma.pixKey.create({
         data: {
           financialProfileId: profile.id,
@@ -371,14 +377,17 @@ export class FinancialProfileService {
     });
 
     if (!profile) {
-      throw new NotFoundException('Perfil financeiro não encontrado para este usuário.');
+      throw new NotFoundException(
+        'Perfil financeiro não encontrado para este usuário.',
+      );
     }
 
-    const cleanKey = data.type === 'PHONE'
-      ? data.key.replace(/\D/g, '')
-      : data.type === 'CPF' || data.type === 'CNPJ'
+    const cleanKey =
+      data.type === 'PHONE'
         ? data.key.replace(/\D/g, '')
-        : data.key.trim();
+        : data.type === 'CPF' || data.type === 'CNPJ'
+          ? data.key.replace(/\D/g, '')
+          : data.key.trim();
 
     const existingKey = await this.prisma.pixKey.findFirst({
       where: {
@@ -388,7 +397,9 @@ export class FinancialProfileService {
     });
 
     if (existingKey) {
-      throw new ConflictException('Esta chave Pix já está cadastrada no seu perfil financeiro.');
+      throw new ConflictException(
+        'Esta chave Pix já está cadastrada no seu perfil financeiro.',
+      );
     }
 
     const currentKeysCount = await this.prisma.pixKey.count({
@@ -452,7 +463,9 @@ export class FinancialProfileService {
     });
 
     if (!key) {
-      throw new NotFoundException('Chave Pix não encontrada neste perfil financeiro.');
+      throw new NotFoundException(
+        'Chave Pix não encontrada neste perfil financeiro.',
+      );
     }
 
     await this.prisma.pixKey.delete({
@@ -514,7 +527,9 @@ export class FinancialProfileService {
     });
 
     if (!key) {
-      throw new NotFoundException('Chave Pix não encontrada neste perfil financeiro.');
+      throw new NotFoundException(
+        'Chave Pix não encontrada neste perfil financeiro.',
+      );
     }
 
     await this.prisma.pixKey.updateMany({
@@ -544,4 +559,3 @@ export class FinancialProfileService {
     };
   }
 }
-
