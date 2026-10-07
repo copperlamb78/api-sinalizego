@@ -1,10 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreatePixKeyDto {
   @ApiProperty({
     example: '11999999999',
-    description: 'Chave Pix (CPF, CNPJ, e-mail, telefone ou chave aleatória EVP)',
+    description:
+      'Chave Pix (CPF, CNPJ, e-mail, telefone ou chave aleatória EVP)',
   })
   @IsNotEmpty({ message: 'A chave Pix é obrigatória' })
   @IsString({ message: 'A chave Pix deve ser uma string' })
@@ -23,7 +30,8 @@ export class CreatePixKeyDto {
 
   @ApiPropertyOptional({
     example: true,
-    description: 'Indica se esta chave deve ser definida como principal para saques',
+    description:
+      'Indica se esta chave deve ser definida como principal para saques',
     default: false,
   })
   @IsOptional()
