@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AsaasService } from 'src/asaas/asaas.service';
@@ -579,19 +584,24 @@ export class InvoiceService {
 
     const fileUrl = type === 'pdf' ? invoice.pdfUrl : invoice.xmlUrl;
     if (!fileUrl) {
-      throw new NotFoundException(`Arquivo ${type.toUpperCase()} da nota fiscal ainda não está disponível para download.`);
+      throw new NotFoundException(
+        `Arquivo ${type.toUpperCase()} da nota fiscal ainda não está disponível para download.`,
+      );
     }
 
     try {
       const response = await fetch(fileUrl);
       if (!response.ok) {
-        throw new BadRequestException(`Não foi possível recuperar o arquivo ${type.toUpperCase()} do provedor.`);
+        throw new BadRequestException(
+          `Não foi possível recuperar o arquivo ${type.toUpperCase()} do provedor.`,
+        );
       }
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const safeNumber = invoice.invoiceNumber || invoice.id.slice(0, 8);
       const filename = `nota-fiscal-${safeNumber}.${type}`;
-      const contentType = type === 'pdf' ? 'application/pdf' : 'application/xml';
+      const contentType =
+        type === 'pdf' ? 'application/pdf' : 'application/xml';
 
       return {
         buffer,
@@ -599,10 +609,15 @@ export class InvoiceService {
         filename,
       };
     } catch (err) {
-      if (err instanceof BadRequestException || err instanceof NotFoundException) {
+      if (
+        err instanceof BadRequestException ||
+        err instanceof NotFoundException
+      ) {
         throw err;
       }
-      throw new BadRequestException(`Erro ao processar download do arquivo ${type.toUpperCase()}.`);
+      throw new BadRequestException(
+        `Erro ao processar download do arquivo ${type.toUpperCase()}.`,
+      );
     }
   }
 }
