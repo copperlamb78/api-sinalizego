@@ -69,7 +69,7 @@ export const MIN_INSTANT_WITHDRAWAL = 10.0;
 export const MIN_FREE_WEEKLY_PAYOUT = 100.0;
 
 /**
- * Limite máximo de agendamentos ativos simultâneos por cliente (Anti-DoS / Concorrência).
+ * Limite máximo de agendamentos ativos permitidos por cliente na mesma semana na empresa (Anti-DoS / Concorrência).
  */
 export const MAX_ACTIVE_APPOINTMENTS_PER_CLIENT = 2;
 
