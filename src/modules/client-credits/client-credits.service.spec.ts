@@ -147,7 +147,10 @@ describe('ClientCreditsService', () => {
         },
       ]);
 
-      const result = await service.getCompanyCreditsForOwner('owner-1', 'comp-1');
+      const result = await service.getCompanyCreditsForOwner(
+        'owner-1',
+        'comp-1',
+      );
 
       expect(result.companyId).toBe('comp-1');
       expect(result.totalActiveInCustody).toBe(45);
