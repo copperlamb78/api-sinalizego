@@ -310,7 +310,7 @@ them requires explicit approval.
 
 | Limit | Value |
 |---|---|
-| concurrent active appointments per client | 2 (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT`) |
+| active appointments per client in the same week per company | 2 (`MAX_ACTIVE_APPOINTMENTS_PER_CLIENT`) |
 | cancellations in 7 days before temporary block | 3 (`MAX_WEEKLY_CANCELLATIONS_LIMIT`) |
 | Pix reservation validity | 15 minutes (`expiresAt`) |
 
