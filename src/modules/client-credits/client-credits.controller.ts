@@ -91,6 +91,9 @@ export class ClientCreditsController {
     @Req() req: Request,
   ) {
     const userId = req.user?.['sub'];
-    return this.clientCreditsService.getCompanyCreditsForOwner(userId, companyId);
+    return this.clientCreditsService.getCompanyCreditsForOwner(
+      userId,
+      companyId,
+    );
   }
 }
