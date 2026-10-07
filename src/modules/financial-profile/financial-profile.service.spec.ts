@@ -438,7 +438,9 @@ describe('FinancialProfileService', () => {
 
     it('should throw NotFoundException if profile does not exist', async () => {
       mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
-      await expect(service.getPixKeys('user-1')).rejects.toThrow(NotFoundException);
+      await expect(service.getPixKeys('user-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -500,7 +502,9 @@ describe('FinancialProfileService', () => {
 
       const result = await service.deletePixKey('user-1', 'pk-1');
 
-      expect(mockPrisma.pixKey.delete).toHaveBeenCalledWith({ where: { id: 'pk-1' } });
+      expect(mockPrisma.pixKey.delete).toHaveBeenCalledWith({
+        where: { id: 'pk-1' },
+      });
       expect(mockPrisma.pixKey.update).toHaveBeenCalledWith({
         where: { id: 'pk-2' },
         data: { isDefault: true },
@@ -516,7 +520,11 @@ describe('FinancialProfileService', () => {
   describe('setDefaultPixKey', () => {
     it('should mark key as default and update profile', async () => {
       mockPrisma.financialProfile.findFirst.mockResolvedValue({ id: 'fp-1' });
-      mockPrisma.pixKey.findFirst.mockResolvedValue({ id: 'pk-2', key: 'new-default', type: 'EMAIL' });
+      mockPrisma.pixKey.findFirst.mockResolvedValue({
+        id: 'pk-2',
+        key: 'new-default',
+        type: 'EMAIL',
+      });
       mockPrisma.pixKey.update.mockResolvedValue({
         id: 'pk-2',
         key: 'new-default',
