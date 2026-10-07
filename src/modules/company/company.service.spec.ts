@@ -10,6 +10,8 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { CalculateTax } from 'src/helpers/calculate-tax.helper';
+import { CalculateDeposit } from 'src/helpers/calculate-deposit.helper';
 import * as bcrypt from 'bcrypt';
 import {
   ApptStatus,
@@ -85,6 +87,8 @@ describe('CompanyService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CompanyService,
+        CalculateTax,
+        CalculateDeposit,
         {
           provide: PrismaService,
           useValue: mockPrisma,
@@ -389,6 +393,8 @@ describe('CompanyService', () => {
                 durationMinutes: 30,
                 totalPrice: 35.0,
                 downPaymentPercent: 25,
+                downPaymentAmount: 17.5,
+                platformTax: 2,
               },
             ],
           },
