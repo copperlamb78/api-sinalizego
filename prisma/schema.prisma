@@ -581,6 +581,43 @@ model PixKey {
   @@map("pix_keys")
 }
 
+// ----------------------------------------------------------------------------
+// OUTBOX DE E-MAILS TRANSACIONAIS (PADRÃO GOOGLE DE ALTA RESILIÊNCIA)
+// ----------------------------------------------------------------------------
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
 
+enum EmailTemplateType {
+  WELCOME
+  APPOINTMENT_CONFIRMATION
+  APPOINTMENT_CANCELLATION
+  OWNER_UNAVAILABILITY
+  APPOINTMENT_REMINDER
+  PASSWORD_RESET
+  TEMPORARY_PASSWORD
+  INVOICE_ERROR
+  REFERRAL_REVIEW
+}
 
+model EmailOutbox {
+  id          String            @id @default(uuid())
+  to          String
+  subject     String
+  template    EmailTemplateType
+  payload     Json
+  status      EmailStatus       @default(PENDING)
+  attempts    Int               @default(0)
+  maxAttempts Int               @default(5)
+  nextRetryAt DateTime          @default(now())
+  lastError   String?           @db.Text
+  sentAt      DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
+  @@index([status, nextRetryAt])
+  @@index([createdAt])
+  @@map("email_outbox")
+}
