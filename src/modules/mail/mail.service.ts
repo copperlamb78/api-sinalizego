@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BrevoClient } from '@getbrevo/brevo';
+import { EmailTemplateType } from '@prisma/client';
+import { MailOutboxService } from './mail-outbox.service';
 import {
   formatAppointmentDateTime,
   getAppointmentCancellationEmailTemplate,
@@ -20,7 +22,11 @@ export class MailService {
   private readonly senderEmail: string;
   private readonly senderName: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(forwardRef(() => MailOutboxService))
+    private readonly mailOutboxService: MailOutboxService,
+  ) {
     const apiKey =
       this.configService.get<string>('BREVO_API_KEY') ||
       process.env.BREVO_API_KEY ||
@@ -38,6 +44,131 @@ export class MailService {
   }
 
   /**
+   * Identifica se o erro retornado pela API do Brevo é um 401 por IP não autorizado (Whitelist).
+   */
+  private isBrevoUnauthorizedIpError(error: any): boolean {
+    const errorString = `${error?.message || ''} ${error?.body || ''} ${JSON.stringify(error || '')}`.toLowerCase();
+    const is401 =
+      error?.status === 401 ||
+      error?.statusCode === 401 ||
+      error?.response?.status === 401;
+    return (
+      is401 ||
+      errorString.includes('unrecognised ip') ||
+      errorString.includes('authorised_ips')
+    );
+  }
+
+  /**
+   * Emite alerta formatado no terminal quando o IP não está autorizado no Brevo.
+   */
+  private logBrevoIpWarning(error: any, to: string, subject: string): void {
+    const isDev =
+      this.configService.get<string>('NODE_ENV') === 'development' ||
+      process.env.NODE_ENV === 'development';
+
+    this.logger.warn(`
++--------------------------------------------------------------------------------------------------+
+| ⚠️  [BREVO SECURITY] IP NÃO AUTORIZADO DETECTADO                                                 |
+| E-mail de destino: ${to}
+| Assunto: ${subject}
+| Mensagem da API: ${error?.message || error?.body?.message || 'We have detected you are using an unrecognised IP address'}
+| Ação necessária: Adicione seu IP público no painel de segurança do Brevo:                        |
+| 👉  https://app.brevo.com/security/authorised_ips                                                |
++--------------------------------------------------------------------------------------------------+`);
+
+    if (isDev) {
+      this.logger.log(
+        `ℹ️ [MailService DEV SIMULATION] E-mail persistido no outbox para reenvio automático assim que o IP for liberado.`,
+      );
+    }
+  }
+
+  /**
+   * Executa envio com micro-retry em memória (curto backoff exponencial) para falhas transitórias.
+   * Aplica Fail-Fast imediato para erros 401 ou 400.
+   */
+  private async executeWithMicroRetry(
+    sendFn: () => Promise<any>,
+    to: string,
+    subject: string,
+  ): Promise<{ success: boolean; lastError?: any; isIpUnauthorized?: boolean }> {
+    const maxAttempts = 3;
+    const delaysMs = [1000, 3000];
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await sendFn();
+        if (attempt > 1) {
+          this.logger.log(
+            `[MailService] E-mail enviado com sucesso após recuperação na tentativa ${attempt}.`,
+          );
+        }
+        return { success: true };
+      } catch (error: any) {
+        const isIpUnauthorized = this.isBrevoUnauthorizedIpError(error);
+
+        if (isIpUnauthorized) {
+          this.logBrevoIpWarning(error, to, subject);
+          return { success: false, lastError: error, isIpUnauthorized: true };
+        }
+
+        const statusCode =
+          error?.status || error?.statusCode || error?.response?.status;
+        const isClientError =
+          statusCode >= 400 && statusCode < 500 && statusCode !== 429;
+
+        if (isClientError || attempt === maxAttempts) {
+          this.logger.error(
+            `Falha ao enviar "${subject}" para ${to}: ${error?.message || error}`,
+          );
+          return { success: false, lastError: error };
+        }
+
+        const delay = delaysMs[attempt - 1] || 1000;
+        this.logger.warn(
+          `[MailService] Erro transitório ao enviar para ${to} (tentativa ${attempt}/${maxAttempts}). Retentando em ${delay}ms...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    return { success: false };
+  }
+
+  /**
+   * Enfileira o e-mail no outbox caso o envio síncrono falhe, assegurando tolerância a falhas.
+   */
+  private async enqueueFallback(
+    to: string,
+    subject: string,
+    template: EmailTemplateType,
+    payload: Record<string, any>,
+    result: { success: boolean; lastError?: any; isIpUnauthorized?: boolean },
+  ): Promise<void> {
+    if (this.mailOutboxService?.enqueueEmail) {
+      await this.mailOutboxService
+        .enqueueEmail({
+          to,
+          subject,
+          template,
+          payload,
+          delayMinutes: result.isIpUnauthorized ? 5 : 2,
+          lastError: String(
+            result.lastError?.message ||
+              result.lastError ||
+              'Falha no envio direto',
+          ),
+        })
+        .catch((err) => {
+          this.logger.error(
+            `[MailService] Falha ao persistir no outbox: ${err?.message || err}`,
+          );
+        });
+    }
+  }
+
+  /**
    * Envia e-mail de boas-vindas para novos usuários cadastrados.
    */
   async sendWelcomeEmail(
@@ -45,9 +176,10 @@ export class MailService {
     name: string,
     role?: string,
   ): Promise<boolean> {
-    try {
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: 'Boas-vindas ao SinalizeGo! 🚀',
+    const subject = 'Boas-vindas ao SinalizeGo! 🚀';
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -56,14 +188,21 @@ export class MailService {
         htmlContent: getWelcomeEmailTemplate(name, role),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(`E-mail de boas-vindas enviado com sucesso para ${to}`);
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar e-mail de boas-vindas para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.WELCOME,
+      { name, role },
+      result,
+    );
+    return false;
   }
 
   /**
@@ -82,17 +221,18 @@ export class MailService {
       paymentMethod?: string;
     },
   ): Promise<boolean> {
-    try {
-      const formattedDate = formatAppointmentDateTime(
-        data.appointmentDate,
-        data.timezone || 'America/Sao_Paulo',
-      );
-      const paidFormatted = Number(
-        data.amountPaid?.toString?.() ?? data.amountPaid,
-      ).toFixed(2);
+    const subject = `Agendamento Confirmado — ${data.companyName} 🎉`;
+    const formattedDate = formatAppointmentDateTime(
+      data.appointmentDate,
+      data.timezone || 'America/Sao_Paulo',
+    );
+    const paidFormatted = Number(
+      data.amountPaid?.toString?.() ?? data.amountPaid,
+    ).toFixed(2);
 
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: `Agendamento Confirmado — ${data.companyName} 🎉`,
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -109,16 +249,23 @@ export class MailService {
         }),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
         `E-mail de confirmação de agendamento enviado com sucesso para ${to}`,
       );
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar e-mail de confirmação para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.APPOINTMENT_CONFIRMATION,
+      data,
+      result,
+    );
+    return false;
   }
 
   /**
@@ -137,14 +284,15 @@ export class MailService {
       timezone?: string;
     },
   ): Promise<boolean> {
-    try {
-      const formattedDate = formatAppointmentDateTime(
-        data.appointmentDate,
-        data.timezone || 'America/Sao_Paulo',
-      );
+    const subject = `Agendamento Cancelado — ${data.companyName}`;
+    const formattedDate = formatAppointmentDateTime(
+      data.appointmentDate,
+      data.timezone || 'America/Sao_Paulo',
+    );
 
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: `Agendamento Cancelado — ${data.companyName}`,
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -161,20 +309,27 @@ export class MailService {
         }),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
         `E-mail de cancelamento de agendamento enviado com sucesso para ${to}`,
       );
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar e-mail de cancelamento para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.APPOINTMENT_CANCELLATION,
+      data,
+      result,
+    );
+    return false;
   }
 
   /**
-   * Envia e-mail de notificação de imprevisto do estabelecimento com link mágico para reagendamento e crédito garantido (Salvar a Venda).
+   * Envia e-mail de notificação de imprevisto do estabelecimento com link mágico para reagendamento e crédito.
    */
   async sendOwnerUnavailabilityRescheduleEmail(
     to: string,
@@ -188,14 +343,15 @@ export class MailService {
       timezone?: string;
     },
   ): Promise<boolean> {
-    try {
-      const formattedDate = formatAppointmentDateTime(
-        data.appointmentDate,
-        data.timezone || 'America/Sao_Paulo',
-      );
+    const subject = `Imprevisto no Horário — Seu sinal virou crédito em ${data.companyName}`;
+    const formattedDate = formatAppointmentDateTime(
+      data.appointmentDate,
+      data.timezone || 'America/Sao_Paulo',
+    );
 
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: `Imprevisto no Horário — Seu sinal virou crédito em ${data.companyName}`,
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -211,16 +367,23 @@ export class MailService {
         }),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
-        `E-mail de imprevisto e reagendamento com crédito enviado com sucesso para ${to}`,
+        `E-mail de imprevisto e reagendamento enviado com sucesso para ${to}`,
       );
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar e-mail de imprevisto para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.OWNER_UNAVAILABILITY,
+      data,
+      result,
+    );
+    return false;
   }
 
   /**
@@ -237,14 +400,15 @@ export class MailService {
       timezone?: string;
     },
   ): Promise<boolean> {
-    try {
-      const formattedDate = formatAppointmentDateTime(
-        data.appointmentDate,
-        data.timezone || 'America/Sao_Paulo',
-      );
+    const subject = `Lembrete: Seu agendamento é amanhã! ⏰ — ${data.companyName}`;
+    const formattedDate = formatAppointmentDateTime(
+      data.appointmentDate,
+      data.timezone || 'America/Sao_Paulo',
+    );
 
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: `Lembrete: Seu agendamento é amanhã! ⏰ — ${data.companyName}`,
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -259,16 +423,23 @@ export class MailService {
         }),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
         `E-mail de lembrete de agendamento enviado com sucesso para ${to}`,
       );
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar e-mail de lembrete para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.APPOINTMENT_REMINDER,
+      data,
+      result,
+    );
+    return false;
   }
 
   /**
@@ -279,9 +450,10 @@ export class MailService {
     name: string,
     resetLink: string,
   ): Promise<boolean> {
-    try {
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: 'Redefinição de Senha — SinalizeGo',
+    const subject = 'Redefinição de Senha — SinalizeGo';
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -290,16 +462,23 @@ export class MailService {
         htmlContent: getPasswordResetEmailTemplate(name, resetLink),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
         `E-mail de recuperação de senha enviado com sucesso para ${to}`,
       );
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar e-mail de recuperação para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.PASSWORD_RESET,
+      { name, resetLink },
+      result,
+    );
+    return false;
   }
 
   /**
@@ -311,9 +490,10 @@ export class MailService {
     temporaryPassword: string,
     loginUrl?: string,
   ): Promise<boolean> {
-    try {
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: 'Sua Nova Senha de Acesso — SinalizeGo 🔑',
+    const subject = 'Sua Nova Senha de Acesso — SinalizeGo 🔑';
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -326,16 +506,23 @@ export class MailService {
         }),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
         `E-mail de senha temporária enviado com sucesso para ${to}`,
       );
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar e-mail de senha temporária para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.TEMPORARY_PASSWORD,
+      { name, temporaryPassword, loginUrl },
+      result,
+    );
+    return false;
   }
 
   /**
@@ -352,9 +539,10 @@ export class MailService {
       errorMessage: string;
     },
   ): Promise<boolean> {
-    try {
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: `⚠️ Alerta de Erro na Emissão de NFS-e — ${data.companyName}`,
+    const subject = `⚠️ Alerta de Erro na Emissão de NFS-e — ${data.companyName}`;
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -363,16 +551,23 @@ export class MailService {
         htmlContent: getInvoiceErrorAlertEmailTemplate(data),
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
         `Alerta de erro de NFS-e #${data.invoiceId} enviado para admin (${to})`,
       );
       return true;
-    } catch (error: any) {
-      this.logger.error(
-        `Falha ao enviar alerta de erro de NFS-e para ${to}: ${error?.message || error}`,
-      );
-      return false;
     }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.INVOICE_ERROR,
+      data,
+      result,
+    );
+    return false;
   }
 
   /**
@@ -387,24 +582,25 @@ export class MailService {
       riskFlags: string[];
     },
   ): Promise<boolean> {
-    try {
-      const flagsText = data.riskFlags.join(', ');
-      const htmlContent = `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
-          <h2 style="color: #d97706;">⚠️ Alerta de Auditoria — Indicação em Revisão Manual</h2>
-          <p>Uma indicação entre empresas foi suspensa para <strong>REVIEW</strong> por colisão de dados cadastrais:</p>
-          <ul style="background: #fef3c7; padding: 16px 24px; border-radius: 8px;">
-            <li><strong>ID da Indicação:</strong> ${data.referralId}</li>
-            <li><strong>Empresa Indicadora:</strong> ${data.referrerName}</li>
-            <li><strong>Empresa Indicada:</strong> ${data.referredName}</li>
-            <li><strong>Flags de Risco:</strong> ${flagsText}</li>
-          </ul>
-          <p>Acesse a rota de auditoria do Super Admin para validar manualmente se trata-se de caso legítimo ou auto-indicação.</p>
-        </div>
-      `;
+    const subject = `⚠️ Indicação em Revisão Manual — ${data.referredName}`;
+    const flagsText = data.riskFlags?.join?.(', ') || '';
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
+        <h2 style="color: #d97706;">⚠️ Alerta de Auditoria — Indicação em Revisão Manual</h2>
+        <p>Uma indicação entre empresas foi suspensa para <strong>REVIEW</strong> por colisão de dados cadastrais:</p>
+        <ul style="background: #fef3c7; padding: 16px 24px; border-radius: 8px;">
+          <li><strong>ID da Indicação:</strong> ${data.referralId}</li>
+          <li><strong>Empresa Indicadora:</strong> ${data.referrerName}</li>
+          <li><strong>Empresa Indicada:</strong> ${data.referredName}</li>
+          <li><strong>Flags de Risco:</strong> ${flagsText}</li>
+        </ul>
+        <p>Acesse a rota de auditoria do Super Admin para validar manualmente se trata-se de caso legítimo ou auto-indicação.</p>
+      </div>
+    `;
 
-      await this.brevoClient.transactionalEmails.sendTransacEmail({
-        subject: `⚠️ Indicação em Revisão Manual — ${data.referredName}`,
+    const sendFn = () =>
+      this.brevoClient.transactionalEmails.sendTransacEmail({
+        subject,
         sender: {
           name: this.senderName,
           email: this.senderEmail,
@@ -413,13 +609,200 @@ export class MailService {
         htmlContent,
       });
 
+    const result = await this.executeWithMicroRetry(sendFn, to, subject);
+
+    if (result.success) {
       this.logger.log(
         `Alerta de revisão de indicação #${data.referralId} enviado para Super Admin (${to})`,
       );
       return true;
-    } catch (error: any) {
+    }
+
+    await this.enqueueFallback(
+      to,
+      subject,
+      EmailTemplateType.REFERRAL_REVIEW,
+      data,
+      result,
+    );
+    return false;
+  }
+
+  /**
+   * Despacha o e-mail diretamente a partir da fila Outbox (utilizado pelo Worker Cron).
+   * Não re-enfileira para permitir que o MailOutboxService controle a política de tentativas e backoff.
+   */
+  async dispatchFromOutbox(
+    template: EmailTemplateType,
+    to: string,
+    payload: Record<string, any>,
+  ): Promise<boolean> {
+    try {
+      switch (template) {
+        case EmailTemplateType.WELCOME:
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: 'Boas-vindas ao SinalizeGo! 🚀',
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: payload.name || to }],
+            htmlContent: getWelcomeEmailTemplate(payload.name, payload.role),
+          });
+          return true;
+
+        case EmailTemplateType.APPOINTMENT_CONFIRMATION: {
+          const formattedDate = formatAppointmentDateTime(
+            payload.appointmentDate,
+            payload.timezone || 'America/Sao_Paulo',
+          );
+          const paidFormatted = Number(
+            payload.amountPaid?.toString?.() ?? payload.amountPaid,
+          ).toFixed(2);
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: `Agendamento Confirmado — ${payload.companyName} 🎉`,
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: payload.customerName || to }],
+            htmlContent: getAppointmentConfirmationEmailTemplate({
+              appointmentId: payload.appointmentId,
+              customerName: payload.customerName,
+              companyName: payload.companyName,
+              serviceName: payload.serviceName,
+              formattedDate,
+              amountPaid: paidFormatted,
+              paymentMethod: payload.paymentMethod || 'Pix',
+            }),
+          });
+          return true;
+        }
+
+        case EmailTemplateType.APPOINTMENT_CANCELLATION: {
+          const formattedDate = formatAppointmentDateTime(
+            payload.appointmentDate,
+            payload.timezone || 'America/Sao_Paulo',
+          );
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: `Agendamento Cancelado — ${payload.companyName}`,
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: payload.customerName || to }],
+            htmlContent: getAppointmentCancellationEmailTemplate({
+              customerName: payload.customerName,
+              companyName: payload.companyName,
+              serviceName: payload.serviceName,
+              formattedDate,
+              isRefunded: payload.isRefunded,
+              refundAmount: payload.refundAmount,
+              policy: payload.policy,
+            }),
+          });
+          return true;
+        }
+
+        case EmailTemplateType.OWNER_UNAVAILABILITY: {
+          const formattedDate = formatAppointmentDateTime(
+            payload.appointmentDate,
+            payload.timezone || 'America/Sao_Paulo',
+          );
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: `Imprevisto no Horário — Seu sinal virou crédito em ${payload.companyName}`,
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: payload.customerName || to }],
+            htmlContent: getOwnerUnavailabilityEmailTemplate({
+              customerName: payload.customerName,
+              companyName: payload.companyName,
+              serviceName: payload.serviceName,
+              formattedDate,
+              creditAmount: payload.creditAmount,
+              rescheduleUrl: payload.rescheduleUrl,
+            }),
+          });
+          return true;
+        }
+
+        case EmailTemplateType.APPOINTMENT_REMINDER: {
+          const formattedDate = formatAppointmentDateTime(
+            payload.appointmentDate,
+            payload.timezone || 'America/Sao_Paulo',
+          );
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: `Lembrete: Seu agendamento é amanhã! ⏰ — ${payload.companyName}`,
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: payload.customerName || to }],
+            htmlContent: getAppointmentReminderEmailTemplate({
+              customerName: payload.customerName,
+              companyName: payload.companyName,
+              serviceName: payload.serviceName,
+              formattedDate,
+              address: payload.address,
+            }),
+          });
+          return true;
+        }
+
+        case EmailTemplateType.PASSWORD_RESET:
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: 'Redefinição de Senha — SinalizeGo',
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: payload.name || to }],
+            htmlContent: getPasswordResetEmailTemplate(
+              payload.name,
+              payload.resetLink,
+            ),
+          });
+          return true;
+
+        case EmailTemplateType.TEMPORARY_PASSWORD:
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: 'Sua Nova Senha de Acesso — SinalizeGo 🔑',
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: payload.name || to }],
+            htmlContent: getTemporaryPasswordEmailTemplate({
+              name: payload.name,
+              temporaryPassword: payload.temporaryPassword,
+              loginUrl: payload.loginUrl,
+            }),
+          });
+          return true;
+
+        case EmailTemplateType.INVOICE_ERROR:
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: `⚠️ Alerta de Erro na Emissão de NFS-e — ${payload.companyName}`,
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: 'Administrador SinalizeGO' }],
+            htmlContent: getInvoiceErrorAlertEmailTemplate(payload as any),
+          });
+          return true;
+
+        case EmailTemplateType.REFERRAL_REVIEW: {
+          const flagsText = payload.riskFlags?.join?.(', ') || '';
+          const htmlContent = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
+              <h2 style="color: #d97706;">⚠️ Alerta de Auditoria — Indicação em Revisão Manual</h2>
+              <p>Uma indicação entre empresas foi suspensa para <strong>REVIEW</strong> por colisão de dados cadastrais:</p>
+              <ul style="background: #fef3c7; padding: 16px 24px; border-radius: 8px;">
+                <li><strong>ID da Indicação:</strong> ${payload.referralId}</li>
+                <li><strong>Empresa Indicadora:</strong> ${payload.referrerName}</li>
+                <li><strong>Empresa Indicada:</strong> ${payload.referredName}</li>
+                <li><strong>Flags de Risco:</strong> ${flagsText}</li>
+              </ul>
+              <p>Acesse a rota de auditoria do Super Admin para validar manualmente se trata-se de caso legítimo ou auto-indicação.</p>
+            </div>
+          `;
+          await this.brevoClient.transactionalEmails.sendTransacEmail({
+            subject: `⚠️ Indicação em Revisão Manual — ${payload.referredName}`,
+            sender: { name: this.senderName, email: this.senderEmail },
+            to: [{ email: to, name: 'Super Admin SinalizeGO' }],
+            htmlContent,
+          });
+          return true;
+        }
+
+        default:
+          this.logger.error(
+            `[MailService] Template desconhecido recebido do Outbox: ${template}`,
+          );
+          return false;
+      }
+    } catch (err: any) {
       this.logger.error(
-        `Falha ao enviar alerta de revisão de indicação para ${to}: ${error?.message || error}`,
+        `[MailService] Falha ao despachar template ${template} para ${to}: ${err?.message || err}`,
       );
       return false;
     }
