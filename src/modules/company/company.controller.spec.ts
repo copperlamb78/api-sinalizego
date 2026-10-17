@@ -13,6 +13,7 @@ describe('CompanyController', () => {
     getCompanyByCompanyId: jest.fn(),
     getAllCompaniesByUserId: jest.fn(),
     getAllCompanies: jest.fn(),
+    exploreCompanies: jest.fn(),
     findBySlug: jest.fn(),
     getCompanyBySlug: jest.fn(),
     getDashboardMetrics: jest.fn(),
@@ -162,6 +163,24 @@ describe('CompanyController', () => {
         'user-1',
         undefined,
       );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('exploreCompanies', () => {
+    it('should return paginated active companies for discovery', async () => {
+      const filters = { search: 'degrade', city: 'Brasilia', page: 1, limit: 10 };
+      const expected = {
+        items: [{ id: 'company-1', businessName: 'VIP Barber', minPrice: 35 }],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      };
+      mockCompanyService.exploreCompanies.mockResolvedValue(expected);
+
+      const result = await controller.exploreCompanies(filters);
+      expect(companyService.exploreCompanies).toHaveBeenCalledWith(filters);
       expect(result).toEqual(expected);
     });
   });
