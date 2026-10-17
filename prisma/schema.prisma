@@ -155,6 +155,8 @@ model Appointment {
   isActive              Boolean    @default(true)
   disabledAt            DateTime? // Corrigido de dateTime? para DateTime?
   disabledBy            String?
+  cancellationReason    String?   // Motivo selecionado (IMPREVISTO, HORARIO, OUTRO)
+  cancellationDetails   String?   // Detalhes descritivos quando preenchidos
 
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   service         Service          @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
