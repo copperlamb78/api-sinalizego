@@ -932,12 +932,23 @@ export class AppointmentsService {
       (new Date(appointment.appointmentDate).getTime() - Date.now()) /
       (1000 * 60 * 60);
 
+    const appointmentDate = new Date(appointment.appointmentDate);
+    const now = new Date();
+    const apptMidnight = new Date(appointmentDate);
+    apptMidnight.setHours(0, 0, 0, 0);
+    const tomorrowMidnight = new Date(now);
+    tomorrowMidnight.setHours(0, 0, 0, 0);
+    tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+    const isTomorrow = apptMidnight.getTime() === tomorrowMidnight.getTime();
+
     const policy: 'REFUND' | 'CREDIT' | 'RETAINED' =
       hoursDifference > 24
         ? 'REFUND'
+        : isTomorrow && hoursDifference >= 1.5
+        ? 'REFUND'
         : hoursDifference >= 2
-          ? 'CREDIT'
-          : 'RETAINED';
+        ? 'CREDIT'
+        : 'RETAINED';
 
     let isRefunded = false;
     let refundAmount: number | undefined = undefined;
