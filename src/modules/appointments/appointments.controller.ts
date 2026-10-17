@@ -41,6 +41,7 @@ import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { AvailableSlotsQueryDto } from './dto/available-slots-query.dto';
 import { AvailabilityService } from './availability.service';
 import { Throttle } from '@nestjs/throttler';
+import { CancelAppointmentClientDto } from './dto/appointments-cancel-client.dto';
 
 @ApiTags('Agendamentos')
 @Controller('appointments')
@@ -361,6 +362,7 @@ export class AppointmentsController {
   async cancelByClient(
     @Param('id', ParseUUIDPipe) appointmentId: string,
     @Req() req: Request,
+    @Body() dto?: CancelAppointmentClientDto,
   ) {
     const userId = req.user?.['sub'];
     const role = req.user?.['role'];
@@ -368,6 +370,7 @@ export class AppointmentsController {
       appointmentId,
       userId,
       role,
+      dto,
     );
   }
 
