@@ -212,23 +212,31 @@ describe('AppointmentsController', () => {
   });
 
   describe('cancelByClient', () => {
-    it('should cancel appointment requested by client', async () => {
+    it('should cancel appointment requested by client with optional cancellation reason', async () => {
       const req = { user: { sub: 'client-1', role: 'CLIENT' } } as any;
       const expected = {
         id: 'appointment-1',
         isActive: false,
         status: 'CANCELED',
+        cancellationReason: 'IMPREVISTO',
+        cancellationDetails: 'Viagem de trabalho',
+      };
+      const dto = {
+        reason: 'IMPREVISTO',
+        details: 'Viagem de trabalho',
       };
       mockAppointmentsService.deactivateAppointment.mockResolvedValue(expected);
 
       const result = await controller.cancelByClient(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         req,
+        dto,
       );
       expect(appointmentsService.deactivateAppointment).toHaveBeenCalledWith(
         'f1e2d3c4-b5a6-0987-6543-210fedcba987',
         'client-1',
         'CLIENT',
+        dto,
       );
       expect(result).toEqual(expected);
     });
