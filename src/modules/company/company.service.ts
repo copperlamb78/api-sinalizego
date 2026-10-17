@@ -19,6 +19,7 @@ import {
 import { SlugHelper } from './helpers/create-slug.helper';
 import { UpdateCompanyDto } from './dto/company-update.dto';
 import { FilterCompanyDto } from './dto/company-filter.dto';
+import { ExploreCompaniesDto } from './dto/explore-company.dto';
 import { AuthService } from '../auth/auth.service';
 import {
   ApptStatus,
@@ -313,6 +314,113 @@ export class CompanyService {
       throw new NotFoundException('Nenhuma empresa encontrada.');
     }
     return companies;
+  }
+
+  /**
+   * Busca pública de estabelecimentos ativos para exploração e descoberta por clientes
+   */
+  async exploreCompanies(filters?: ExploreCompaniesDto) {
+    const page = filters?.page && filters.page > 0 ? filters.page : 1;
+    const limit =
+      filters?.limit && filters.limit > 0 ? Math.min(filters.limit, 50) : 20;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.CompanyWhereInput = {
+      isActive: true,
+    };
+
+    if (filters?.city) {
+      where.city = { contains: filters.city, mode: 'insensitive' };
+    }
+
+    if (filters?.district) {
+      where.district = { contains: filters.district, mode: 'insensitive' };
+    }
+
+    if (filters?.search) {
+      const search = filters.search.trim();
+      where.OR = [
+        { businessName: { contains: search, mode: 'insensitive' } },
+        { district: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+        { providerType: { contains: search, mode: 'insensitive' } },
+        {
+          services: {
+            some: {
+              name: { contains: search, mode: 'insensitive' },
+              isActive: true,
+            },
+          },
+        },
+      ];
+    }
+
+    const [companies, total] = await Promise.all([
+      this.prisma.company.findMany({
+        where,
+        select: {
+          id: true,
+          businessName: true,
+          slug: true,
+          providerType: true,
+          district: true,
+          street: true,
+          number: true,
+          city: true,
+          state: true,
+          zipCode: true,
+          whatsapp: true,
+          logoPhoto: true,
+          bannerPhoto: true,
+          createdAt: true,
+          services: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              name: true,
+              totalPrice: true,
+              durationMinutes: true,
+            },
+            orderBy: { totalPrice: 'asc' },
+            take: 4,
+          },
+          workingHours: {
+            select: {
+              dayOfWeek: true,
+              startTime: true,
+              endTime: true,
+              isClosed: true,
+            },
+            orderBy: { dayOfWeek: 'asc' },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.company.count({ where }),
+    ]);
+
+    const items = companies.map((c) => {
+      const minPrice =
+        c.services.length > 0
+          ? Math.min(...c.services.map((s) => Number(s.totalPrice)))
+          : null;
+
+      return {
+        ...c,
+        minPrice,
+        servicesCount: c.services.length,
+      };
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   /**
