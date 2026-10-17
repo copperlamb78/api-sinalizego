@@ -26,6 +26,7 @@ import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { UpdateCompanyDto } from './dto/company-update.dto';
 import type { Request } from 'express';
 import { FilterCompanyDto } from './dto/company-filter.dto';
+import { ExploreCompaniesDto } from './dto/explore-company.dto';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
 import {
   INTERNAL_NO_EMPLOYEE,
@@ -408,6 +409,19 @@ export class CompanyController {
   ) {
     const userId = req.user?.['sub'];
     return this.companyService.getCompanyTransactions(userId, query);
+  }
+
+  @Get('explore')
+  @ApiOperation({
+    summary:
+      'Lista pública de barbearias e estabelecimentos ativos para exploração/descoberta por clientes',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de estabelecimentos retornada com sucesso',
+  })
+  async exploreCompanies(@Query() filters: ExploreCompaniesDto) {
+    return this.companyService.exploreCompanies(filters);
   }
 
   @Get('public/:idOrSlug')
