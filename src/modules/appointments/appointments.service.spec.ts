@@ -940,6 +940,42 @@ describe('AppointmentsService', () => {
       expect(result.status).toEqual(ApptStatus.CANCELED);
     });
 
+    it('should persist cancellationReason and cancellationDetails when provided', async () => {
+      mockPrisma.appointment.findUnique.mockResolvedValue(appointmentMock);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'client-1',
+        role: Role.CLIENT,
+      });
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...appointmentMock,
+        status: ApptStatus.CANCELED,
+        isActive: false,
+        cancellationReason: 'IMPREVISTO',
+        cancellationDetails: 'Surgiu uma viagem urgente',
+      });
+
+      await service.deactivateAppointment(
+        'appointment-1',
+        'client-1',
+        Role.CLIENT,
+        {
+          reason: 'IMPREVISTO',
+          details: 'Surgiu uma viagem urgente',
+        },
+      );
+
+      expect(mockPrisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: 'appointment-1' },
+        data: expect.objectContaining({
+          status: ApptStatus.CANCELED,
+          cancellationReason: 'IMPREVISTO',
+          cancellationDetails: 'Surgiu uma viagem urgente',
+          isActive: false,
+          disabledBy: 'client-1',
+        }),
+      });
+    });
+
     it('should throw BadRequestException when trying to deactivate a COMPLETED appointment', async () => {
       mockPrisma.appointment.findUnique.mockResolvedValue({
         ...appointmentMock,
