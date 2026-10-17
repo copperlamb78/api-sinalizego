@@ -1377,11 +1377,13 @@ describe('AppointmentsService', () => {
       );
     });
 
-    it('should NOT trigger Asaas refund nor retain deposit when canceled between 2h and 24h before (Regra N6b - credito)', async () => {
-      const midFutureDate = new Date(Date.now() + 5 * 60 * 60 * 1000); // 5h no futuro (entre 2h e 24h)
+    it('should NOT trigger Asaas refund nor retain deposit when canceled between 2h and 24h before on the same day (Regra N6b - credito)', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-10-15T10:00:00.000Z'));
+      const sameDayMidFutureDate = new Date('2026-10-15T14:00:00.000Z'); // 4h no futuro, mesmo dia
       const apptMock = {
         id: 'appt-1',
-        appointmentDate: midFutureDate,
+        appointmentDate: sameDayMidFutureDate,
         status: ApptStatus.CONFIRMED,
         isActive: true,
         servicePrice: 100.0,
@@ -1434,6 +1436,69 @@ describe('AppointmentsService', () => {
           }),
         }),
       );
+      jest.useRealTimers();
+    });
+
+    it('should trigger full Asaas refund when canceled for tomorrow with at least 1.5h in advance (even within 2h-24h window)', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-10-15T10:00:00.000Z'));
+      const tomorrowDate = new Date('2026-10-16T08:00:00.000Z'); // amanhã, 22h de antecedência (dentro de 2h-24h)
+      const apptMock = {
+        id: 'appt-tomorrow-1',
+        appointmentDate: tomorrowDate,
+        status: ApptStatus.CONFIRMED,
+        isActive: true,
+        servicePrice: 100.0,
+        downPaymentAmount: 50.0,
+        company: {
+          userId: 'owner-1',
+          businessName: 'Barbearia VIP',
+          timezone: 'America/Sao_Paulo',
+        },
+        client: {
+          id: 'client-1',
+          name: 'Cliente Teste',
+          email: 'cliente@test.com',
+        },
+        service: {
+          id: 'srv-1',
+          name: 'Corte Degradê',
+          totalPrice: 100,
+          downPaymentPercent: 50,
+        },
+      };
+
+      mockPrisma.appointment.findUnique.mockResolvedValue(apptMock);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'owner-1',
+        role: Role.COMPANY_OWNER,
+      });
+      mockPrisma.transaction.findFirst.mockResolvedValue({
+        id: 'tx-1',
+        appointmentId: 'appt-tomorrow-1',
+        asaasPaymentId: 'pay_123',
+        totalValue: 55.0,
+        status: TransactionStatus.CONFIRMED,
+      });
+      mockPrisma.appointment.update.mockResolvedValue({
+        ...apptMock,
+        status: ApptStatus.CANCELED,
+        isActive: false,
+      });
+
+      const result = await service.deactivateAppointment(
+        'appt-tomorrow-1',
+        'owner-1',
+      );
+
+      expect(mockAsaasService.refundPayment).toHaveBeenCalledWith(
+        'pay_123',
+        50.0,
+        'Cancelamento com antecedência superior a 24 horas (estorno do sinal).',
+      );
+      expect(mockPrisma.clientCredit.create).not.toHaveBeenCalled();
+      expect(result.status).toBe(ApptStatus.CANCELED);
+      jest.useRealTimers();
     });
   });
 
