@@ -870,6 +870,7 @@ export class AppointmentsService {
     appointmentId: string,
     userId: string,
     role?: Role | string,
+    cancelData?: { reason?: string; details?: string },
   ) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
@@ -1016,6 +1017,8 @@ export class AppointmentsService {
         status: 'CANCELED',
         retainedDepositAmount:
           retainedDeposit !== undefined ? retainedDeposit : null,
+        cancellationReason: cancelData?.reason || null,
+        cancellationDetails: cancelData?.details || null,
         isActive: false,
         disabledAt: new Date(),
         disabledBy: userId,
