@@ -22,7 +22,7 @@
     "seed:admin": "npx ts-node -r tsconfig-paths/register scripts/create-super-admin.ts",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main",
     "openapi": "node dist/scripts/generate-openapi.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
