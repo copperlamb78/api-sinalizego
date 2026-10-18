@@ -187,5 +187,33 @@ describe('UploadController', () => {
         'https://res.cloudinary.com/demo/image/upload/v1/banner.jpg',
       );
     });
+
+    it('should successfully upload employee photo when valid', async () => {
+      mockPrisma.company.findUnique.mockResolvedValue(mockCompany);
+      mockValidateImage.isValidImageMagicBytes.mockReturnValue(true);
+      mockCloudinaryService.uploadImage.mockResolvedValue({
+        secure_url:
+          'https://res.cloudinary.com/demo/image/upload/v1/employee.jpg',
+        public_id: 'sinalizego/company-1/employee/54321',
+      });
+
+      const req = { user: { sub: 'owner-1', role: Role.COMPANY_OWNER } };
+
+      const result = await controller.uploadImage(
+        mockFile,
+        'company-1',
+        'employee',
+        req,
+      );
+
+      expect(mockCloudinaryService.uploadImage).toHaveBeenCalledWith(
+        mockFile,
+        'sinalizego/company-1/employee',
+      );
+      expect(result).toEqual({
+        url: 'https://res.cloudinary.com/demo/image/upload/v1/employee.jpg',
+        publicId: 'sinalizego/company-1/employee/54321',
+      });
+    });
   });
 });
