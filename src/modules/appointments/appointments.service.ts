@@ -225,32 +225,138 @@ export class AppointmentsService {
         );
       }
 
-      const maxCapacity = service.serviceGroup?.capacity ?? 1;
+      let assignedEmployeeId: string | null = null;
 
-      // Consulta de sobreposição canônica de intervalos:
-      // Intervalo A colide com B se (A.start < B.end) E (A.end > B.start)
-      // Agrupado pelo serviceGroupId para compartilhar capacidade entre serviços da mesma categoria/cadeira
-      const existingAppointmentsCount = await tx.appointment.count({
-        where: {
-          companyId: data.companyId,
-          isActive: true,
-          status: { notIn: [ApptStatus.CANCELED] },
-          appointmentDate: { lt: endDate },
-          appointmentEndDate: { gt: startDate },
-          service: {
-            serviceGroupId: service.serviceGroupId,
+      // Busca profissionais ativos e habilitados para este serviço
+      const eligibleEmployees = tx.employee
+        ? await tx.employee.findMany({
+            where: {
+              companyId: data.companyId,
+              isActive: true,
+              services: {
+                some: {
+                  serviceId: service.id,
+                },
+              },
+            },
+            select: {
+              id: true,
+            },
+          })
+        : [];
+
+      if (eligibleEmployees.length > 0) {
+        if (data.employeeId) {
+          // Cliente escolheu um profissional específico
+          const isEligible = eligibleEmployees.some((e) => e.id === data.employeeId);
+          if (!isEligible) {
+            throw new BadRequestException(
+              'O profissional selecionado não está habilitado para este serviço ou está inativo.',
+            );
+          }
+
+          // Verifica se o profissional já possui agendamento conflitante
+          const conflictCount = await tx.appointment.count({
+            where: {
+              companyId: data.companyId,
+              employeeId: data.employeeId,
+              isActive: true,
+              status: { notIn: [ApptStatus.CANCELED, ApptStatus.NO_SHOW] },
+              appointmentDate: { lt: endDate },
+              appointmentEndDate: { gt: startDate },
+              OR: [
+                { status: { not: ApptStatus.PENDING_PAYMENT } },
+                { expiresAt: { gt: new Date() } },
+              ],
+            },
+          });
+
+          if (conflictCount > 0) {
+            throw new ConflictException(
+              'O profissional selecionado já possui um agendamento neste horário.',
+            );
+          }
+
+          assignedEmployeeId = data.employeeId;
+        } else {
+          // Cliente escolheu "Qualquer profissional": busca os conflitantes
+          const conflictingAppointments = await tx.appointment.findMany({
+            where: {
+              companyId: data.companyId,
+              employeeId: { in: eligibleEmployees.map((e) => e.id) },
+              isActive: true,
+              status: { notIn: [ApptStatus.CANCELED, ApptStatus.NO_SHOW] },
+              appointmentDate: { lt: endDate },
+              appointmentEndDate: { gt: startDate },
+              OR: [
+                { status: { not: ApptStatus.PENDING_PAYMENT } },
+                { expiresAt: { gt: new Date() } },
+              ],
+            },
+            select: { employeeId: true },
+          });
+
+          const busyEmployeeIds = new Set(
+            conflictingAppointments.map((a) => a.employeeId).filter(Boolean),
+          );
+          const freeEmployees = eligibleEmployees.filter(
+            (e) => !busyEmployeeIds.has(e.id),
+          );
+
+          if (freeEmployees.length === 0) {
+            throw new ConflictException(
+              'Não há profissionais disponíveis para este serviço neste horário.',
+            );
+          }
+
+          // Estratégia determinística: seleciona o profissional livre com menor carga no dia
+          const dayStartFilter = new Date(startDate);
+          dayStartFilter.setUTCHours(0, 0, 0, 0);
+          const dayEndFilter = new Date(startDate);
+          dayEndFilter.setUTCHours(23, 59, 59, 999);
+
+          const appointmentCounts = await Promise.all(
+            freeEmployees.map(async (emp) => {
+              const count = await tx.appointment.count({
+                where: {
+                  employeeId: emp.id,
+                  appointmentDate: { gte: dayStartFilter, lte: dayEndFilter },
+                  status: { notIn: [ApptStatus.CANCELED] },
+                },
+              });
+              return { employeeId: emp.id, count };
+            }),
+          );
+
+          appointmentCounts.sort((a, b) => a.count - b.count);
+          assignedEmployeeId = appointmentCounts[0].employeeId;
+        }
+      } else {
+        // Fallback legado caso a empresa não utilize profissionais individuais cadastrados
+        const maxCapacity = service.serviceGroup?.capacity ?? 1;
+
+        const existingAppointmentsCount = await tx.appointment.count({
+          where: {
+            companyId: data.companyId,
+            isActive: true,
+            status: { notIn: [ApptStatus.CANCELED] },
+            appointmentDate: { lt: endDate },
+            appointmentEndDate: { gt: startDate },
+            service: {
+              serviceGroupId: service.serviceGroupId,
+            },
+            OR: [
+              { status: { not: ApptStatus.PENDING_PAYMENT } },
+              { expiresAt: { gt: new Date() } },
+            ],
           },
-          OR: [
-            { status: { not: ApptStatus.PENDING_PAYMENT } },
-            { expiresAt: { gt: new Date() } },
-          ],
-        },
-      });
+        });
 
-      if (existingAppointmentsCount >= maxCapacity) {
-        throw new ConflictException(
-          'Não há vagas disponíveis para este serviço neste horário',
-        );
+        if (existingAppointmentsCount >= maxCapacity) {
+          throw new ConflictException(
+            'Não há vagas disponíveis para este serviço neste horário',
+          );
+        }
       }
 
       let isFullyCoveredByCredit = false;
@@ -280,6 +386,7 @@ export class AppointmentsService {
           companyId: company.id,
           serviceId: service.id,
           clientId: user.id,
+          employeeId: assignedEmployeeId,
           appointmentDate: startDate,
           appointmentEndDate: endDate,
           expiresAt: isFullyCoveredByCredit ? null : expirationDate,
@@ -614,6 +721,15 @@ export class AppointmentsService {
         companyId: true,
         clientId: true,
         serviceId: true,
+        employeeId: true,
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            roleTitle: true,
+            photoUrl: true,
+          },
+        },
         company: {
           select: {
             id: true,
@@ -725,6 +841,15 @@ export class AppointmentsService {
         companyId: true,
         clientId: true,
         serviceId: true,
+        employeeId: true,
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            roleTitle: true,
+            photoUrl: true,
+          },
+        },
         company: {
           select: {
             id: true,
