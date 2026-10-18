@@ -26,6 +26,8 @@ import { FeesModule } from './modules/fees/fees.module';
 import { FoundersModule } from './modules/founders/founders.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { ClientCreditsModule } from './modules/client-credits/client-credits.module';
+import { EmployeesModule } from './modules/employees/employees.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 import { validate } from './common/env.validation';
 
 @Module({
@@ -69,6 +71,8 @@ import { validate } from './common/env.validation';
     FoundersModule,
     ReferralsModule,
     ClientCreditsModule,
+    EmployeesModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [
