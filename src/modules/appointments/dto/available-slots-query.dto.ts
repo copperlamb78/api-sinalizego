@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsUUID, Matches } from 'class-validator';
+import { IsDateString, IsOptional, IsUUID, Matches } from 'class-validator';
 
 export class AvailableSlotsQueryDto {
   @ApiProperty({
@@ -28,4 +28,13 @@ export class AvailableSlotsQueryDto {
     message: 'date deve estar estritamente no formato YYYY-MM-DD',
   })
   date: string;
+
+  @ApiProperty({
+    description: 'ID do profissional específico (opcional para Qualquer Profissional)',
+    example: '123e4567-e89b-12d3-a456-426614174002',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'employeeId deve ser um UUID válido' })
+  employeeId?: string;
 }
