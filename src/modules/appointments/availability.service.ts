@@ -108,11 +108,13 @@ export class AvailabilityService {
 
   /**
    * Calcula todos os slots de horários disponíveis para um determinado serviço em uma data.
+   * Suporta profissional específico ou "Qualquer profissional" (distribuição por capacidade real).
    */
   async getAvailableSlots(
     companyId: string,
     serviceId: string,
     dateStr: string,
+    employeeId?: string,
   ): Promise<AvailableSlotsResponse> {
     // ⚡ O-09: Paraleliza a verificação de empresa, serviço e horário de funcionamento
     const [company, service, schedule] = await Promise.all([
@@ -149,6 +151,28 @@ export class AvailabilityService {
       throw new BadRequestException('O serviço não pertence a esta empresa.');
     }
 
+    // Se um funcionário específico foi solicitado, valida existência, status ativo e habilitação no serviço
+    if (employeeId && this.prisma.employee) {
+      const employee = await this.prisma.employee.findFirst({
+        where: {
+          id: employeeId,
+          companyId: company.id,
+          isActive: true,
+          services: {
+            some: {
+              serviceId: service.id,
+            },
+          },
+        },
+      });
+
+      if (!employee) {
+        throw new NotFoundException(
+          'Profissional não encontrado, inativo ou não habilitado para este serviço.',
+        );
+      }
+    }
+
     if (!schedule) {
       return {
         date: dateStr,
@@ -175,35 +199,63 @@ export class AvailabilityService {
     const dayStartFilter = fromZonedTime(`${dateStr}T00:00:00.000`, timezone);
     const dayEndFilter = fromZonedTime(`${dateStr}T23:59:59.999`, timezone);
 
-    // Consulta todos os agendamentos ativos concorrentes do dia local para o mesmo grupo de serviço
+    // Identifica profissionais elegíveis para o serviço nesta empresa
+    const eligibleEmployees = this.prisma.employee
+      ? await this.prisma.employee.findMany({
+          where: {
+            companyId: company.id,
+            isActive: true,
+            ...(employeeId
+              ? { id: employeeId }
+              : {
+                  services: {
+                    some: {
+                      serviceId: service.id,
+                    },
+                  },
+                }),
+          },
+          select: {
+            id: true,
+          },
+        })
+      : [];
+
+    const hasIndividualEmployees = eligibleEmployees.length > 0;
+
+    // Consulta agendamentos ativos concorrentes do dia local
     const activeAppointments = await this.prisma.appointment.findMany({
       where: {
         companyId: company.id,
         isActive: true,
         status: { notIn: [ApptStatus.CANCELED, ApptStatus.NO_SHOW] },
         appointmentDate: { gte: dayStartFilter, lte: dayEndFilter },
-        service: {
-          serviceGroupId: service.serviceGroupId,
-        },
+        ...(hasIndividualEmployees
+          ? { employeeId: { in: eligibleEmployees.map((e) => e.id) } }
+          : { service: { serviceGroupId: service.serviceGroupId } }),
         OR: [
           { status: { not: ApptStatus.PENDING_PAYMENT } },
           { expiresAt: { gt: new Date() } },
         ],
       },
       select: {
+        employeeId: true,
         appointmentDate: true,
         appointmentEndDate: true,
       },
     });
 
-    const maxCapacity = service.serviceGroup?.capacity ?? 1;
+    const maxCapacity = hasIndividualEmployees
+      ? eligibleEmployees.length
+      : service.serviceGroup?.capacity ?? 1;
+
     const nowMs = Date.now();
     const availableSlots: string[] = [];
     const dayStartMs = dayStartFilter.getTime();
 
-    // Pre-calculate appointment times in milliseconds to avoid O(N * M) Date parsing
-    // ⚡ Bolt: Memoize expensive Date parsing outside the slot check loop
+    // Pré-calcula os instantes dos agendamentos em milissegundos
     const activeAppointmentsMs = activeAppointments.map((appt) => ({
+      employeeId: appt.employeeId,
       startMs: new Date(appt.appointmentDate).getTime(),
       endMs: new Date(appt.appointmentEndDate).getTime(),
     }));
@@ -217,7 +269,6 @@ export class AvailabilityService {
       const slotEndMinutes = currentMinutes + durationMinutes;
 
       // 1. Verificação de colisão com intervalo de almoço:
-      // Intervalo A colide com B se (A.start < B.end) E (A.end > B.start)
       if (lunchStartMinutes !== null && lunchEndMinutes !== null) {
         const collidesWithLunch =
           slotStartMinutes < lunchEndMinutes &&
@@ -227,24 +278,50 @@ export class AvailabilityService {
         }
       }
 
-      // Converte o slot local para instante UTC matemático baseado na âncora do dia na timezone
       const slotStartMs = dayStartMs + slotStartMinutes * 60000;
       const slotEndMs = dayStartMs + slotEndMinutes * 60000;
 
       // 2. Exclusão de horários passados caso a data consultada seja hoje
-      // ⚡ Bolt: Cache slotStartMs early to do fast integer comparison instead of Date object comparison against now
       if (slotStartMs <= nowMs) {
         continue;
       }
 
-      // 3. Verificação de sobreposição com agendamentos existentes no grupo de serviço
+      // 3. Verificação de disponibilidade
+      if (employeeId) {
+        // Profissional específico: livre se não tiver colisão com seus próprios agendamentos
+        const hasCollision = activeAppointmentsMs.some(
+          (appt) =>
+            appt.employeeId === employeeId &&
+            appt.startMs < slotEndMs &&
+            appt.endMs > slotStartMs,
+        );
+        if (!hasCollision) {
+          availableSlots.push(this.minutesToTime(currentMinutes));
+        }
+      } else if (hasIndividualEmployees) {
+        // "Qualquer profissional": disponível se pelo menos 1 profissional elegível estiver livre
+        const hasFreeEmployee = eligibleEmployees.some((emp) => {
+          const hasCollision = activeAppointmentsMs.some(
+            (appt) =>
+              appt.employeeId === emp.id &&
+              appt.startMs < slotEndMs &&
+              appt.endMs > slotStartMs,
+          );
+          return !hasCollision;
+        });
 
-      const overlappingCount = activeAppointmentsMs.filter(
-        (appt) => appt.startMs < slotEndMs && appt.endMs > slotStartMs,
-      ).length;
+        if (hasFreeEmployee) {
+          availableSlots.push(this.minutesToTime(currentMinutes));
+        }
+      } else {
+        // Fallback legado baseado na capacidade do grupo
+        const overlappingCount = activeAppointmentsMs.filter(
+          (appt) => appt.startMs < slotEndMs && appt.endMs > slotStartMs,
+        ).length;
 
-      if (overlappingCount < maxCapacity) {
-        availableSlots.push(this.minutesToTime(currentMinutes));
+        if (overlappingCount < maxCapacity) {
+          availableSlots.push(this.minutesToTime(currentMinutes));
+        }
       }
     }
 
