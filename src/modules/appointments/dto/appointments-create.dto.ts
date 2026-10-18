@@ -49,4 +49,12 @@ export class CreateAppointmentsDto {
   @IsOptional()
   @IsBoolean()
   useCredit?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'ID do profissional escolhido (opcional para Qualquer Profissional)',
+    example: '123e4567-e89b-12d3-a456-426614174002',
+  })
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
 }
