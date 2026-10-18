@@ -68,6 +68,7 @@ describe('AppointmentsController', () => {
         'company-1',
         'service-1',
         '2026-08-25',
+        undefined,
       );
       expect(result).toEqual(expected);
     });
