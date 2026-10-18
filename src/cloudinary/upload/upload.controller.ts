@@ -49,7 +49,7 @@ export class UploadController {
   @ApiParam({ name: 'companyId', description: 'ID da empresa (Company)' })
   @ApiParam({
     name: 'imageType',
-    description: 'Tipo da imagem (ex: logo, banner, service)',
+    description: 'Tipo da imagem (ex: logo, banner, service, employee)',
   })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -71,17 +71,17 @@ export class UploadController {
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @Param('companyId') companyId: string,
-    @Param('imageType') imageType: 'logo' | 'banner' | 'service',
+    @Param('imageType') imageType: 'logo' | 'banner' | 'service' | 'employee',
     @Req() req: any,
   ) {
     if (!file) {
       throw new BadRequestException('Nenhum arquivo de imagem foi enviado.');
     }
 
-    const allowedTypes = ['logo', 'banner', 'service'];
+    const allowedTypes = ['logo', 'banner', 'service', 'employee'];
     if (!allowedTypes.includes(imageType)) {
       throw new BadRequestException(
-        'O imageType deve ser: logo, banner ou service.',
+        'O imageType deve ser: logo, banner, service ou employee.',
       );
     }
 
