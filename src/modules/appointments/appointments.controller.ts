@@ -92,6 +92,7 @@ export class AppointmentsController {
       query.companyId,
       query.serviceId,
       query.date,
+      query.employeeId,
     );
   }
 
