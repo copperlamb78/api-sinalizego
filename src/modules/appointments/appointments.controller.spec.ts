@@ -304,11 +304,12 @@ describe('AppointmentsController', () => {
         send: jest.fn().mockReturnValue('sent'),
       } as any;
 
-      const result = await controller.getAppointmentIcs(id, res);
+      const req = { user: { sub: 'client-1', role: 'CLIENT' } } as any;
+      const result = await controller.getAppointmentIcs(id, res, req);
 
       expect(
         mockAppointmentsService.generateAppointmentIcs,
-      ).toHaveBeenCalledWith(id);
+      ).toHaveBeenCalledWith(id, 'client-1', 'CLIENT');
       expect(res.setHeader).toHaveBeenCalledWith(
         'Content-Type',
         'text/calendar; charset=utf-8',
