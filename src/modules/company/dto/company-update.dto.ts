@@ -1,8 +1,25 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
 import { CreateCompanyDto } from './company-create.dto';
 import { IsOptional, IsString, IsIn } from 'class-validator';
 
-export class UpdateCompanyDto extends PartialType(CreateCompanyDto) {
+export class UpdateCompanyDto extends PartialType(
+  OmitType(CreateCompanyDto, [
+    'name',
+    'email',
+    'password',
+    'phone',
+    'referralCode',
+  ] as const),
+) {
+  @ApiProperty({
+    example: '75999999999',
+    description: 'WhatsApp da empresa',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'O WhatsApp deve ser uma string válida' })
+  whatsapp?: string;
+
   @ApiProperty({
     example: 'default',
     description: 'Paleta visual de cores da empresa',
