@@ -284,4 +284,69 @@ describe('AuthService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('getTokens & session revocation (sid + me)', () => {
+    it('should include a UUID sid claim in both accessToken and refreshToken payloads', async () => {
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('access.token.sid')
+        .mockResolvedValueOnce('refresh.token.sid');
+
+      await service.getTokens('user-1', 'joao@test.com', 'CLIENT');
+
+      expect(mockJwtService.signAsync).toHaveBeenCalledTimes(2);
+      const firstPayload = mockJwtService.signAsync.mock.calls[0][0];
+      const secondPayload = mockJwtService.signAsync.mock.calls[1][0];
+      expect(firstPayload).toEqual(
+        expect.objectContaining({
+          sub: 'user-1',
+          email: 'joao@test.com',
+          role: 'CLIENT',
+          sid: expect.any(String),
+        }),
+      );
+      expect(firstPayload.sid).toBe(secondPayload.sid);
+      expect(firstPayload.sid.length).toBeGreaterThan(10);
+    });
+
+    it('should throw UnauthorizedException in me() if user is null or isActive is false', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      await expect(service.me('user-missing')).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'user-inactive',
+        email: 'inactive@test.com',
+        isActive: false,
+      });
+      await expect(service.me('user-inactive')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should return user profile in me() when user is active', async () => {
+      const activeUser = {
+        id: 'user-1',
+        name: 'João',
+        email: 'joao@test.com',
+        role: 'CLIENT',
+        isActive: true,
+      };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(activeUser);
+      const result = await service.me('user-1');
+      expect(result).toEqual(activeUser);
+    });
+
+    it('should clear refreshToken on logout()', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-1' });
+      mockPrisma.user.update.mockResolvedValueOnce({ id: 'user-1' });
+
+      const res = await service.logout('user-1');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { refreshToken: null },
+      });
+      expect(res.message).toContain('Logout realizado com sucesso');
+    });
+  });
 });
