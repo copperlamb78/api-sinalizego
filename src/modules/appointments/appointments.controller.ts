@@ -190,10 +190,12 @@ export class AppointmentsController {
     return this.appointmentsService.getAppointmentById(id, userId, role);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get(':id/ics')
   @ApiOperation({
     summary:
-      'Gera e faz download do arquivo iCalendar (.ics) compatível nativamente com iPhone (Apple Calendar), Google e Outlook (Público)',
+      'Gera e faz download do arquivo iCalendar (.ics) compatível nativamente com iPhone (Apple Calendar), Google e Outlook',
   })
   @ApiParam({
     name: 'id',
@@ -204,13 +206,20 @@ export class AppointmentsController {
     status: 200,
     description: 'Arquivo .ics retornado com sucesso (text/calendar)',
   })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 404, description: 'Agendamento não encontrado' })
   async getAppointmentIcs(
     @Param('id', ParseUUIDPipe) id: string,
     @Res() res: Response,
+    @Req() req?: Request,
   ) {
-    const icsContent =
-      await this.appointmentsService.generateAppointmentIcs(id);
+    const userId = req?.user?.['sub'];
+    const role = req?.user?.['role'];
+    const icsContent = await this.appointmentsService.generateAppointmentIcs(
+      id,
+      userId,
+      role,
+    );
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
