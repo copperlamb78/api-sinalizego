@@ -26,12 +26,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         role: true,
         isActive: true,
+        refreshToken: true,
       },
     });
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException(
         'Conta desativada ou usuário não encontrado.',
+      );
+    }
+
+    // Revogação em tempo real: se o token foi emitido com vínculo de sessão (sid)
+    // e a sessão foi encerrada (refreshToken limpo por logout, reset de senha ou desativação),
+    // bloqueia imediatamente qualquer requisição autenticada.
+    if (payload.sid && !user.refreshToken) {
+      throw new UnauthorizedException(
+        'Sessão encerrada. Faça login novamente.',
       );
     }
 
