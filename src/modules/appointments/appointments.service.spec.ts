@@ -1780,6 +1780,47 @@ describe('AppointmentsService', () => {
       expect(ics).toContain('END:VEVENT\r\n');
       expect(ics).toContain('END:VCALENDAR');
     });
+
+    it('should enforce Anti-IDOR when userId is provided (allow client, owner, or admin; reject third-party user with NotFoundException)', async () => {
+      const appt = {
+        id: 'appt-123',
+        clientId: 'client-owner',
+        appointmentDate: new Date('2026-09-09T10:00:00.000Z'),
+        appointmentEndDate: new Date('2026-09-09T10:45:00.000Z'),
+        service: { name: 'Corte', durationMinutes: 45 },
+        company: {
+          userId: 'company-owner',
+          businessName: 'Barbearia Vintage',
+        },
+      };
+
+      mockPrisma.appointment.findUnique.mockResolvedValue(appt);
+
+      await expect(
+        service.generateAppointmentIcs('appt-123', 'intruder-user', 'CLIENT'),
+      ).rejects.toThrow(NotFoundException);
+
+      const clientIcs = await service.generateAppointmentIcs(
+        'appt-123',
+        'client-owner',
+        'CLIENT',
+      );
+      expect(clientIcs).toContain('UID:appt-123@sinalizego.com');
+
+      const ownerIcs = await service.generateAppointmentIcs(
+        'appt-123',
+        'company-owner',
+        'COMPANY_OWNER',
+      );
+      expect(ownerIcs).toContain('UID:appt-123@sinalizego.com');
+
+      const adminIcs = await service.generateAppointmentIcs(
+        'appt-123',
+        'admin-user',
+        'ADMIN',
+      );
+      expect(adminIcs).toContain('UID:appt-123@sinalizego.com');
+    });
   });
 
   describe('rescheduleByOwnerUnavailability (Salvar a Venda)', () => {
