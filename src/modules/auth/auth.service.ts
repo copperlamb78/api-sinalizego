@@ -37,14 +37,19 @@ export class AuthService {
         expiresIn: '30d',
       }),
     ]);
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, sid };
   }
 
-  async updateRefreshTokenHash(userId: string, refreshToken: string) {
+  async updateRefreshTokenHash(
+    userId: string,
+    refreshToken: string,
+    sid?: string,
+  ) {
     const hash = await bcrypt.hash(refreshToken, 10);
+    const value = sid ? `${sid}:${hash}` : hash;
     await this.prisma.user.update({
       where: { id: userId },
-      data: { refreshToken: hash },
+      data: { refreshToken: value },
     });
   }
 
@@ -62,7 +67,7 @@ export class AuthService {
     }
 
     const tokens = await this.getTokens(user.id, user.email, user.role);
-    await this.updateRefreshTokenHash(user.id, tokens.refreshToken);
+    await this.updateRefreshTokenHash(user.id, tokens.refreshToken, tokens.sid);
     return {
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
@@ -85,9 +90,28 @@ export class AuthService {
       throw new ForbiddenException('Acesso Negado');
     }
 
+    const colonIndex = user.refreshToken.indexOf(':');
+    const storedSid =
+      colonIndex !== -1 ? user.refreshToken.slice(0, colonIndex) : null;
+    const storedHash =
+      colonIndex !== -1
+        ? user.refreshToken.slice(colonIndex + 1)
+        : user.refreshToken;
+
+    let rtPayload: any = null;
+    try {
+      rtPayload = this.jwtService.decode(refreshToken);
+    } catch {
+      // Ignora erro de decodificação e segue para validação por hash
+    }
+
+    if (storedSid && rtPayload?.sid && storedSid !== rtPayload.sid) {
+      throw new ForbiddenException('Acesso Negado');
+    }
+
     const refreshTokenMatches = await bcrypt.compare(
       refreshToken,
-      user.refreshToken,
+      storedHash,
     );
 
     if (!refreshTokenMatches) {
@@ -95,7 +119,22 @@ export class AuthService {
     }
 
     const tokens = await this.getTokens(user.id, user.email, user.role);
-    await this.updateRefreshTokenHash(user.id, tokens.refreshToken);
+    const hash = await bcrypt.hash(tokens.refreshToken, 10);
+
+    const updated = await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        isActive: true,
+        refreshToken: user.refreshToken,
+      },
+      data: {
+        refreshToken: `${tokens.sid}:${hash}`,
+      },
+    });
+
+    if (updated.count === 0) {
+      throw new ForbiddenException('Sessão revogada durante a renovação.');
+    }
 
     return {
       access_token: tokens.accessToken,
