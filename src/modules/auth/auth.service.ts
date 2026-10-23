@@ -12,6 +12,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -23,7 +24,8 @@ export class AuthService {
 
   // Gera o token e o refresh token para o usuário autenticado
   async getTokens(userId: string, email: string, role: string) {
-    const jwtPayload = { sub: userId, email, role };
+    const sid = crypto.randomUUID();
+    const jwtPayload = { sub: userId, email, role, sid };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(jwtPayload, {
@@ -115,6 +117,10 @@ export class AuthService {
         mustChangePassword: true,
       },
     });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Sessão inválida ou conta desativada.');
+    }
 
     return user;
   }
