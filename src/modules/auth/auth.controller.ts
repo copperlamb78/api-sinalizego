@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/user-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -46,6 +54,8 @@ export class AuthController {
   })
   @ApiResponse({ status: 500, description: 'Erro interno do servidor' })
   @Throttle({ default: { limit: 15, ttl: 60000 } })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Pragma', 'no-cache')
   @Post('login')
   async login(@Body() data: LoginDto) {
     return this.authService.login(data);
@@ -54,6 +64,8 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtRefreshGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Pragma', 'no-cache')
   @Post('refresh')
   @ApiOperation({ summary: 'Renova os tokens de acesso e refresh' })
   @ApiResponse({
@@ -70,6 +82,8 @@ export class AuthController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Pragma', 'no-cache')
   @Get('me')
   @ApiOperation({ summary: 'Obtém o perfil do usuário logado' })
   @ApiResponse({
@@ -85,6 +99,8 @@ export class AuthController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Pragma', 'no-cache')
   @Post('logout')
   @ApiOperation({ summary: 'Encerra a sessão do usuário' })
   @ApiResponse({
@@ -99,6 +115,8 @@ export class AuthController {
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Pragma', 'no-cache')
   @Post('forgot-password')
   @ApiOperation({
     summary: 'Solicita a recuperação de senha enviando link por e-mail',
@@ -125,6 +143,8 @@ export class AuthController {
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Pragma', 'no-cache')
   @Post('reset-password')
   @ApiOperation({
     summary:
