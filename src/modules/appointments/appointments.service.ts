@@ -1667,11 +1667,16 @@ export class AppointmentsService {
    * Gera o arquivo .ics (iCalendar RFC 5545) para integração nativa com Apple Calendar (iPhone / iOS / Mac), Google e Outlook.
    * Utiliza quebras de linha CRLF (\r\n) e timestamps ISO 8601 básicos em UTC (Z).
    */
-  async generateAppointmentIcs(appointmentId: string): Promise<string> {
+  async generateAppointmentIcs(
+    appointmentId: string,
+    userId?: string,
+    role?: Role | string,
+  ): Promise<string> {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
       select: {
         id: true,
+        clientId: true,
         appointmentDate: true,
         appointmentEndDate: true,
         servicePrice: true,
@@ -1684,6 +1689,7 @@ export class AppointmentsService {
         },
         company: {
           select: {
+            userId: true,
             businessName: true,
             street: true,
             number: true,
@@ -1697,6 +1703,25 @@ export class AppointmentsService {
 
     if (!appointment) {
       throw new NotFoundException('Agendamento não encontrado.');
+    }
+
+    if (userId) {
+      let isSystemManager = role === Role.ADMIN || role === Role.SUPER_ADMIN;
+      if (role === undefined) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, role: true },
+        });
+        isSystemManager =
+          user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
+      }
+
+      const isClient = appointment.clientId === userId;
+      const isOwner = appointment.company?.userId === userId;
+
+      if (!isSystemManager && !isClient && !isOwner) {
+        throw new NotFoundException('Agendamento não encontrado.');
+      }
     }
 
     const startDate = new Date(appointment.appointmentDate);
