@@ -150,7 +150,7 @@ export class FinancialProfileService {
       data: { financialProfileId: newProfile.id },
     });
 
-    if (user.role !== 'COMPANY_OWNER') {
+    if (user.role === Role.CLIENT || user.role === Role.PROVIDER) {
       await this.prisma.user.update({
         where: { id: user.id },
         data: { role: 'COMPANY_OWNER' },
