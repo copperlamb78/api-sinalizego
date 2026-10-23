@@ -203,17 +203,22 @@ export class CompanyService {
       },
     });
 
-    if (user.role !== 'COMPANY_OWNER') {
+    if (user.role === Role.CLIENT || user.role === Role.PROVIDER) {
       await this.prisma.user.update({
         where: { id: userId },
         data: { role: 'COMPANY_OWNER' },
       });
     }
 
+    const nextRole =
+      user.role === Role.CLIENT || user.role === Role.PROVIDER
+        ? 'COMPANY_OWNER'
+        : user.role;
+
     const tokens = await this.authService.getTokens(
       user.id,
       user.email,
-      'COMPANY_OWNER',
+      nextRole,
     );
     await this.authService.updateRefreshTokenHash(user.id, tokens.refreshToken);
 
@@ -628,12 +633,9 @@ export class CompanyService {
       throw new NotFoundException('Empresa não encontrada.');
     }
 
-    const { referralCode: _, ...updateData } = data;
-    void _;
-
     return this.prisma.company.update({
       where: { id: companyExists.id },
-      data: updateData,
+      data,
     });
   }
 
