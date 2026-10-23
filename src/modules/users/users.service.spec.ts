@@ -212,4 +212,29 @@ describe('UsersService', () => {
       expect(result.message).toEqual('Senha alterada com sucesso.');
     });
   });
+
+  describe('deactivateUser', () => {
+    it('should set isActive to false, disabledAt, and clear refreshToken to revoke active sessions', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'user-1',
+        isActive: true,
+      });
+      mockPrisma.user.update.mockResolvedValueOnce({
+        id: 'user-1',
+        isActive: false,
+      });
+
+      await service.deactivateUser('user-1');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          isActive: false,
+          disabledAt: expect.any(Date),
+          refreshToken: null,
+        },
+        select: USER_PUBLIC_SELECT,
+      });
+    });
+  });
 });
