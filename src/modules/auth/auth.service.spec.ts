@@ -21,6 +21,7 @@ describe('AuthService', () => {
     user: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
 
@@ -244,7 +245,7 @@ describe('AuthService', () => {
       ).rejects.toThrow(new UnauthorizedException('Credenciais inválidas'));
     });
 
-    it('should authenticate active user and return access and refresh tokens', async () => {
+    it('should authenticate active user, return tokens and persist refreshToken with sid:hash format', async () => {
       const hashedPassword = await bcrypt.hash('password123', 10);
       const activeUser = {
         id: 'user-1',
@@ -268,6 +269,12 @@ describe('AuthService', () => {
       expect(result.access_token).toBe('access.token.123');
       expect(result.refresh_token).toBe('refresh.token.123');
       expect(result.user.email).toBe('joao@test.com');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          refreshToken: expect.stringMatching(/^[0-9a-f-]+:\$2b\$10\$/),
+        },
+      });
     });
   });
 
@@ -281,7 +288,140 @@ describe('AuthService', () => {
 
       await expect(
         service.refreshTokens('user-1', 'rawRefreshToken'),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(new ForbiddenException('Acesso Negado'));
+    });
+
+    it('should throw ForbiddenException if user has no refreshToken (logged out session)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        refreshToken: null,
+        isActive: true,
+      });
+
+      await expect(
+        service.refreshTokens('user-1', 'rawRefreshToken'),
+      ).rejects.toThrow(new ForbiddenException('Acesso Negado'));
+    });
+
+    it('should throw ForbiddenException if storedSid does not match rtPayload.sid', async () => {
+      const rawToken = 'rawRefreshToken';
+      const hash = await bcrypt.hash(rawToken, 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'joao@test.com',
+        role: 'CLIENT',
+        refreshToken: `active-sid-2:${hash}`,
+        isActive: true,
+      });
+      mockJwtService.decode.mockReturnValue({ sid: 'old-sid-1' });
+
+      await expect(service.refreshTokens('user-1', rawToken)).rejects.toThrow(
+        new ForbiddenException('Acesso Negado'),
+      );
+    });
+
+    it('should throw ForbiddenException if bcrypt.compare fails for refreshToken', async () => {
+      const hash = await bcrypt.hash('differentToken', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'joao@test.com',
+        role: 'CLIENT',
+        refreshToken: `active-sid-1:${hash}`,
+        isActive: true,
+      });
+      mockJwtService.decode.mockReturnValue({ sid: 'active-sid-1' });
+
+      await expect(
+        service.refreshTokens('user-1', 'wrongRawToken'),
+      ).rejects.toThrow(new ForbiddenException('Acesso Negado'));
+    });
+
+    it('should successfully rotate tokens and persist with optimistic lock when valid', async () => {
+      const rawToken = 'validRawRefreshToken';
+      const hash = await bcrypt.hash(rawToken, 10);
+      const activeUser = {
+        id: 'user-1',
+        email: 'joao@test.com',
+        role: 'CLIENT',
+        refreshToken: `sid-123:${hash}`,
+        isActive: true,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(activeUser);
+      mockJwtService.decode.mockReturnValue({ sid: 'sid-123' });
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('new.access.token')
+        .mockResolvedValueOnce('new.refresh.token');
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.refreshTokens('user-1', rawToken);
+
+      expect(result.access_token).toBe('new.access.token');
+      expect(result.refresh_token).toBe('new.refresh.token');
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'user-1',
+          isActive: true,
+          refreshToken: `sid-123:${hash}`,
+        },
+        data: {
+          refreshToken: expect.stringMatching(/^[0-9a-f-]+:\$2b\$10\$/),
+        },
+      });
+    });
+
+    it('should throw ForbiddenException if race condition occurs (updateMany returns count 0)', async () => {
+      const rawToken = 'validRawRefreshToken';
+      const hash = await bcrypt.hash(rawToken, 10);
+      const activeUser = {
+        id: 'user-1',
+        email: 'joao@test.com',
+        role: 'CLIENT',
+        refreshToken: `sid-123:${hash}`,
+        isActive: true,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(activeUser);
+      mockJwtService.decode.mockReturnValue({ sid: 'sid-123' });
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('new.access.token')
+        .mockResolvedValueOnce('new.refresh.token');
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.refreshTokens('user-1', rawToken)).rejects.toThrow(
+        new ForbiddenException('Sessão revogada durante a renovação.'),
+      );
+    });
+
+    it('should support legacy refreshToken without colon delimiter', async () => {
+      const rawToken = 'legacyRawRefreshToken';
+      const hash = await bcrypt.hash(rawToken, 10);
+      const activeUser = {
+        id: 'user-1',
+        email: 'joao@test.com',
+        role: 'CLIENT',
+        refreshToken: hash,
+        isActive: true,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(activeUser);
+      mockJwtService.decode.mockReturnValue({});
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('new.access.token')
+        .mockResolvedValueOnce('new.refresh.token');
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.refreshTokens('user-1', rawToken);
+
+      expect(result.access_token).toBe('new.access.token');
+      expect(result.refresh_token).toBe('new.refresh.token');
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'user-1',
+          isActive: true,
+          refreshToken: hash,
+        },
+        data: {
+          refreshToken: expect.stringMatching(/^[0-9a-f-]+:\$2b\$10\$/),
+        },
+      });
     });
   });
 
