@@ -159,7 +159,11 @@ export class UsersService {
 
     const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
-      data: { isActive: false, disabledAt: new Date() },
+      data: {
+        isActive: false,
+        disabledAt: new Date(),
+        refreshToken: null,
+      },
       select: USER_PUBLIC_SELECT,
     });
 
