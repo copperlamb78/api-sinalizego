@@ -270,6 +270,30 @@ describe('CompanyService', () => {
         }),
       );
     });
+
+    it('should preserve ADMIN / SUPER_ADMIN role without downgrading to COMPANY_OWNER', async () => {
+      const adminUser = {
+        id: 'user-admin-1',
+        name: 'Admin Sistema',
+        email: 'admin@test.com',
+        role: Role.SUPER_ADMIN,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.financialProfile.findFirst.mockResolvedValue(null);
+      mockPrisma.company.create.mockResolvedValue({
+        id: 'comp-admin',
+        ...dto,
+      });
+
+      await service.createCompany(dto as any, 'user-admin-1');
+
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockAuthService.getTokens).toHaveBeenCalledWith(
+        'user-admin-1',
+        'admin@test.com',
+        Role.SUPER_ADMIN,
+      );
+    });
   });
 
   describe('getCompanyByUserId', () => {
