@@ -36,13 +36,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    // Revogação em tempo real: se o token foi emitido com vínculo de sessão (sid)
-    // e a sessão foi encerrada (refreshToken limpo por logout, reset de senha ou desativação),
-    // bloqueia imediatamente qualquer requisição autenticada.
-    if (payload.sid && !user.refreshToken) {
-      throw new UnauthorizedException(
-        'Sessão encerrada. Faça login novamente.',
-      );
+    // Validação de Vínculo de Sessão Ativa (Anti-Zombie Session)
+    if (payload.sid) {
+      if (!user.refreshToken) {
+        throw new UnauthorizedException(
+          'Sessão encerrada. Faça login novamente.',
+        );
+      }
+      const activeSid = user.refreshToken.includes(':')
+        ? user.refreshToken.slice(0, user.refreshToken.indexOf(':'))
+        : null;
+      if (activeSid && activeSid !== payload.sid) {
+        throw new UnauthorizedException(
+          'Sessão expirada ou substituída por outro login.',
+        );
+      }
     }
 
     return {
