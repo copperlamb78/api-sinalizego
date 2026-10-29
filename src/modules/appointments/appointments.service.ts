@@ -592,6 +592,21 @@ export class AppointmentsService {
         companyId: true,
         clientId: true,
         serviceId: true,
+        review: {
+          select: {
+            id: true,
+            ratingCompany: true,
+            ratingEmployee: true,
+            comment: true,
+          },
+        },
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            roleTitle: true,
+          },
+        },
         company: {
           select: {
             id: true,
@@ -721,6 +736,14 @@ export class AppointmentsService {
         companyId: true,
         clientId: true,
         serviceId: true,
+        review: {
+          select: {
+            id: true,
+            ratingCompany: true,
+            ratingEmployee: true,
+            comment: true,
+          },
+        },
         employeeId: true,
         employee: {
           select: {
@@ -796,6 +819,21 @@ export class AppointmentsService {
         updatedAt: true,
         companyId: true,
         serviceId: true,
+        review: {
+          select: {
+            id: true,
+            ratingCompany: true,
+            ratingEmployee: true,
+            comment: true,
+          },
+        },
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            roleTitle: true,
+          },
+        },
         company: {
           select: {
             id: true,
@@ -841,6 +879,14 @@ export class AppointmentsService {
         companyId: true,
         clientId: true,
         serviceId: true,
+        review: {
+          select: {
+            id: true,
+            ratingCompany: true,
+            ratingEmployee: true,
+            comment: true,
+          },
+        },
         employeeId: true,
         employee: {
           select: {
