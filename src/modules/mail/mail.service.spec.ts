@@ -72,7 +72,7 @@ describe('MailService', () => {
 
       expect(mockSendTransacEmail).toHaveBeenCalledWith(
         expect.objectContaining({
-          subject: 'Boas-vindas ao SinalizeGo! 🚀',
+          subject: 'Boas-vindas ao SinalizeGo!',
           to: [{ email: 'cliente@test.com', name: 'Carlos Silva' }],
         }),
       );
@@ -138,7 +138,7 @@ describe('MailService', () => {
 
       expect(mockSendTransacEmail).toHaveBeenCalledWith(
         expect.objectContaining({
-          subject: 'Agendamento Confirmado — Barbearia VIP 🎉',
+          subject: 'Agendamento Confirmado — Barbearia VIP',
           to: [{ email: 'cliente@test.com', name: 'Carlos Silva' }],
         }),
       );
