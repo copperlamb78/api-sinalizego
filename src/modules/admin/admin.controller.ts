@@ -24,12 +24,12 @@ import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
-import { SYSTEM_MANAGERS } from 'src/common/constants/role-groups.constant';
+import { Role } from '@prisma/client';
 
 @ApiTags('Admin — Super Admin & Gestão Global')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(...SYSTEM_MANAGERS)
+@Roles(Role.SUPER_ADMIN)
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
