@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
+import { getCorsConfig } from './config/cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -24,75 +25,12 @@ async function bootstrap() {
     }),
   );
 
-  // 2. Configuração Abrangente de CORS
-  const rawCorsOrigins = process.env.CORS_ORIGINS || process.env.FRONTEND_URL;
-  const defaultOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:4200',
-    'https://sinalizego.com',
-    'https://app.sinalizego.com',
-    'https://admin.sinalizego.com',
-    'https://sinalizego.com.br',
-    'https://app.sinalizego.com.br',
-    'https://sinalizego.vercel.app',
-  ];
-
-  const allowedOrigins = rawCorsOrigins
-    ? rawCorsOrigins.split(',').map((origin) => {
-        const trimmed = origin.trim();
-        try {
-          const parsed = new URL(trimmed);
-          return `${parsed.protocol}//${parsed.host}`;
-        } catch {
-          return trimmed.replace(/\/+$/, '');
-        }
-      })
-    : defaultOrigins;
-
-  app.enableCors({
-    origin: (origin, callback) => {
-      // Permite requisições sem origin (mobile apps, Postman, webhooks do Asaas)
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      let isAllowed = false;
-      try {
-        const originUrl = new URL(origin);
-        const host = originUrl.hostname;
-        isAllowed =
-          allowedOrigins.includes(origin) ||
-          allowedOrigins.includes('*') ||
-          /\.vercel\.app$/.test(host) ||
-          /(^|\.)ngrok(-free)?\.(app|dev|io)$/.test(host) ||
-          host === 'localhost' ||
-          host === '127.0.0.1';
-      } catch {
-        isAllowed = allowedOrigins.includes(origin);
-      }
-
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        callback(
-          new Error(`Origem ${origin} não permitida pelas políticas de CORS.`),
-        );
-      }
-    },
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'asaas-access-token',
-      'Accept',
-    ],
-  });
+  // 2. Configuração Estrita de CORS por Ambiente (Zero-Trust)
+  app.enableCors(getCorsConfig());
 
   // 3. Prefixo Global e Versionamento de Rotas
   app.setGlobalPrefix('api/v1', {
-    exclude: ['/', 'webhooks/asaas'],
+    exclude: ['/', 'webhooks/asaas', 'api/v1/webhooks/asaas'],
   });
 
   app.useGlobalFilters(new AllExceptionsFilter());
