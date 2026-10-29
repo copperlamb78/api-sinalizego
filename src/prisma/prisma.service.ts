@@ -28,7 +28,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       connStr.includes('localhost') || connStr.includes('127.0.0.1');
     const target = isLocal
       ? 'DESENVOLVIMENTO LOCAL (localhost:5432/sinalizego_dev)'
-      : 'PRODUÇÃO (Supabase)';
+      : 'PRODUÇÃO (PostgreSQL Remoto)';
     this.logger.log(`Conexão com o banco estabelecida: [${target}]`);
   }
 }
