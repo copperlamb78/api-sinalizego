@@ -205,7 +205,7 @@ export class AsaasService implements OnModuleInit {
           name: 'SinalizeGo Webhook Geral',
           url:
             process.env.ASAAS_WEBHOOK_URL ||
-            'https://api.sinalizego.com/webhooks/asaas',
+            'https://api.sinalizego.com.br/webhooks/asaas',
           email: contactEmail,
           enabled: true,
           interrupted: false,
