@@ -58,7 +58,7 @@ export class AvailabilityService {
     );
     const dayOfWeek = this.getDayOfWeekFromDateString(dateStr);
 
-    // ⚡ O-09: Paraleliza a busca de exceção e expediente padrão semanal
+    // O-09: Paraleliza a busca de exceção e expediente padrão semanal
     const [exception, workingHour] = await Promise.all([
       this.prisma.scheduleException.findFirst({
         where: {
@@ -116,7 +116,7 @@ export class AvailabilityService {
     dateStr: string,
     employeeId?: string,
   ): Promise<AvailableSlotsResponse> {
-    // ⚡ O-09: Paraleliza a verificação de empresa, serviço e horário de funcionamento
+    // O-09: Paraleliza a verificação de empresa, serviço e horário de funcionamento
     const [company, service, schedule] = await Promise.all([
       this.prisma.company.findUnique({
         where: { id: companyId, isActive: true },
