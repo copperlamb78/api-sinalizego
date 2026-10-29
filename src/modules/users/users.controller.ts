@@ -27,11 +27,8 @@ import { UpdateCpfCnpjDto } from './dto/update-cpf-cnpj.dto';
 import { UsersQueryDto } from './dto/users-query.dto';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import type { Request } from 'express';
+import { Role } from '@prisma/client';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
-import {
-  INTERNAL_NO_EMPLOYEE,
-  SYSTEM_MANAGERS,
-} from 'src/common/constants/role-groups.constant';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { Throttle } from '@nestjs/throttler';
 
@@ -76,7 +73,7 @@ export class UsersController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Get('list')
   @ApiOperation({
     summary: 'Lista todos os usuários do sistema (Apenas administradores)',
@@ -246,7 +243,7 @@ export class UsersController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Delete(':userId')
   @ApiOperation({
     summary:
@@ -278,7 +275,7 @@ export class UsersController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Patch(':userId/activate')
   @ApiOperation({
     summary:
