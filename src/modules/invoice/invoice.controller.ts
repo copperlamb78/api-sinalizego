@@ -15,13 +15,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles/guard/roles.guard';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
-import {
-  INTERNAL_USERS,
-  SYSTEM_MANAGERS,
-} from 'src/common/constants/role-groups.constant';
+import { INTERNAL_USERS } from 'src/common/constants/role-groups.constant';
 import { InvoiceService } from './invoice.service';
 import { ListCompanyInvoicesDto } from './dto/list-company-invoices.dto';
 import { ListAdminInvoicesDto } from './dto/list-admin-invoices.dto';
@@ -68,7 +66,7 @@ export class InvoiceController {
     return this.invoiceService.getInvoiceAppointments(id, userId, false);
   }
 
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Get('admin/invoices')
   @ApiOperation({
     summary: 'Lista e audita todas as NFS-e emitidas na plataforma (Admin)',
@@ -81,7 +79,7 @@ export class InvoiceController {
     return this.invoiceService.getAdminInvoices(query);
   }
 
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Get('admin/invoices/:id/appointments')
   @ApiOperation({
     summary:
@@ -129,7 +127,7 @@ export class InvoiceController {
     return res.send(buffer);
   }
 
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Get('admin/invoices/:id/pdf')
   @ApiOperation({
     summary: 'Download seguro direto do PDF da NFS-e para Admin',
@@ -148,7 +146,7 @@ export class InvoiceController {
     return res.send(buffer);
   }
 
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Get('admin/invoices/:id/xml')
   @ApiOperation({
     summary: 'Download seguro direto do XML da NFS-e para Admin',
