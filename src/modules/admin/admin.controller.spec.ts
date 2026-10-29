@@ -1,6 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { Role } from '@prisma/client';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { RolesGuard } from '../auth/roles/guard/roles.guard';
+import { InvoiceController } from '../invoice/invoice.controller';
+import { ReferralsController } from '../referrals/referrals.controller';
+import { UsersController } from '../users/users.controller';
 
 describe('AdminController', () => {
   let controller: AdminController;
@@ -165,5 +172,125 @@ describe('AdminController', () => {
       expect(service.getUserAudit).toHaveBeenCalledWith('u-1');
       expect(result).toEqual(expected);
     });
+  });
+
+  describe('RBAC Strict Segregation (Role.SUPER_ADMIN vs Role.ADMIN)', () => {
+    const reflector = new Reflector();
+    const rolesGuard = new RolesGuard(reflector);
+
+    const buildExecutionContext = (
+      role: Role,
+      targetClass: any,
+      handler: (...args: any[]) => any,
+    ): ExecutionContext =>
+      ({
+        getHandler: () => handler,
+        getClass: () => targetClass,
+        switchToHttp: () => ({
+          getRequest: () => ({
+            user: { id: 'u-test', email: 'test@sinalizego.com', role },
+          }),
+        }),
+      }) as unknown as ExecutionContext;
+
+    it('should restrict AdminController exclusively to Role.SUPER_ADMIN', () => {
+      const classRoles = reflector.get<Role[]>('roles', AdminController);
+      expect(classRoles).toEqual([Role.SUPER_ADMIN]);
+    });
+
+    it('should restrict global admin endpoints in InvoiceController, ReferralsController and UsersController exclusively to Role.SUPER_ADMIN', () => {
+      expect(
+        reflector.get<Role[]>('roles', InvoiceController.prototype.getAdminInvoices),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>(
+          'roles',
+          InvoiceController.prototype.getAdminInvoiceAppointments,
+        ),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>(
+          'roles',
+          InvoiceController.prototype.downloadAdminInvoicePdf,
+        ),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>(
+          'roles',
+          InvoiceController.prototype.downloadAdminInvoiceXml,
+        ),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>('roles', ReferralsController.prototype.listReviews),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>(
+          'roles',
+          ReferralsController.prototype.reviewReferral,
+        ),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>('roles', UsersController.prototype.getAllUsers),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>(
+          'roles',
+          UsersController.prototype.deactivateUserByAdmin,
+        ),
+      ).toEqual([Role.SUPER_ADMIN]);
+      expect(
+        reflector.get<Role[]>(
+          'roles',
+          UsersController.prototype.activateUserByAdmin,
+        ),
+      ).toEqual([Role.SUPER_ADMIN]);
+    });
+
+    it('should allow Role.SUPER_ADMIN through RolesGuard on AdminController', () => {
+      const ctx = buildExecutionContext(
+        Role.SUPER_ADMIN,
+        AdminController,
+        AdminController.prototype.getDashboardMetrics,
+      );
+      expect(rolesGuard.canActivate(ctx)).toBe(true);
+    });
+
+    it.each([
+      Role.ADMIN,
+      Role.COMPANY_OWNER,
+      Role.PROVIDER,
+      Role.EMPLOYEE,
+      Role.CLIENT,
+    ])(
+      'should reject role %s with ForbiddenException on AdminController and global endpoints',
+      (unauthorizedRole) => {
+        const adminCtx = buildExecutionContext(
+          unauthorizedRole,
+          AdminController,
+          AdminController.prototype.getDashboardMetrics,
+        );
+        expect(() => rolesGuard.canActivate(adminCtx)).toThrow(
+          ForbiddenException,
+        );
+
+        const usersListCtx = buildExecutionContext(
+          unauthorizedRole,
+          UsersController,
+          UsersController.prototype.getAllUsers,
+        );
+        expect(() => rolesGuard.canActivate(usersListCtx)).toThrow(
+          ForbiddenException,
+        );
+
+        const referralsReviewCtx = buildExecutionContext(
+          unauthorizedRole,
+          ReferralsController,
+          ReferralsController.prototype.listReviews,
+        );
+        expect(() => rolesGuard.canActivate(referralsReviewCtx)).toThrow(
+          ForbiddenException,
+        );
+      },
+    );
   });
 });
