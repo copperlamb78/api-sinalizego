@@ -196,25 +196,25 @@ export function getWelcomeEmailTemplate(name: string, role?: string): string {
     </tr>
     <tr>
         <td style="padding-bottom: 10px;">
-            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">⚡ Agendamentos 100% Online e Sem Filas</span>
+            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">Agendamentos 100% Online e Sem Filas</span>
         </td>
     </tr>
     <tr>
         <td style="padding-bottom: 10px;">
-            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">🔒 Garantia e Segurança em Pagamentos Pix</span>
+            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">Garantia e Segurança em Pagamentos Pix</span>
         </td>
     </tr>
     <tr>
         <td>
-            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">⏰ Lembretes Automáticos na Véspera do Atendimento</span>
+            <span style="color: #F8FAFC; font-size: 15px; font-weight: 500;">Lembretes Automáticos na Véspera do Atendimento</span>
         </td>
     </tr>
   `;
 
   return baseEmailLayout({
-    title: 'Boas-vindas ao SinalizeGO! 🚀',
+    title: 'Boas-vindas ao SinalizeGO!',
     previewText: `Olá ${firstName}, seja muito bem-vindo(a) ao SinalizeGO!`,
-    actionTitle: 'Seja muito bem-vindo! 🚀',
+    actionTitle: 'Seja muito bem-vindo!',
     introHtml,
     infoCardHtml,
     cta: {
@@ -265,7 +265,7 @@ export function getAppointmentConfirmationEmailTemplate(data: {
             <span style="color: #F8FAFC; font-size: 16px; font-weight: 500;">${data.companyName}</span>
             ${
               data.address
-                ? `<br><span style="color: #94A3B8; font-size: 13px; display: inline-block; margin-top: 4px;">📍 ${data.address}</span>`
+                ? `<br><span style="color: #94A3B8; font-size: 13px; display: inline-block; margin-top: 4px;">Endereço: ${data.address}</span>`
                 : ''
             }
         </td>
@@ -284,7 +284,7 @@ export function getAppointmentConfirmationEmailTemplate(data: {
                 <tr>
                     <td width="50%">
                         <span style="color: #94A3B8; font-size: 13px;">Status</span><br>
-                        <span style="color: #F8FAFC; font-size: 16px; font-weight: bold;">Confirmado ✅</span>
+                        <span style="color: #F8FAFC; font-size: 16px; font-weight: bold;">Confirmado</span>
                     </td>
                     <td width="50%">
                         <span style="color: #14B8A6; font-size: 13px; font-weight: bold;">Sinal Pago (${data.paymentMethod || 'Pix'})</span><br>
@@ -297,9 +297,9 @@ export function getAppointmentConfirmationEmailTemplate(data: {
   `;
 
   return baseEmailLayout({
-    title: `Agendamento Confirmado — ${data.companyName} 🎉`,
+    title: `Agendamento Confirmado — ${data.companyName}`,
     previewText: `Seu agendamento em ${data.companyName} para ${data.formattedDate} foi confirmado com sucesso!`,
-    actionTitle: 'Pagamento Confirmado! 🎉',
+    actionTitle: 'Pagamento Confirmado!',
     introHtml,
     infoCardHtml,
     cta: {
@@ -345,7 +345,7 @@ export function getAppointmentReminderEmailTemplate(data: {
             <span style="color: #F8FAFC; font-size: 16px; font-weight: 500;">${data.companyName}</span>
             ${
               data.address
-                ? `<br><span style="color: #94A3B8; font-size: 13px; display: inline-block; margin-top: 4px;">📍 ${data.address}</span>`
+                ? `<br><span style="color: #94A3B8; font-size: 13px; display: inline-block; margin-top: 4px;">Endereço: ${data.address}</span>`
                 : ''
             }
         </td>
@@ -360,9 +360,9 @@ export function getAppointmentReminderEmailTemplate(data: {
   `;
 
   return baseEmailLayout({
-    title: `Lembrete: Seu agendamento é amanhã! ⏰ — ${data.companyName}`,
+    title: `Lembrete: Seu agendamento é amanhã! — ${data.companyName}`,
     previewText: `Lembrete: seu agendamento em ${data.companyName} é amanhã às ${data.formattedDate}!`,
-    actionTitle: 'Seu serviço é amanhã! ⏰',
+    actionTitle: 'Seu serviço é amanhã!',
     introHtml,
     infoCardHtml,
     cta: {
@@ -403,7 +403,7 @@ export function getAppointmentCancellationEmailTemplate(data: {
   if (isRefund) {
     refundStatusBlockHtml = `<div>
       <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
-      <span style="color: #14B8A6; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Estorno Autorizado com Sucesso 💰</span>
+      <span style="color: #14B8A6; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Estorno Autorizado com Sucesso</span>
       <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
         Conforme a política de cancelamento (antecedência superior a 24 horas), o valor do sinal de <strong>R$ ${data.refundAmount ? Number(data.refundAmount).toFixed(2) : '0.00'}</strong> foi autorizado para estorno via Pix e será devolvido para a sua conta bancária de origem.
       </p>
@@ -411,7 +411,7 @@ export function getAppointmentCancellationEmailTemplate(data: {
   } else if (isCredit) {
     refundStatusBlockHtml = `<div>
       <span style="color: #F59E0B; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Sinal</span><br>
-      <span style="color: #F59E0B; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Convertido em Crédito 🎟️</span>
+      <span style="color: #F59E0B; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Convertido em Crédito</span>
       <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
         Conforme a política de cancelamento (entre 2h e 24h de antecedência), o valor de <strong>R$ ${data.refundAmount ? Number(data.refundAmount).toFixed(2) : '0.00'}</strong> foi convertido em créditos para você utilizar em novos agendamentos neste estabelecimento com validade de 90 dias (Arts. 417 a 420 do Código Civil).
       </p>
@@ -419,7 +419,7 @@ export function getAppointmentCancellationEmailTemplate(data: {
   } else {
     refundStatusBlockHtml = `<div>
       <span style="color: #EF4444; font-size: 13px; font-weight: bold; text-transform: uppercase;">Status do Reembolso (Pix)</span><br>
-      <span style="color: #EF4444; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Retido ⚠️</span>
+      <span style="color: #EF4444; font-size: 16px; font-weight: bold; margin-top: 4px; display: inline-block;">Sinal Retido</span>
       <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
         Conforme a política de cancelamento (antecedência inferior a 2 horas), o sinal foi retido pelo estabelecimento como indenização pela reserva da vaga (Arts. 417 a 420 do Código Civil).
       </p>
@@ -493,8 +493,8 @@ export function getPasswordResetEmailTemplate(
         <td>
             <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Segurança & Validade</span><br>
             <p style="color: #F8FAFC; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;">
-                ⏱️ Este link é válido por <strong>15 minutos</strong> e expira automaticamente após o primeiro uso.<br>
-                🛡️ Se você não solicitou esta redefinição, nenhuma ação é necessária e sua senha continuará segura.
+                Este link é válido por <strong>15 minutos</strong> e expira automaticamente após o primeiro uso.<br>
+                Se você não solicitou esta redefinição, nenhuma ação é necessária e sua senha continuará segura.
             </p>
         </td>
     </tr>
@@ -511,7 +511,7 @@ export function getPasswordResetEmailTemplate(
     title: 'Redefinição de Senha — SinalizeGo',
     previewText:
       'Instruções para redefinir sua senha no SinalizeGO (válido por 15 minutos).',
-    actionTitle: 'Recuperação de Senha 🔒',
+    actionTitle: 'Recuperação de Senha',
     introHtml,
     infoCardHtml,
     additionalContentHtml,
@@ -548,7 +548,7 @@ export function getTemporaryPasswordEmailTemplate(data: {
                 <span style="color: #38BDF8; font-size: 22px; font-family: monospace; font-weight: bold; letter-spacing: 3px;">${data.temporaryPassword}</span>
             </div>
             <p style="color: #F8FAFC; font-size: 13px; line-height: 1.6; margin: 12px 0 0 0;">
-                ⚠️ <strong>Atenção:</strong> Ao entrar com esta senha, você será direcionado(a) imediatamente para cadastrar sua senha pessoal definitiva.
+                <strong>Atenção:</strong> Ao entrar com esta senha, você será direcionado(a) imediatamente para cadastrar sua senha pessoal definitiva.
             </p>
         </td>
     </tr>
@@ -557,7 +557,7 @@ export function getTemporaryPasswordEmailTemplate(data: {
   return baseEmailLayout({
     title: 'Nova Senha de Acesso — SinalizeGo',
     previewText: `Sua senha temporária de acesso ao SinalizeGO foi gerada.`,
-    actionTitle: 'Senha Provisória de Acesso 🔑',
+    actionTitle: 'Senha Provisória de Acesso',
     introHtml,
     infoCardHtml,
     cta: {
@@ -590,20 +590,20 @@ export function getInvoiceErrorAlertEmailTemplate(data: {
         <td style="padding-bottom: 12px;">
             <span style="color: #EF4444; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Detalhes da Falha</span><br>
             <p style="color: #F8FAFC; font-size: 14px; line-height: 1.6; margin: 8px 0 0 0;">
-                🏢 <strong>Empresa:</strong> ${data.companyName} (#${data.companyId})<br>
-                📅 <strong>Competência:</strong> ${data.competence}<br>
-                💰 <strong>Valor Consolidado:</strong> R$ ${Number(data.grossAmount).toFixed(2)}<br>
-                🆔 <strong>ID da Invoice:</strong> ${data.invoiceId}<br>
-                ⚠️ <strong>Motivo do Erro:</strong> <span style="color: #EF4444;">${data.errorMessage}</span>
+                <strong>Empresa:</strong> ${data.companyName} (#${data.companyId})<br>
+                <strong>Competência:</strong> ${data.competence}<br>
+                <strong>Valor Consolidado:</strong> R$ ${Number(data.grossAmount).toFixed(2)}<br>
+                <strong>ID da Invoice:</strong> ${data.invoiceId}<br>
+                <strong>Motivo do Erro:</strong> <span style="color: #EF4444;">${data.errorMessage}</span>
             </p>
         </td>
     </tr>
   `;
 
   return baseEmailLayout({
-    title: '⚠️ Erro na Emissão de NFS-e — SinalizeGO',
+    title: 'Erro na Emissão de NFS-e — SinalizeGO',
     previewText: `Falha na emissão de NFS-e para ${data.companyName} (${data.competence})`,
-    actionTitle: 'Falha na Emissão de NFS-e ⚠️',
+    actionTitle: 'Falha na Emissão de NFS-e',
     actionTitleColor: '#EF4444',
     introHtml,
     infoCardHtml,
@@ -661,7 +661,7 @@ export function getOwnerUnavailabilityEmailTemplate(data: {
     <tr>
         <td style="background-color: #0F172A; border-radius: 8px; padding: 16px; border: 1px solid #14B8A6;">
             <span style="color: #14B8A6; font-size: 13px; font-weight: bold; text-transform: uppercase;">Saldo em Garantia</span><br>
-            <span style="color: #14B8A6; font-size: 20px; font-weight: bold; margin-top: 4px; display: inline-block;">R$ ${Number(data.creditAmount).toFixed(2)} Disponível 🎟️</span>
+            <span style="color: #14B8A6; font-size: 20px; font-weight: bold; margin-top: 4px; display: inline-block;">R$ ${Number(data.creditAmount).toFixed(2)} Disponível</span>
             <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 6px 0 0 0;">
                 Seu crédito já está vinculado ao seu perfil para reagendamento imediato sem novo pagamento de sinal.
             </p>
@@ -672,7 +672,7 @@ export function getOwnerUnavailabilityEmailTemplate(data: {
   return baseEmailLayout({
     title: `Imprevisto no Horário — Seu crédito está garantido em ${data.companyName}`,
     previewText: `Imprevisto no seu horário em ${data.companyName}. Seu crédito de R$ ${Number(data.creditAmount).toFixed(2)} está garantido!`,
-    actionTitle: 'Imprevisto no Atendimento ⏰',
+    actionTitle: 'Imprevisto no Atendimento',
     actionTitleColor: '#F59E0B',
     introHtml,
     infoCardHtml,
