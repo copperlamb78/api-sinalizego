@@ -17,10 +17,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import {
-  INTERNAL_NO_EMPLOYEE,
-  SYSTEM_MANAGERS,
-} from '../../common/constants/role-groups.constant';
+import { Role } from '@prisma/client';
+import { INTERNAL_NO_EMPLOYEE } from '../../common/constants/role-groups.constant';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt/guard/jwt-auth.guard';
 import { Roles } from '../auth/roles/decorators/roles.decorator';
@@ -85,7 +83,7 @@ export class ReferralsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Get('admin/indicacoes')
   @ApiOperation({
     summary: 'Lista indicações em REVIEW para auditoria do Super Admin',
@@ -100,7 +98,7 @@ export class ReferralsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...SYSTEM_MANAGERS)
+  @Roles(Role.SUPER_ADMIN)
   @Patch('admin/indicacoes/:id/revisar')
   @ApiOperation({
     summary: 'Aprova ou rejeita uma indicação em REVIEW (Super Admin)',
