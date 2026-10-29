@@ -15,7 +15,7 @@ import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Webhooks')
 @Throttle({ default: { limit: 1000, ttl: 60000 } })
-@Controller('webhooks')
+@Controller(['webhooks', 'api/v1/webhooks'])
 export class WebhooksController {
   private readonly logger = new Logger(WebhooksController.name);
 
@@ -42,18 +42,18 @@ export class WebhooksController {
           };
         }
         return await this.webhooksService.handleInvoiceEvent(
-          event,
-          invoice,
-          eventId,
-          payload,
+            event,
+            invoice,
+            eventId,
+            payload,
         );
       }
 
       if (event?.startsWith('ACCOUNT_STATUS_')) {
         return await this.webhooksService.handleAccountStatusEvent(
-          event,
-          payload,
-          eventId,
+            event,
+            payload,
+            eventId,
         );
       }
 
@@ -61,16 +61,16 @@ export class WebhooksController {
         return { received: true };
       }
       return await this.webhooksService.handleAsaasEvent(
-        event,
-        payment,
-        eventId,
-        payload,
+          event,
+          payment,
+          eventId,
+          payload,
       );
     } catch (err: any) {
       // Regra Crítica A21: Webhooks sequenciais NUNCA podem responder >= 500
       this.logger.error(
-        `[Webhook Controller] Erro não tratado ao processar webhook do Asaas: ${err?.message || err}`,
-        err?.stack,
+          `[Webhook Controller] Erro não tratado ao processar webhook do Asaas: ${err?.message || err}`,
+          err?.stack,
       );
       return {
         received: true,
