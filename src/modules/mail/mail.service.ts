@@ -69,17 +69,17 @@ export class MailService {
 
     this.logger.warn(`
 +--------------------------------------------------------------------------------------------------+
-| ⚠️  [BREVO SECURITY] IP NÃO AUTORIZADO DETECTADO                                                 |
+| [BREVO SECURITY] IP NAO AUTORIZADO DETECTADO                                                     |
 | E-mail de destino: ${to}
 | Assunto: ${subject}
 | Mensagem da API: ${error?.message || error?.body?.message || 'We have detected you are using an unrecognised IP address'}
-| Ação necessária: Adicione seu IP público no painel de segurança do Brevo:                        |
-| 👉  https://app.brevo.com/security/authorised_ips                                                |
+| Acao necessaria: Adicione seu IP publico no painel de seguranca do Brevo:                        |
+| https://app.brevo.com/security/authorised_ips                                                    |
 +--------------------------------------------------------------------------------------------------+`);
 
     if (isDev) {
       this.logger.log(
-        `ℹ️ [MailService DEV SIMULATION] E-mail persistido no outbox para reenvio automático assim que o IP for liberado.`,
+        `[MailService DEV SIMULATION] E-mail persistido no outbox para reenvio automatico assim que o IP for liberado.`,
       );
     }
   }
@@ -176,7 +176,7 @@ export class MailService {
     name: string,
     role?: string,
   ): Promise<boolean> {
-    const subject = 'Boas-vindas ao SinalizeGo! 🚀';
+    const subject = 'Boas-vindas ao SinalizeGo!';
     const sendFn = () =>
       this.brevoClient.transactionalEmails.sendTransacEmail({
         subject,
@@ -221,7 +221,7 @@ export class MailService {
       paymentMethod?: string;
     },
   ): Promise<boolean> {
-    const subject = `Agendamento Confirmado — ${data.companyName} 🎉`;
+    const subject = `Agendamento Confirmado — ${data.companyName}`;
     const formattedDate = formatAppointmentDateTime(
       data.appointmentDate,
       data.timezone || 'America/Sao_Paulo',
@@ -400,7 +400,7 @@ export class MailService {
       timezone?: string;
     },
   ): Promise<boolean> {
-    const subject = `Lembrete: Seu agendamento é amanhã! ⏰ — ${data.companyName}`;
+    const subject = `Lembrete: Seu agendamento é amanhã! — ${data.companyName}`;
     const formattedDate = formatAppointmentDateTime(
       data.appointmentDate,
       data.timezone || 'America/Sao_Paulo',
@@ -490,7 +490,7 @@ export class MailService {
     temporaryPassword: string,
     loginUrl?: string,
   ): Promise<boolean> {
-    const subject = 'Sua Nova Senha de Acesso — SinalizeGo 🔑';
+    const subject = 'Sua Nova Senha de Acesso — SinalizeGo';
     const sendFn = () =>
       this.brevoClient.transactionalEmails.sendTransacEmail({
         subject,
@@ -539,7 +539,7 @@ export class MailService {
       errorMessage: string;
     },
   ): Promise<boolean> {
-    const subject = `⚠️ Alerta de Erro na Emissão de NFS-e — ${data.companyName}`;
+    const subject = `Alerta de Erro na Emissão de NFS-e — ${data.companyName}`;
     const sendFn = () =>
       this.brevoClient.transactionalEmails.sendTransacEmail({
         subject,
@@ -582,11 +582,11 @@ export class MailService {
       riskFlags: string[];
     },
   ): Promise<boolean> {
-    const subject = `⚠️ Indicação em Revisão Manual — ${data.referredName}`;
+    const subject = `Indicação em Revisão Manual — ${data.referredName}`;
     const flagsText = data.riskFlags?.join?.(', ') || '';
     const htmlContent = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
-        <h2 style="color: #d97706;">⚠️ Alerta de Auditoria — Indicação em Revisão Manual</h2>
+        <h2 style="color: #d97706;">Alerta de Auditoria — Indicação em Revisão Manual</h2>
         <p>Uma indicação entre empresas foi suspensa para <strong>REVIEW</strong> por colisão de dados cadastrais:</p>
         <ul style="background: #fef3c7; padding: 16px 24px; border-radius: 8px;">
           <li><strong>ID da Indicação:</strong> ${data.referralId}</li>
@@ -641,7 +641,7 @@ export class MailService {
       switch (template) {
         case EmailTemplateType.WELCOME:
           await this.brevoClient.transactionalEmails.sendTransacEmail({
-            subject: 'Boas-vindas ao SinalizeGo! 🚀',
+            subject: 'Boas-vindas ao SinalizeGo!',
             sender: { name: this.senderName, email: this.senderEmail },
             to: [{ email: to, name: payload.name || to }],
             htmlContent: getWelcomeEmailTemplate(payload.name, payload.role),
@@ -657,7 +657,7 @@ export class MailService {
             payload.amountPaid?.toString?.() ?? payload.amountPaid,
           ).toFixed(2);
           await this.brevoClient.transactionalEmails.sendTransacEmail({
-            subject: `Agendamento Confirmado — ${payload.companyName} 🎉`,
+            subject: `Agendamento Confirmado — ${payload.companyName}`,
             sender: { name: this.senderName, email: this.senderEmail },
             to: [{ email: to, name: payload.customerName || to }],
             htmlContent: getAppointmentConfirmationEmailTemplate({
@@ -722,7 +722,7 @@ export class MailService {
             payload.timezone || 'America/Sao_Paulo',
           );
           await this.brevoClient.transactionalEmails.sendTransacEmail({
-            subject: `Lembrete: Seu agendamento é amanhã! ⏰ — ${payload.companyName}`,
+            subject: `Lembrete: Seu agendamento é amanhã! — ${payload.companyName}`,
             sender: { name: this.senderName, email: this.senderEmail },
             to: [{ email: to, name: payload.customerName || to }],
             htmlContent: getAppointmentReminderEmailTemplate({
@@ -750,7 +750,7 @@ export class MailService {
 
         case EmailTemplateType.TEMPORARY_PASSWORD:
           await this.brevoClient.transactionalEmails.sendTransacEmail({
-            subject: 'Sua Nova Senha de Acesso — SinalizeGo 🔑',
+            subject: 'Sua Nova Senha de Acesso — SinalizeGo',
             sender: { name: this.senderName, email: this.senderEmail },
             to: [{ email: to, name: payload.name || to }],
             htmlContent: getTemporaryPasswordEmailTemplate({
@@ -763,7 +763,7 @@ export class MailService {
 
         case EmailTemplateType.INVOICE_ERROR:
           await this.brevoClient.transactionalEmails.sendTransacEmail({
-            subject: `⚠️ Alerta de Erro na Emissão de NFS-e — ${payload.companyName}`,
+            subject: `Alerta de Erro na Emissão de NFS-e — ${payload.companyName}`,
             sender: { name: this.senderName, email: this.senderEmail },
             to: [{ email: to, name: 'Administrador SinalizeGO' }],
             htmlContent: getInvoiceErrorAlertEmailTemplate(payload as any),
@@ -774,7 +774,7 @@ export class MailService {
           const flagsText = payload.riskFlags?.join?.(', ') || '';
           const htmlContent = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
-              <h2 style="color: #d97706;">⚠️ Alerta de Auditoria — Indicação em Revisão Manual</h2>
+              <h2 style="color: #d97706;">Alerta de Auditoria — Indicação em Revisão Manual</h2>
               <p>Uma indicação entre empresas foi suspensa para <strong>REVIEW</strong> por colisão de dados cadastrais:</p>
               <ul style="background: #fef3c7; padding: 16px 24px; border-radius: 8px;">
                 <li><strong>ID da Indicação:</strong> ${payload.referralId}</li>
@@ -786,7 +786,7 @@ export class MailService {
             </div>
           `;
           await this.brevoClient.transactionalEmails.sendTransacEmail({
-            subject: `⚠️ Indicação em Revisão Manual — ${payload.referredName}`,
+            subject: `Indicação em Revisão Manual — ${payload.referredName}`,
             sender: { name: this.senderName, email: this.senderEmail },
             to: [{ email: to, name: 'Super Admin SinalizeGO' }],
             htmlContent,
