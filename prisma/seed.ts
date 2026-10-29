@@ -10,7 +10,7 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('🚀 Iniciando o seed completo do ecossistema SinalizeGO... 🌱');
+  console.log('[Seed] Iniciando o seed completo do ecossistema SinalizeGO...');
 
   const passwordHash = await bcrypt.hash('senha123', 10);
 
@@ -522,26 +522,27 @@ async function main() {
     });
   }
 
-  console.log('✅ Banco populado com sucesso com dados realistas!');
+  console.log('[Seed] Banco populado com sucesso com dados realistas!');
   console.log('---------------------------------------------------------');
-  console.log('🔑 Senha padrão de todos os usuários: senha123');
+  console.log('Senha padrão de todos os usuários: senha123');
   console.log('---------------------------------------------------------');
-  console.log('👤 SUPER ADMIN:       admin@sinalizego.com');
-  console.log('💈 DONO BARBEARIA:    barbeiro@teste.com');
-  console.log('💇 DONA SALÃO:        salao@teste.com');
-  console.log('✂️ FUNCIONÁRIO USER:  funcionario@teste.com');
-  console.log('🧑 CLIENTE 1:         cliente@teste.com');
-  console.log('👩 CLIENTE 2:         cliente2@teste.com');
+  console.log('SUPER ADMIN:       admin@sinalizego.com');
+  console.log('DONO BARBEARIA:    barbeiro@teste.com');
+  console.log('DONA SALÃO:        salao@teste.com');
+  console.log('FUNCIONÁRIO USER:  funcionario@teste.com');
+  console.log('CLIENTE 1:         cliente@teste.com');
+  console.log('CLIENTE 2:         cliente2@teste.com');
   console.log('---------------------------------------------------------');
-  console.log('🏪 Barbearia URL:     /empresa/barbearia-retro');
-  console.log('💅 Salão URL:         /empresa/studio-bella');
-  console.log('📊 Painel URL:        /painel');
+  console.log('Barbearia URL:     /empresa/barbearia-retro');
+  console.log('Salão URL:         /empresa/studio-bella');
+  console.log('Painel URL:        /painel');
+  console.log('Admin Global URL:  /admin');
   console.log('---------------------------------------------------------');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erro ao rodar o seed:', e);
+    console.error('[Seed] Erro ao rodar o seed:', e);
     process.exit(1);
   })
   .finally(async () => {
