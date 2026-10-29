@@ -140,7 +140,7 @@ export class MailOutboxService {
 
     if (isDeadLetter) {
       this.logger.error(
-        `🚨 [MailOutbox Dead Letter] E-mail #${item.id} para ${item.to} falhou após ${item.maxAttempts} tentativas. Marcado como FAILED.`,
+        `[MailOutbox Dead Letter] E-mail #${item.id} para ${item.to} falhou após ${item.maxAttempts} tentativas. Marcado como FAILED.`,
       );
     } else {
       this.logger.warn(
